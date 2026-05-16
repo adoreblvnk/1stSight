@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "customer-journey-map": {
+      "source": "deanpeters/product-manager-skills",
+      "sourceType": "github",
+      "computedHash": "0540cd498ce2ddb639ef42545d0a9bc922d9f643348c17900c243f3c4d1f4331"
+    },
+    "customer-research": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "996d19e9b473e5383406d5958bf225bff9109a84053bfd5475645c5a8e5e9f35"
+    },
+    "proposal-writer": {
+      "source": "jezweb/claude-skills",
+      "sourceType": "github",
+      "computedHash": "bfa0d4d04f4fb4c358ff0078aa330f631319d4bc6887988c8358a876b6a74352"
+    }
+  }
+}
