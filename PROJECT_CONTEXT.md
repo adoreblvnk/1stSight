@@ -10,7 +10,7 @@ This is the canonical project context for **1stSight**, the SCDF x Dell Lifesave
 
 ## Working Product Definition
 
-1stSight is an AI-assisted bodycam command dashboard that helps C&C ops room officers see useful incident context earlier, monitor multiple bodycam feeds with less cognitive load, and surface smoke, fire, casualty, exit, and blocked-path cues for human confirmation.
+1stSight is a Command & Control dashboard that turns bodycam footage into structured incident intelligence: AI alerts, source-frame evidence, live timeline events, officer confirmations, and handover/reporting summaries.
 
 ## Non-Negotiable Prototype Constraints
 
@@ -27,11 +27,11 @@ This is the canonical project context for **1stSight**, the SCDF x Dell Lifesave
 
 ## Full 1stSight Brief
 
-# 1stSight Bodycam AI Command Dashboard
+# 1stSight Command & Control Dashboard
 
 ## One-Line Pitch
 
-Turn a responder's existing chest-mounted bodycam, or a smartphone used as a prototype bodycam, into an AI-powered Command & Control dashboard that detects hazards, tracks responder status, summarizes the scene, and supports safer decisions.
+Turn bodycam footage into structured incident intelligence so C&C can review hazards, possible victim distress, blocked access, source-frame evidence, responder status, timeline events, and handover/reporting summaries.
 
 ## Core Idea
 
