@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "996d19e9b473e5383406d5958bf225bff9109a84053bfd5475645c5a8e5e9f35"
     },
+    "image-generation": {
+      "source": "claude-office-skills/skills",
+      "sourceType": "github",
+      "computedHash": "82412c7d34a72172b34cc09e65038390ab0688701ded9d8f682e587e2b7c1646"
+    },
     "proposal-writer": {
       "source": "jezweb/claude-skills",
       "sourceType": "github",
