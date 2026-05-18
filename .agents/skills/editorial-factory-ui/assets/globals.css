@@ -1,0 +1,128 @@
+/* editorial-factory-ui asset: canonical Tailwind CSS v4 token template */
+/* Tailwind CSS theme variables: https://tailwindcss.com/docs/theme */
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: oklch(96.5% 0.01 85);
+  --color-surface: oklch(98.5% 0 0);
+  --color-foreground: oklch(20% 0 0);
+  --color-muted-foreground: oklch(55% 0 0);
+  --color-border: oklch(90% 0.01 85);
+
+  --color-accent: oklch(48% 0.18 29);
+  --color-accent-foreground: oklch(98% 0 0);
+
+  --color-success: oklch(52% 0.18 145);
+  --color-destructive: oklch(55% 0.22 25);
+  --color-warning: oklch(60% 0.18 55);
+  --color-info: oklch(55% 0.15 240);
+
+  --color-screen: oklch(15% 0 0);
+  --color-screen-foreground: oklch(95% 0 0);
+  --color-screen-border: oklch(25% 0 0);
+
+  --radius-none: 0px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-shell: 10px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-shadow: none !important;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@keyframes factory-slide {
+  100% {
+    background-position: 7.07px 7.07px;
+  }
+}
+
+@keyframes factory-scan {
+  0% {
+    left: -100%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes factory-signal-flicker {
+  0%,
+  91%,
+  100% {
+    opacity: 1;
+  }
+
+  92% {
+    opacity: 0.45;
+  }
+
+  94% {
+    opacity: 0.88;
+  }
+
+  96% {
+    opacity: 0.38;
+  }
+
+  98% {
+    opacity: 1;
+  }
+}
+
+@keyframes factory-signal-jitter {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  20% {
+    transform: translate3d(0.5px, 0, 0);
+  }
+
+  40% {
+    transform: translate3d(-0.5px, 0, 0);
+  }
+
+  60% {
+    transform: translate3d(0, 0.5px, 0);
+  }
+
+  80% {
+    transform: translate3d(0, -0.5px, 0);
+  }
+}
+
+.factory-flicker {
+  animation: factory-signal-flicker 1.8s steps(1, end) infinite;
+}
+
+.factory-jitter {
+  animation: factory-signal-jitter 0.18s steps(2, end) infinite;
+}
+
+.factory-scan {
+  animation: factory-scan 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .factory-flicker,
+  .factory-jitter,
+  .factory-scan {
+    animation: none !important;
+  }
+}
