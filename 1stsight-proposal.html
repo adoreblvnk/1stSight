@@ -225,8 +225,13 @@
     }
 
     .slide-subtitle .attention {
+      display: block;
+      margin-bottom: 3pt;
       color: var(--red);
-      font-weight: 700;
+      font-size: var(--body-lg);
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.15;
     }
 
     .content-grid {
@@ -431,7 +436,7 @@
 
     .hero-main .pitch {
       max-width: 720px;
-      font-size: 16pt;
+      font-size: 17pt;
       line-height: 1.18;
     }
 
@@ -754,7 +759,7 @@
       min-height: 0;
     }
 
-    .floorplan {
+    .scene-map {
       position: relative;
       min-height: 0;
       margin: 8pt;
@@ -900,7 +905,7 @@
 
     .pipeline {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
       min-width: 0;
       margin-bottom: 10px;
@@ -1185,7 +1190,7 @@
     }
 
     .business-metric-grid {
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
     }
 
     .value-metric-grid {
@@ -1354,14 +1359,14 @@
       font-weight: 600;
     }
 
-    .close-card p:last-child {
+    .close-card p:nth-child(3) {
       max-width: 760px;
       color: rgba(246, 240, 227, 0.72);
       font-size: 12pt;
       line-height: 1.22;
     }
 
-    .close-card p:last-child strong {
+    .close-card p:nth-child(3) strong {
       color: var(--screen-ink);
       font-weight: 600;
     }
@@ -1628,7 +1633,7 @@
         font-size: 15pt;
       }
 
-      .close-card p:last-child {
+      .close-card p:nth-child(3) {
         font-size: 11pt;
         line-height: 1.15;
       }
@@ -1643,12 +1648,13 @@
         <div class="hero-content">
           <div class="team-card">
             <p>Team Details</p>
-            <p><strong>1stSight</strong> · Joseph Poon (josephpzh@proton.me), Tze Kai Lim, Tan Yale, Lee Jiajia · Singapore Institute of Technology</p>
+            <p><strong>1stSight</strong> · Joseph Poon (josephpzh@proton.me), Tze Kai Lim, Tan Yale, Lee Jiajia </p>
+            <p>Singapore Institute of Technology</p>
           </div>
           <div class="hero-main">
             <p class="kicker">SCDF-Dell Lifesavers' Innovation Challenge 2026</p>
             <h1>AI bodycam command dashboard</h1>
-            <p class="pitch"><strong>1stSight is a Command &amp; Control dashboard, not a new bodycam:</strong> it turns bodycam footage into structured incident intelligence across incidents of any size.</p>
+            <p class="pitch"><strong>1stSight is a Command &amp; Control dashboard:</strong> it turns bodycam footage into structured incident intelligence across incidents of any size.</p>
             <div class="thesis-strip">
               <div>
                 <p>What It Is</p>
@@ -1656,7 +1662,7 @@
               </div>
               <div>
                 <p>Dashboard Components</p>
-                <p>It reduces repeated radio updates, maintains a live timeline, links AI alerts to source-frame evidence, supports handover/reporting, and helps C&amp;C prioritise hazards across one or multiple feeds.</p>
+                <p>It helps C&amp;C prioritise hazards, trace each AI alert to source-frame evidence, and build a live timeline, approximate scene map, and handover summary.</p>
               </div>
             </div>
           </div>
@@ -1686,7 +1692,7 @@
           <div class="slide-title-block">
             <p class="slide-eyebrow">Problem Definition And Analysis · 20%</p>
             <h2>Raw bodycam video is not enough</h2>
-            <p class="slide-subtitle">The gap is not just getting video to C&amp;C. The value comes when bodycam footage becomes alerts, evidence, timeline events, and summary notes that officers can use.</p>
+            <p class="slide-subtitle"><span class="attention">The gap is not just getting video to C&amp;C.</span></p>
           </div>
           <div class="tag-row">
             <p class="tag red">warehouse main scenario</p>
@@ -1699,22 +1705,22 @@
           <div class="stat-card">
             <p class="stat-label">Total fires</p>
             <p class="stat-number">2,050</p>
-            <p>2025 fire calls, up 3% from 2024.</p>
+            <p>Rising fire calls increase the need for faster incident sensemaking.</p>
           </div>
           <div class="stat-card">
             <p class="stat-label">Residential fires</p>
             <p class="stat-number">1,051</p>
-            <p>Up 8.6%; still the largest category.</p>
+            <p>Largest incident base, so one-feed value matters.</p>
           </div>
           <div class="stat-card">
             <p class="stat-label">Non-residential</p>
             <p class="stat-number">+13.5%</p>
-            <p>471 calls in premises with more varied layouts.</p>
+            <p>Varied layouts make raw video harder to interpret.</p>
           </div>
           <div class="stat-card">
             <p class="stat-label">Industrial fires</p>
             <p class="stat-number">+27.5%</p>
-            <p>125 calls; strongest signal for warehouse focus.</p>
+            <p>Complex premises need better visual context.</p>
           </div>
         </div>
 
@@ -1722,7 +1728,7 @@
           <div class="content-grid" style="grid-template-rows: 1fr 1fr; min-height: 0;">
             <div class="panel paper chart-panel">
               <div class="panel-title">
-                <p>Fire call trajectory</p>
+                <p>Fire calls are rising</p>
                 <p class="source">SCDF Annual Statistics 2025</p>
               </div>
               <div class="chart-shell">
@@ -1731,7 +1737,7 @@
             </div>
             <div class="panel paper chart-panel">
               <div class="panel-title">
-                <p>2025 operational pressure points</p>
+                <p>Pressure points for visual context</p>
                 <p class="source">year-on-year changes</p>
               </div>
               <div class="chart-shell">
@@ -1775,10 +1781,10 @@
                 <p class="source">challenge fit</p>
               </div>
               <div class="panel-body">
-                <p style="font-size: 12pt; line-height: 1.25;">How might SCDF turn bodycam footage into usable incident intelligence without adding work to firefighters? 1stSight keeps capture hands-free and puts AI-assisted review, evidence, timeline, and summary at Command &amp; Control.</p>
+                <p style="font-size: 12pt; line-height: 1.25;">How might SCDF turn bodycam footage into usable incident intelligence? Raw video gives C&amp;C visibility, but not usable incident memory. 1stSight turns selected frames into alerts, evidence, timeline events, and summaries.</p>
               </div>
             </div>
-            <p class="source">Sources: SCDF Emergency Medical Services, Fire &amp; Enforcement Statistics 2025; Innovation Challenge 2026 kickoff brief.</p>
+            <p class="source">Sources: SCDF Emergency Medical Services, Fire &amp; Enforcement Statistics 2025 and Innovation Challenge 2026 kickoff brief.</p>
           </div>
         </div>
       </section>
@@ -1788,7 +1794,7 @@
           <div class="slide-title-block">
             <p class="slide-eyebrow">Strategies And Recommendations · 30%</p>
             <h2>Proposed solution: structured incident intelligence</h2>
-            <p class="slide-subtitle"><span class="attention">1stSight makes bodycam footage useful beyond major crises.</span> For one responder or many, the dashboard flags hazards, possible victim distress, blocked access, and changing scene conditions, then turns them into evidence, timeline events, confirmations, and handover/reporting summaries.</p>
+            <p class="slide-subtitle"><span class="attention">1stSight makes bodycam footage useful beyond major crises.</span> It turns visual cues into source-frame evidence, scene map pins, confirmed timeline events, and handover notes.</p>
           </div>
           <div class="tag-row">
             <p class="tag red">source evidence</p>
@@ -1827,8 +1833,8 @@
 
           <div class="panel dark" style="min-height: 0; overflow: hidden;">
             <div class="panel-title">
-              <p>Prioritised alert queue</p>
-              <p class="source">AI suggested</p>
+              <p>Prioritised hazard queue</p>
+              <p class="source">source-frame analysis</p>
             </div>
             <div class="panel-body alert-queue">
               <div class="alert-card">
@@ -1861,10 +1867,10 @@
           <div class="summary-panel">
             <div class="map-panel panel dark">
               <div class="panel-title">
-                <p>Approximate floor plan</p>
+                <p>Approximate scene map</p>
                 <p class="source">not precise tracking</p>
               </div>
-              <div class="floorplan">
+              <div class="scene-map">
                 <div class="zone" style="left: 6%; top: 10%; width: 42%; height: 38%;"><p>loading bay</p></div>
                 <div class="zone" style="left: 52%; top: 10%; width: 40%; height: 38%;"><p>storage racks</p></div>
                 <div class="zone" style="left: 6%; top: 56%; width: 86%; height: 30%;"><p>main aisle / access path</p></div>
@@ -1877,21 +1883,21 @@
             </div>
             <div class="panel dark">
               <div class="panel-title">
-                <p>Incident timeline</p>
+                <p>Confirmed timeline</p>
                 <p class="source">audit-ready</p>
               </div>
               <div class="panel-body timeline">
                 <div class="timeline-item">
                   <p class="timeline-time">14:03</p>
-                  <p>FF Lee bodycam active; first warehouse frame received.</p>
+                  <p>FF Lee bodycam active. First warehouse frame received.</p>
                 </div>
                 <div class="timeline-item">
                   <p class="timeline-time">14:06</p>
-                  <p>AI suggests blocked path near rear exit; evidence frame linked.</p>
+                  <p>AI suggests blocked path near rear exit, with evidence frame linked.</p>
                 </div>
                 <div class="timeline-item">
                   <p class="timeline-time">14:07</p>
-                  <p>C&amp;C confirms smoke-heavy aisle; casualty cue remains unconfirmed.</p>
+                  <p>C&amp;C confirms smoke-heavy aisle. Casualty cue remains unconfirmed.</p>
                 </div>
                 <div class="timeline-item">
                   <p class="timeline-time">14:10</p>
@@ -1910,7 +1916,7 @@
               </div>
             </div>
             <div class="summary-box">
-              <p class="label">C&amp;C-confirmed incident intelligence</p>
+              <p class="label">C&amp;C-confirmed handover summary</p>
               <div class="summary-copy">
                 <p>Alpha 1 feed active. Smoke-heavy aisle confirmed. Blocked rear egress confirmed after evidence-frame review.</p>
                 <p>No confirmed casualty from current frames.</p>
@@ -1925,7 +1931,7 @@
           <div class="slide-title-block">
             <p class="slide-eyebrow">Effective Use Of AI · 20%</p>
             <h2>How it works without adding frontline workload</h2>
-            <p class="slide-subtitle wide"><span class="attention">Firefighters do not type, tag, or manage a complex app during the incident.</span> The capture layer runs hands-free; AI structures visual cues for C&amp;C, and officers confirm what becomes incident intelligence.</p>
+            <p class="slide-subtitle wide"><span class="attention">Firefighters do not type, tag, or manage a complex app during the incident.</span></p>
           </div>
           <div class="tag-row">
             <p class="tag red">hands-free capture</p>
@@ -1937,13 +1943,9 @@
         <div class="content-grid architecture-grid">
           <div class="content-grid architecture-stack" style="grid-template-rows: auto auto auto; min-height: 0;">
             <div class="pipeline">
-              <div class="pipeline-card">
-                <p>No extra tasking</p>
-                <p>Firefighter starts the PWA before entry; during operations it behaves like a passive camera.</p>
-              </div>
               <div class="pipeline-card dark-step">
                 <p>Hands-free feed</p>
-                <p>Sampled frames carry incident ID, responder, timestamp, connection status, and scene context.</p>
+                <p>Firefighter starts the PWA before entry. Sampled frames carry incident ID, responder, timestamp, connection status, and scene context.</p>
               </div>
               <div class="pipeline-card red-step">
                 <p>Operational cues</p>
@@ -1984,28 +1986,6 @@
               </div>
             </div>
 
-            <!-- Gemini API video understanding: https://ai.google.dev/gemini-api/docs/video-understanding -->
-            <div class="analysis-rail">
-              <div>
-                <p class="label">Useful beyond major crises</p>
-                <p>Even one responder feed can reduce repeated radio updates, preserve visual context, and create a live incident memory.</p>
-              </div>
-              <div class="analysis-steps">
-                <div class="analysis-step">
-                  <p>Small case</p>
-                  <p>Flag blocked access, smoke changes, possible distress, or unsafe approach conditions.</p>
-                </div>
-                <div class="analysis-step">
-                  <p>Large case</p>
-                  <p>Prioritise cues across multiple feeds so C&amp;C is not forced to watch everything equally.</p>
-                </div>
-                <div class="analysis-step">
-                  <p>After case</p>
-                  <p>Keep evidence-linked timeline and summary for handover, review, and reporting.</p>
-                </div>
-              </div>
-            </div>
-
             <div class="mermaid-panel">
               <p class="label">Current flow vs 1stSight</p>
               <pre class="mermaid">
@@ -2037,7 +2017,7 @@ flowchart TB
               <p class="source">secure deployment + safe AI</p>
             </div>
             <div class="panel-body">
-              <p class="guardrail-lead">Dell hosts the secure C&amp;C dashboard. Gemini Flash/Pro can analyse sampled frames during the prototype, with Dell/NVIDIA options available for future deployment. <strong>AI assists; C&amp;C decides.</strong></p>
+              <p class="guardrail-lead">Dell hosts the secure C&amp;C dashboard. Gemini Flash/Pro can analyse sampled frames during the prototype, with Dell/NVIDIA options available for future deployment. <strong>AI assists, and C&amp;C decides.</strong></p>
             </div>
             <!-- Gemini API model reference: https://ai.google.dev/gemini-api/docs/models -->
             <!-- TODO: add url for Dell platform and resources sponsor deck -->
@@ -2133,7 +2113,7 @@ flowchart TB
                 </div>
                 <div class="week-card">
                   <p>5. Scenarios</p>
-                  <p>One-feed and multi-feed scenarios with approximate floor plan pins.</p>
+                  <p>One-feed and multi-feed scenarios with approximate scene map pins.</p>
                 </div>
                 <div class="week-card">
                   <p>6. Confirmation</p>
@@ -2168,10 +2148,6 @@ flowchart TB
                     <p>C&amp;C proof</p>
                     <p>Confirm, dismiss, annotate, and separate AI suggestions from official facts.</p>
                   </div>
-                  <div class="business-metric">
-                    <p>Export</p>
-                    <p>Generate handover/reporting summary with timeline, confirmations, and evidence links.</p>
-                  </div>
               </div>
             </div>
 
@@ -2187,7 +2163,7 @@ flowchart TB
                 </div>
                 <div class="cost-control">
                   <p>Keep control</p>
-                  <p>C&amp;C confirms every operational fact; AI never issues commands.</p>
+                  <p>C&amp;C confirms every operational fact. AI never issues commands.</p>
                 </div>
                 <div class="cost-control">
                   <p>Manage cost</p>
@@ -2238,7 +2214,6 @@ flowchart TB
             <div class="close-card">
               <p>Conclusion</p>
               <p><strong>1stSight</strong> makes bodycam footage useful before it becomes a major crisis.</p>
-              <p>Recommended next move: approve a <strong>challenge prototype</strong>, test one-feed and multi-feed scenarios with SCDF officers, then decide whether a <strong>controlled pilot</strong> is worth pursuing.</p>
             </div>
           </div>
         </div>
