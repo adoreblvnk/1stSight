@@ -148,7 +148,7 @@ Use this sequence to explain how the prototype becomes credible in order without
 | 5. Scenarios | One-feed and multi-feed incidents with approximate floor plan pins. | Small and large incident value is clear. |
 | 6. Confirmation | Officer confirmation, dismissal, annotation, and summary. | Human control is explicit. |
 | 7. Evidence | Audit trail, confidence states, degraded-feed handling, and export. | Review and handover become credible. |
-| 8. Readiness | Dell platform deployment, scenario rehearsal, and reliability polish. | The prototype is ready for judging and pilot discussion. |
+| 8. Readiness | Dell platform deployment, scenario rehearsal, and reliability polish. | The prototype is ready for judging and mentor review. |
 
 ## Demonstration Scenarios
 
@@ -187,16 +187,6 @@ The prototype should stay focused and avoid promising production integration too
 7. SCDF-wide production rollout.
 8. Formal integration with SCDF iCore or other internal operational systems.
 
-## Safe Path To Adoption
-
-1stSight should be sold as a low-risk way for SCDF to evaluate AI-assisted command visibility.
-
-| Stage | Purpose |
-| --- | --- |
-| Challenge prototype | Demonstrate the dashboard, AI alerts, source-frame evidence, timeline, confirmation flow, and export. |
-| Controlled pilot | Test with selected training scenarios and selected crews before operational integration. |
-| Production assessment | Review bodycam integration, retention policy, RBAC, audit requirements, indoor location, and SCDF command-system integration. |
-
 ## Operational Value
 
 | Value | Why SCDF should care |
@@ -213,9 +203,9 @@ The prototype should stay focused and avoid promising production integration too
 | Judging criterion | 1stSight fit |
 | --- | --- |
 | Problem Definition and Analysis, 20% | Addresses a clear operational gap: raw bodycam footage is not structured incident intelligence. |
-| Strategies and Recommendations, 30% | Recommends a practical prototype and staged adoption path without forcing immediate production rollout. |
+| Strategies and Recommendations, 30% | Recommends a practical prototype focused on command visibility, evidence review, and reporting support. |
 | Effective Use of AI, 20% | Uses multimodal vision analysis, alert prioritisation, source-frame evidence, incident timeline, and summary generation. |
-| Solution Evaluation, 30% | Provides demonstrable outcomes, Dell platform alignment, responsible AI controls, pilot path, and operational value. |
+| Solution Evaluation, 30% | Provides demonstrable outcomes, Dell platform alignment, responsible AI controls, and operational value. |
 
 ## Fit With SCDF Direction
 
@@ -245,7 +235,7 @@ Most importantly, it respects frontline reality. Firefighters should not be aske
 
 1stSight is not asking SCDF to change how firefighters work. It gives Command & Control a clearer, faster, evidence-linked view of what crews are already seeing.
 
-Recommended next move: approve a challenge prototype, test one-feed and multi-feed scenarios with SCDF officers, then decide whether a controlled pilot is worth pursuing.
+Recommended next move: approve a challenge prototype and test one-feed and multi-feed scenarios with SCDF officers.
 
 ## Source Basis
 
