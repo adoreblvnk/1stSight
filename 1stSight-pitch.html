@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1stSight Pitch</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+    :root {
+      --paper: oklch(94.5% 0.018 78);
+      --paper-2: oklch(89.5% 0.021 74);
+      --ink: oklch(18% 0.018 70);
+      --muted: oklch(43% 0.021 70);
+      --muted-2: oklch(57% 0.018 70);
+      --line: oklch(72% 0.018 72);
+      --line-dark: oklch(35% 0.018 74);
+      --screen: oklch(17% 0.017 212);
+      --screen-2: oklch(22% 0.019 214);
+      --screen-3: oklch(28% 0.018 214);
+      --screen-text: oklch(88% 0.018 85);
+      --screen-muted: oklch(69% 0.014 84);
+      --red: oklch(51% 0.16 25);
+      --red-2: oklch(63% 0.13 29);
+      --amber: oklch(68% 0.095 70);
+      --green: oklch(60% 0.105 152);
+      --blue: oklch(62% 0.08 220);
+      --font-sans: "IBM Plex Sans", Arial, Helvetica, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+    }
+
+    .reveal {
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, oklch(78% 0.014 75 / 0.23) 1px, transparent 1px),
+        linear-gradient(0deg, oklch(78% 0.014 75 / 0.23) 1px, transparent 1px),
+        radial-gradient(circle at 80% 10%, oklch(70% 0.05 36 / 0.16), transparent 36%),
+        var(--paper);
+      background-size: 80px 80px, 80px 80px, auto, auto;
+    }
+
+    .reveal .slides { text-align: left; }
+
+    .reveal .slides section {
+      width: 1280px;
+      height: 720px;
+      padding: 38.67px 61.33px 36px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 34px;
+    }
+
+    .reveal h1,
+    .reveal h2,
+    .reveal h3,
+    .reveal p,
+    .reveal li {
+      margin: 0;
+      text-transform: none;
+      letter-spacing: normal;
+      line-height: 1.05;
+      color: inherit;
+      text-shadow: none;
+    }
+
+    .reveal h1 {
+      font-size: 57.33pt;
+      line-height: 0.9;
+      letter-spacing: -0.058em;
+      font-weight: 700;
+      max-width: 626.67px;
+    }
+
+    .reveal h2 {
+      font-size: 36pt;
+      line-height: 0.94;
+      letter-spacing: -0.042em;
+      font-weight: 700;
+      max-width: 746.67px;
+    }
+
+    .reveal h3 {
+      font-size: 16pt;
+      line-height: 1.02;
+      letter-spacing: -0.02em;
+      font-weight: 700;
+    }
+
+    .reveal p,
+    .reveal li { font-size: 16.67pt; }
+
+    .slide-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 26.67px;
+    }
+
+    .slide-top > div:first-child {
+      flex: 1 1 auto;
+      width: 100%;
+    }
+
+    .slide-top h2,
+    .slide-top .subtitle {
+      max-width: none;
+    }
+
+    .slide-top .subtitle {
+      margin-top: 24px;
+    }
+
+    .eyebrow,
+    .kicker,
+    .mono {
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-weight: 600;
+      font-size: 10pt;
+      line-height: 1.1;
+    }
+
+    .eyebrow { color: var(--red); margin-bottom: 10px; }
+    .kicker { color: var(--muted); }
+
+    .subtitle {
+      font-size: 18.67pt;
+      line-height: 1.14;
+      letter-spacing: -0.018em;
+      color: var(--muted);
+      max-width: 746.67px;
+      margin-top: 24px;
+    }
+
+    .subtitle strong,
+    .red-text { color: var(--red); font-weight: 700; }
+
+    .small-note {
+      font-family: var(--font-mono);
+      font-size: 7.33pt;
+      line-height: 1.35;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .slide-number {
+      font-family: var(--font-mono);
+      font-size: 8pt;
+      color: var(--muted-2);
+      text-align: right;
+    }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6.67px; justify-content: flex-end; }
+
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      color: var(--muted);
+      background: oklch(97% 0.012 78 / 0.72);
+    }
+
+    .tag.red {
+      color: var(--paper);
+      border-color: var(--red);
+      background: var(--red);
+    }
+
+    .tag.dark {
+      color: var(--screen-text);
+      border-color: var(--screen-3);
+      background: var(--screen);
+    }
+
+    .content {
+      min-height: 0;
+      display: grid;
+      gap: 14.67px;
+    }
+
+    .centered-slide-content {
+      display: grid;
+      gap: 24px;
+      width: 100%;
+      min-height: 0;
+      align-self: center;
+    }
+
+    #title {
+      display: grid !important;
+      grid-template-rows: 1fr auto 1fr;
+      gap: 0;
+    }
+
+    #title .centered-slide-content {
+      grid-row: 2;
+      gap: 0;
+    }
+
+    #closing {
+      display: grid !important;
+      grid-template-rows: 1fr auto 1fr auto;
+      gap: 0;
+    }
+
+    #closing .centered-slide-content {
+      grid-row: 2;
+    }
+
+    #title .hero-layout,
+    #closing .closing-layout {
+      width: 100%;
+    }
+
+    .slide-top + .content {
+      margin-top: 24px;
+    }
+
+    .hero-layout {
+      grid-template-columns: 0.86fr 1.14fr;
+      gap: 34.67px;
+      align-items: stretch;
+    }
+
+    .team-mark {
+      display: inline-grid;
+      gap: 4px;
+      padding: 8px 10.67px;
+      border: 1px solid var(--line);
+      background: oklch(96% 0.015 78 / 0.88);
+      max-width: 480px;
+      margin-bottom: 22.67px;
+    }
+
+    .team-mark p:first-child {
+      font-family: var(--font-mono);
+      font-size: 8.67pt;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    .team-mark p:last-child {
+      font-family: var(--font-mono);
+      font-size: 8.67pt;
+      line-height: 1.28;
+      color: var(--muted);
+    }
+
+    #title .product-lockup {
+      font-family: var(--font-sans);
+      font-size: 64pt;
+      line-height: 0.82;
+      letter-spacing: -0.07em;
+      font-weight: 700;
+      color: var(--red);
+      margin: 9.33px 0 8px;
+    }
+
+    #title h1 {
+      font-size: 39pt;
+      line-height: 0.98;
+      max-width: 533.33px;
+      margin-bottom: 10.67px;
+    }
+
+    #title .subtitle {
+      font-size: 17.33pt;
+      line-height: 1.16;
+      max-width: 533.33px;
+      margin-top: 0;
+    }
+
+    #title .subtitle strong {
+      font-size: 21pt;
+    }
+
+    .hero-copy { display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+
+    .thesis-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--line);
+      background: oklch(96% 0.013 78 / 0.74);
+    }
+
+    .thesis-strip div { padding: 12px 13.33px; border-right: 1px solid var(--line); }
+    .thesis-strip div:last-child { border-right: 0; }
+    .thesis-strip p:first-child { font-family: var(--font-mono); font-size: 8pt; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5.33px; }
+    .thesis-strip p:last-child { font-size: 12.67pt; line-height: 1.12; color: var(--ink); }
+
+    .image-panel,
+    .screen-panel,
+    .paper-panel {
+      position: relative;
+      min-height: 0;
+      border: 1px solid var(--line);
+      background: oklch(95% 0.012 78 / 0.72);
+      overflow: hidden;
+    }
+
+    .screen-panel {
+      border-color: var(--line-dark);
+      background: var(--screen);
+      color: var(--screen-text);
+    }
+
+    .image-panel img,
+    .screen-panel img,
+    .bodycam-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .image-caption {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 10.67px;
+      color: var(--screen-text);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 7.33pt;
+      background: oklch(14% 0.016 212 / 0.78);
+      border: 1px solid oklch(45% 0.02 212 / 0.72);
+      padding: 8px 9.33px;
+    }
+
+    .image-caption p { font-size: 7.33pt; line-height: 1.2; }
+
+    .quote-line {
+      border-top: 1.33px solid var(--red);
+      padding-top: 13.33px;
+      font-size: 22.67pt;
+      line-height: 1.06;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      max-width: 620px;
+    }
+
+    .split-problem {
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    #problem .split-problem {
+      height: 405px;
+      align-self: start;
+    }
+
+    #problem .raw-stack,
+    #problem .problem-card {
+      height: 100%;
+    }
+
+    .raw-stack { display: grid; grid-template-rows: 1fr 1fr; gap: 12px; min-height: 0; }
+
+    .raw-feed {
+      border: 1px solid var(--line-dark);
+      background: var(--screen);
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .raw-feed img { width: 100%; height: 100%; object-fit: cover; filter: saturate(0.78) contrast(1.08) brightness(0.74); }
+
+    .raw-feed::after,
+    .bodycam-frame::after,
+    .image-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(transparent 49%, oklch(10% 0.01 220 / 0.22) 50%, transparent 51%);
+      background-size: 100% 5.33px;
+      mix-blend-mode: multiply;
+      opacity: 0.42;
+    }
+
+    .problem-card {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border: 1px solid var(--line);
+      background: oklch(96% 0.014 78 / 0.78);
+      min-height: 0;
+    }
+
+    .problem-card header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      padding: 11.33px 13.33px;
+    }
+
+    .problem-card header p { font-family: var(--font-mono); font-size: 9.33pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+    .problem-steps { display: grid; gap: 0; align-content: stretch; }
+
+    .problem-step {
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 10.67px 14.67px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .problem-step:last-child { border-bottom: 0; }
+    .problem-step .num { font-family: var(--font-mono); font-size: 18pt; font-weight: 700; color: var(--red); }
+    .problem-step p:last-child { font-size: 18pt; line-height: 1.08; letter-spacing: -0.018em; }
+
+    .stats-layout {
+      grid-template-columns: 0.78fr 1.22fr;
+      gap: 26.67px;
+      align-items: stretch;
+    }
+
+    .big-stat-stack { display: grid; grid-template-rows: repeat(3, 1fr); gap: 12px; }
+
+    .big-stat {
+      border: 1px solid var(--line);
+      background: oklch(96.5% 0.013 78 / 0.82);
+      padding: 18.67px 21.33px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .big-stat .value {
+      font-family: var(--font-mono);
+      font-size: 32pt;
+      line-height: 0.9;
+      font-weight: 700;
+      color: var(--red);
+      letter-spacing: -0.05em;
+      margin-bottom: 9.33px;
+    }
+
+    .big-stat .label { font-size: 16.67pt; line-height: 1.12; color: var(--ink); }
+
+    .scenario-matrix {
+      border: 1px solid var(--line-dark);
+      background: var(--screen);
+      color: var(--screen-text);
+      padding: 21.33px;
+      display: grid;
+      grid-template-rows: auto auto;
+      align-self: start;
+      align-content: start;
+      gap: 17.33px;
+      min-height: 0;
+    }
+
+    .matrix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10.67px; min-height: 0; align-items: stretch; align-content: start; }
+
+    .scenario-cell {
+      border: 1px solid var(--screen-3);
+      padding: 13.33px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background: oklch(20% 0.016 212);
+    }
+
+    .scenario-cell p:first-child { font-family: var(--font-mono); font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red-2); margin-bottom: 12px; }
+    .scenario-cell p:last-child { font-size: 16.67pt; line-height: 1.08; color: var(--screen-text); }
+
+    .pipeline-layout { grid-template-columns: 1fr; align-items: stretch; }
+
+    .pipeline-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0;
+      border: 1px solid var(--line-dark);
+      background: var(--screen);
+      color: var(--screen-text);
+      min-height: 240px;
+    }
+
+    .pipe-stage {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18.67px 16px;
+      border-right: 1px solid var(--line-dark);
+      min-height: 0;
+    }
+
+    .pipe-stage:last-child { border-right: 0; }
+    .pipe-stage::after {
+      content: "→";
+      position: absolute;
+      right: -15px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--font-mono);
+      color: var(--red-2);
+      font-size: 16pt;
+      z-index: 2;
+      background: var(--screen);
+      padding: 0 2px;
+    }
+    .pipe-stage:last-child::after { content: ""; }
+    .pipe-stage .index { font-family: var(--font-mono); font-size: 9.33pt; color: var(--red-2); }
+    .pipe-stage h3 { color: var(--screen-text); font-size: 18pt; line-height: 1.02; letter-spacing: -0.025em; }
+    .pipe-stage p:last-child { font-size: 13.33pt; line-height: 1.18; color: var(--screen-muted); }
+
+    .contract-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .contract-card {
+      border: 1px solid var(--line);
+      background: oklch(96% 0.014 78 / 0.82);
+      padding: 16px 17.33px;
+    }
+
+    .contract-card p:first-child { font-family: var(--font-mono); font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red); margin-bottom: 7.33px; }
+    .contract-card p:last-child { font-size: 16.67pt; line-height: 1.1; }
+
+    .prototype-layout {
+      grid-template-columns: 1.38fr 0.62fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .prototype-board {
+      border: 1px solid var(--line-dark);
+      background: var(--screen);
+      color: var(--screen-text);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1.04fr 0.96fr;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .board-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid var(--screen-3);
+      padding: 9.33px 10.67px;
+      background: oklch(20% 0.017 212);
+    }
+
+    .board-bar p { font-family: var(--font-mono); font-size: 8pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--screen-muted); }
+    .board-bar strong { color: var(--red-2); font-weight: 700; }
+
+    .feed-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: 1fr 1fr; gap: 9.33px; min-height: 0; }
+
+    .feed-tile {
+      position: relative;
+      border: 1px solid var(--screen-3);
+      min-height: 0;
+      overflow: hidden;
+      background: oklch(13% 0.014 212);
+    }
+
+    .feed-tile img { width: 100%; height: 100%; object-fit: cover; filter: saturate(0.82) contrast(1.08) brightness(0.82); }
+    .feed-tile.featured { grid-column: span 2; }
+
+    .feed-label {
+      position: absolute;
+      left: 6.67px;
+      right: 6.67px;
+      bottom: 6.67px;
+      display: flex;
+      justify-content: space-between;
+      gap: 5.33px;
+      padding: 6px 6.67px;
+      background: oklch(12% 0.012 212 / 0.78);
+      border: 1px solid oklch(42% 0.018 212 / 0.82);
+    }
+    .feed-label p { font-family: var(--font-mono); font-size: 6.67pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--screen-muted); }
+
+    .ops-column { display: grid; grid-template-rows: 1.08fr 0.72fr 0.9fr; gap: 8px; min-height: 0; }
+
+    .ops-card {
+      border: 1px solid var(--screen-3);
+      background: oklch(20% 0.016 212);
+      padding: 9.33px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .ops-card header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7.33px; }
+    .ops-card header p { font-family: var(--font-mono); font-size: 6.67pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--screen-muted); }
+
+    .alert-list { display: grid; gap: 5.33px; }
+    .alert-item { display: grid; grid-template-columns: 36px 1fr auto; gap: 6.67px; align-items: center; border: 1px solid var(--screen-3); padding: 5.33px 6px; }
+    .alert-item p { font-size: 7.8pt; line-height: 1.12; color: var(--screen-muted); }
+    .alert-item p:first-child { font-family: var(--font-mono); color: var(--red-2); font-weight: 700; }
+    .alert-item p:nth-child(2) strong { color: var(--screen-text); }
+    .alert-item p:last-child { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--amber); font-size: 6pt; }
+
+    .mini-map { position: relative; height: 80px; border: 1px solid var(--screen-3); background: linear-gradient(90deg, transparent 48%, var(--screen-3) 49%, transparent 50%), linear-gradient(0deg, transparent 48%, var(--screen-3) 49%, transparent 50%); background-size: 56px 56px; }
+    .map-zone { position: absolute; border: 1px solid oklch(45% 0.02 212); color: var(--screen-muted); font-family: var(--font-mono); font-size: 6pt; text-transform: uppercase; letter-spacing: 0.06em; display: grid; place-items: center; }
+    .map-pin { position: absolute; width: 21.33px; height: 21.33px; transform: translate(-50%, -50%); border: 1.33px solid var(--red-2); background: var(--red); color: var(--paper); display: grid; place-items: center; font-family: var(--font-mono); font-size: 8pt; font-weight: 700; }
+
+    .side-proof { display: grid; grid-template-rows: auto auto 1fr; gap: 12px; min-height: 0; }
+
+    .proof-list { display: grid; gap: 12px; align-content: start; }
+    .proof-item { display: grid; grid-template-columns: 34.67px 1fr; gap: 10.67px; border: 1px solid var(--line); padding: 11.33px 12px; background: oklch(96% 0.014 78 / 0.82); }
+    .proof-item .mark { font-family: var(--font-mono); font-size: 13.33pt; font-weight: 700; color: var(--red); }
+    .proof-item p:last-child { font-size: 14pt; line-height: 1.1; }
+
+    .record-panel {
+      border: 1px solid var(--line);
+      background: oklch(96% 0.014 78 / 0.86);
+      padding: 13.33px 14.67px;
+      display: grid;
+      gap: 9.33px;
+    }
+
+    .record-panel .label {
+      font-size: 8pt;
+      color: var(--red);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-weight: 700;
+    }
+
+    .record-panel p:not(.label) { font-size: 12.67pt; line-height: 1.16; color: var(--ink); }
+
+    .pdf-record {
+      border-color: var(--line-dark);
+      background: var(--surface);
+      grid-template-columns: 1fr;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .pdf-thumb {
+      border: 1px solid var(--line);
+      background: var(--paper-2);
+      padding: 9.33px;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+      min-height: 150px;
+    }
+
+    .pdf-thumb .doc-title { font-family: var(--font-mono); font-size: 8pt; color: var(--red); text-transform: uppercase; letter-spacing: 0.08em; }
+    .pdf-line { height: 4px; background: var(--line); }
+    .pdf-line.red { background: var(--red); width: 68%; }
+    .pdf-line.short { width: 54%; }
+    .pdf-meta { display: grid; gap: 7.33px; align-content: start; }
+    .pdf-meta p { font-size: 11.33pt; line-height: 1.14; }
+    .export-button { justify-self: start; border: 1px solid var(--red); color: var(--red); padding: 6.67px 8px; font-family: var(--font-mono); font-size: 7.33pt; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .prototype-board .record-panel {
+      border-color: var(--screen-3);
+      background: oklch(18% 0.015 212);
+      padding: 9.33px;
+      gap: 6.67px;
+      color: var(--screen-text);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .prototype-board .record-panel .label,
+    .prototype-board .pdf-thumb .doc-title { color: var(--red-2); }
+    .prototype-board .record-panel p:not(.label) { color: var(--screen-muted); font-size: 8.5pt; line-height: 1.1; }
+    .prototype-board .pdf-record { grid-template-columns: 1fr; align-content: start; }
+    .prototype-board .pdf-thumb {
+      min-height: 0;
+      padding: 7.33px;
+      gap: 4.67px;
+      background: oklch(93% 0.012 78);
+    }
+    .prototype-board .pdf-line { height: 3.33px; }
+    .prototype-board .pdf-meta { gap: 4.67px; align-content: start; }
+    .prototype-board .pdf-meta .label { white-space: nowrap; }
+    .prototype-board .pdf-meta p { font-size: 8.5pt; line-height: 1.1; }
+    .prototype-board .export-button { font-size: 6pt; padding: 4px 6px; color: var(--red-2); border-color: var(--red-2); }
+
+    .scenario-layout { grid-template-columns: 0.96fr 1.04fr; gap: 25.33px; align-items: stretch; }
+
+    .bodycam-frame { position: relative; border: 1px solid var(--line-dark); background: var(--screen); min-height: 0; overflow: hidden; }
+
+    .target-box {
+      position: absolute;
+      width: 31%;
+      height: 28%;
+      right: 12%;
+      top: 34%;
+      border: 2px solid var(--red-2);
+      box-shadow: 0 0 0 666px oklch(8% 0.01 220 / 0.12);
+    }
+
+    .target-label {
+      position: absolute;
+      right: 12%;
+      top: calc(34% + 28% + 8px);
+      background: var(--red);
+      color: var(--paper);
+      padding: 6.67px 8px;
+      font-family: var(--font-mono);
+      font-size: 7.33pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .evidence-card {
+      border: 1px solid var(--line-dark);
+      background: var(--screen);
+      color: var(--screen-text);
+      padding: 20px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    .cue-summary {
+      border: 1px solid var(--screen-3);
+      padding: 14.67px;
+      background: oklch(20% 0.016 212);
+    }
+
+    .cue-summary p:first-child { font-family: var(--font-mono); font-size: 8pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red-2); margin-bottom: 8px; }
+    .cue-summary p:last-child { font-size: 22pt; line-height: 1.03; letter-spacing: -0.025em; color: var(--screen-text); }
+
+    .timeline-mini { display: grid; gap: 8px; align-content: start; }
+    .timeline-mini .event { display: grid; grid-template-columns: 54.67px 1fr; gap: 9.33px; border-bottom: 1px solid var(--screen-3); padding-bottom: 8px; }
+    .timeline-mini .event p:first-child { font-family: var(--font-mono); font-size: 8pt; color: var(--red-2); }
+    .timeline-mini .event p:last-child { font-size: 14pt; line-height: 1.14; color: var(--screen-muted); }
+
+    .safe-boundary {
+      border: 1px solid var(--red);
+      padding: 10.67px 12px;
+      background: oklch(24% 0.025 25 / 0.45);
+    }
+    .safe-boundary p { font-size: 13.33pt; line-height: 1.16; color: var(--screen-text); }
+
+    .architecture-layout { grid-template-columns: 1.05fr 0.95fr; gap: 22.67px; align-items: stretch; }
+
+    .architecture-map {
+      border: 1px solid var(--line-dark);
+      background: var(--screen);
+      color: var(--screen-text);
+      padding: 18.67px;
+      display: grid;
+      grid-template-rows: repeat(4, 1fr);
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .arch-node {
+      border: 1px solid var(--screen-3);
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: oklch(20% 0.016 212);
+    }
+    .arch-node p:first-child { font-family: var(--font-mono); font-size: 8pt; color: var(--red-2); text-transform: uppercase; letter-spacing: 0.08em; }
+    .arch-node p:last-child { font-size: 12.67pt; line-height: 1.06; color: var(--screen-text); }
+
+    .tech-notes { display: grid; grid-template-rows: auto 1fr auto; gap: 12px; min-height: 0; }
+    .tech-card { border: 1px solid var(--line); background: oklch(96% 0.014 78 / 0.84); padding: 14px 16px; }
+    .tech-card p:first-child { font-family: var(--font-mono); font-size: 8pt; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red); margin-bottom: 7.33px; }
+    .tech-card p:last-child { font-size: 16pt; line-height: 1.08; }
+
+    .closing-layout { grid-template-columns: 0.86fr 1.14fr; gap: 34px; align-items: stretch; }
+    .closing-statement { display: flex; flex-direction: column; justify-content: flex-start; gap: 24px; min-height: 0; }
+    .closing-promise { font-size: 28pt; line-height: 1.05; max-width: 520px; letter-spacing: -0.032em; font-weight: 600; color: var(--ink); }
+    .ask-box { border: 1px solid var(--red); background: oklch(96% 0.014 78 / 0.88); padding: 20px; }
+    .ask-box p:first-child { font-family: var(--font-mono); font-size: 8.67pt; color: var(--red); text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 9.33px; }
+    .ask-box p:last-child { font-size: 24pt; line-height: 1.04; letter-spacing: -0.026em; }
+
+    .closing-proof { display: grid; grid-template-rows: repeat(3, 1fr); gap: 12px; }
+
+    #closing .slide-top + .content {
+      margin-top: 0;
+    }
+
+    #closing .proof-item p:last-child { font-size: 16pt; line-height: 1.1; }
+
+    #closing .source-line {
+      grid-row: 4;
+      align-self: end;
+    }
+
+
+    .diagram-image { padding: 6px; background: oklch(97% 0.011 78 / 0.9); }
+
+    .diagram-image img {
+      object-fit: contain;
+      background: oklch(97% 0.011 78 / 0.9);
+    }
+
+    .source-line {
+      font-family: var(--font-mono);
+      font-size: 6.67pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted-2);
+      display: flex;
+      justify-content: flex-end;
+      gap: 13.33px;
+    }
+
+    #prototype { gap: 18px; }
+    #prototype h2 { font-size: 28pt; line-height: 0.96; }
+    #prototype .slide-top .subtitle { margin-top: 16px; }
+    #prototype .prototype-layout { height: 452px; align-self: start; }
+
+    #architecture h2 { font-size: 31.33pt; }
+    #architecture .subtitle { font-size: 15.33pt; margin-top: 24px; }
+    #architecture .architecture-layout { height: 455px; align-self: start; }
+    #architecture .architecture-map { padding: 14px; gap: 6px; }
+    #architecture .arch-node { padding: 5.33px 10.67px; }
+    #architecture .arch-node p:last-child { font-size: 12.67pt; line-height: 1.05; }
+    #architecture .tech-card p:last-child { font-size: 14.67pt; }
+
+    @media print {
+      .reveal .slides section { page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section id="title">
+        <div class="centered-slide-content">
+        <div class="content hero-layout">
+          <div class="hero-copy">
+            <div>
+              <div class="team-mark">
+                <p>Team Adore</p>
+                <p>Joseph Poon (josephpzh@proton.me) · Tze Kai Lim · Tan Yale · Lee Jiajia</p>
+              </div>
+              <p class="eyebrow">SCDF-Dell Lifesavers' Innovation Challenge 2026</p>
+              <p class="product-lockup">1stSight</p>
+              <h1>Bodycam feed to incident intelligence</h1>
+              <p class="subtitle"><strong>1stSight</strong> turns responder bodycam frames and location metadata into verified cues, live timeline events, source-frame evidence, and report-ready incident records.</p>
+            </div>
+          </div>
+          <div class="image-panel">
+            <img src="assets/images/05-pitch-hero-ops-centre.png" alt="Emergency operations centre with dark bodycam intelligence dashboard">
+            <div class="image-caption"><p>1stSight Ops Centre incident intelligence layer</p></div>
+          </div>
+        </div>
+        </div>
+        <aside class="notes">
+          0:00-0:35
+          
+          Good afternoon. We are Team Adore, and our product is 1stSight.
+          
+          1stSight turns responder bodycam feeds into incident intelligence.
+          
+          SCDF is already moving toward responder bodycams and stronger Ops Centre visibility. The question for us is: what happens after the video reaches the Ops Centre?
+          
+          If all we do is send more video upstairs, someone still has to watch every feed, remember what changed, and turn that into useful records. 1stSight helps with that gap. It takes bodycam frames and location metadata, then produces reviewable cues, live timeline events, source-frame evidence, and report-ready incident records.
+          
+          The frontliner keeps moving. The Ops Centre gets clearer operational memory.
+        </aside>
+      </section>
+
+      <section id="problem">
+        <div class="slide-top">
+          <div>
+            <p class="eyebrow">Problem</p>
+            <h2>Raw video is visibility, not incident memory.</h2>
+            <p class="subtitle">The gap is not just getting feeds to Ops Centre. The gap is turning what officers see into source-linked, confirmed operational facts.</p>
+          </div>
+        </div>
+        <div class="content split-problem">
+          <div class="raw-stack">
+            <div class="raw-feed"><img src="assets/images/02-warehouse-bodycam-frame.png" alt="Simulated warehouse bodycam frame"></div>
+            <div class="raw-feed"><img src="assets/images/03-hdb-bodycam-frame.png" alt="Simulated HDB bodycam frame"></div>
+          </div>
+          <div class="problem-card">
+            <header><p>Where raw feed breaks down</p><p>Before · During · After</p></header>
+            <div class="problem-steps">
+              <div class="problem-step"><p class="num">01</p><p>Ops Centre must watch multiple feeds and mentally track what changed.</p></div>
+              <div class="problem-step"><p class="num">02</p><p>Important visible cues can be missed, repeated, or trapped inside radio notes.</p></div>
+              <div class="problem-step"><p class="num">03</p><p>After the incident, teams still reconstruct the timeline from memory and scattered evidence.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">2 / 8</p></div>
+        <aside class="notes">
+          0:35-1:20
+          
+          The problem is simple: raw video gives visibility, but it does not give incident memory.
+          
+          During an incident, the Ops Centre may receive several live feeds at once. Someone still has to watch those feeds, notice what changed, remember which responder saw it, and decide whether it matters operationally.
+          
+          That is a lot to ask in a live situation. Important visible cues can be missed, repeated over radio, or buried in handwritten notes. After the incident, teams still have to rebuild the timeline from memory, radio logs, and scattered evidence.
+          
+          So the gap is not camera access. SCDF can already move in that direction. The harder gap is turning what officers see into source-linked, confirmed operational facts.
+        </aside>
+      </section>
+
+      <section id="why-now">
+        <div class="slide-top">
+          <div>
+            <p class="eyebrow">Why it matters now</p>
+            <h2>SCDF needs this beyond major fires.</h2>
+            <p class="subtitle">1stSight is an incident intelligence layer for fire, medical, rescue, and responder-safety workflows.</p>
+          </div>
+        </div>
+        <div class="content stats-layout">
+          <div class="big-stat-stack">
+            <div class="big-stat"><p class="value">257,158</p><p class="label">EMS calls handled in 2025.</p></div>
+            <div class="big-stat"><p class="value">40,644</p><p class="label">Trauma cases, including falls, industrial accidents, and assaults.</p></div>
+            <div class="big-stat"><p class="value">2,050</p><p class="label">Fire calls still require visibility, coordination, and documentation.</p></div>
+          </div>
+          <div class="scenario-matrix">
+            <div>
+              <p class="kicker">One bodycam intelligence layer, multiple incident types</p>
+            </div>
+            <div class="matrix-grid">
+              <div class="scenario-cell"><p>Fire</p><p>Smoke, blocked path, exit cue, changing conditions.</p></div>
+              <div class="scenario-cell"><p>Medical</p><p>Patient access, crowd encroachment, stretcher path.</p></div>
+              <div class="scenario-cell"><p>Rescue</p><p>Entry point, trapped-person cue, unsafe access route.</p></div>
+              <div class="scenario-cell"><p>After action</p><p>Source frames, confirmed timeline, report export.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">3 / 8</p></div>
+        <aside class="notes">
+          1:20-2:00
+          
+          This matters beyond major fires.
+          
+          In 2025, SCDF handled over 257,000 EMS calls. That included more than 40,000 trauma cases, such as falls, industrial accidents, and assaults. SCDF also responded to over 2,000 fire calls.
+          
+          Across fire, medical, rescue, and responder-safety incidents, the need is similar: understand the scene quickly, track what changed, and preserve evidence for handover, review, and reporting.
+          
+          That is why we designed 1stSight as one bodycam intelligence layer across incident types. It is not a single-purpose fire tool. The same pipeline can support smoke near an exit, blocked stretcher access, a trapped-person cue, or an after-action report.
+        </aside>
+      </section>
+
+      <section id="what-it-does">
+        <div class="slide-top">
+          <div>
+            <p class="eyebrow">What 1stSight does</p>
+            <h2>It packages visible cues into confirmed incident records.</h2>
+            <p class="subtitle">The frontliner keeps moving. Ops Centre reviews source frames and decides what becomes fact.</p>
+          </div>
+        </div>
+        <div class="content pipeline-layout">
+          <div class="pipeline-strip">
+            <div class="pipe-stage"><p class="index">01</p><h3>Bodycam frame + location</h3><p>Phone prototype sends sampled frames with responder, time, incident, and approximate position.</p></div>
+            <div class="pipe-stage"><p class="index">02</p><h3>Vision model triage</h3><p>gpt-5.4-mini flags visible cues worth officer review.</p></div>
+            <div class="pipe-stage"><p class="index">03</p><h3>Source-frame evidence</h3><p>Each cue stays tied to the exact frame, feed, confidence, timestamp, and location context.</p></div>
+            <div class="pipe-stage"><p class="index">04</p><h3>Officer confirmation</h3><p>Ops Centre confirms, dismisses, or annotates. AI output is not treated as command.</p></div>
+            <div class="pipe-stage"><p class="index">05</p><h3>Timeline + report</h3><p>Confirmed facts become live handover notes, AAR material, and exportable incident records.</p></div>
+          </div>
+          <div class="contract-row">
+            <div class="contract-card"><p>Boundary</p><p>No diagnosis, facial recognition, or automated command decision.</p></div>
+            <div class="contract-card"><p>Memory</p><p>Every confirmed event keeps its source frame and audit trail.</p></div>
+            <div class="contract-card"><p>Workload</p><p>No typing, tagging, or dashboard use by frontliners during the incident.</p></div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">4 / 8</p></div>
+        <aside class="notes">
+          2:00-2:45
+          
+          Here is how 1stSight works.
+          
+          A phone prototype simulates a responder bodycam. It sends sampled frames with basic incident metadata: source, time, approximate position, responder ID, and incident ID.
+          
+          For the prototype, `gpt-5.4-mini` handles the first pass on the sampled frames. It looks for visible scene cues that may deserve review. Each cue stays tied to its exact source frame, confidence score, timestamp, and location context.
+          
+          The important part is the human decision point. Ops Centre officers confirm, dismiss, or annotate the cue. AI does not issue commands. It does not diagnose patients. It does not make automated command decisions.
+          
+          Once officers confirm an observation, `deepseek-v4-pro` helps consolidate it into the live timeline, handover notes, after-action material, and exportable incident record.
+          
+          AI suggests. Officers confirm.
+        </aside>
+      </section>
+
+      <section id="prototype">
+        <div class="slide-top">
+          <div>
+            <p class="eyebrow">Prototype walkthrough</p>
+            <h2>The product is the Ops Centre view &amp; exportable incident record.</h2>
+            <p class="subtitle">The demo focuses on what you can evaluate: live feeds, prioritised alerts, scene context, confirmed handover notes, timeline events, and a generated incident PDF.</p>
+          </div>
+        </div>
+        <div class="content prototype-layout">
+          <div class="prototype-board">
+            <div class="board-bar"><p><strong>1stSight</strong> active incident dashboard</p><p>Fire · Medical · Rescue</p></div>
+            <div class="feed-grid">
+              <div class="feed-tile featured"><img src="assets/images/06-pitch-bodycam-medical-safety.png" alt="Bodycam medical responder-safety corridor scene"><div class="feed-label"><p>Medic 1 · source frame</p><p>review</p></div></div>
+              <div class="feed-tile"><img src="assets/images/02-warehouse-bodycam-frame.png" alt="Warehouse feed tile"><div class="feed-label"><p>FF 1</p><p>watch</p></div></div>
+              <div class="feed-tile"><img src="assets/images/03-hdb-bodycam-frame.png" alt="HDB feed tile"><div class="feed-label"><p>FF 2</p><p>online</p></div></div>
+            </div>
+            <div class="ops-column">
+              <div class="ops-card">
+                <header><p>Prioritised queue</p><p>source-linked</p></header>
+                <div class="alert-list">
+                  <div class="alert-item"><p>88%</p><p><strong>Blocked stretcher access</strong><br>Medic 1 · 14:06</p><p>review</p></div>
+                  <div class="alert-item"><p>84%</p><p><strong>Crowd close to crew</strong><br>Medic 1 · 14:08</p><p>watch</p></div>
+                  <div class="alert-item"><p>76%</p><p><strong>Smoke near exit route</strong><br>FF 2 · 14:10</p><p>review</p></div>
+                </div>
+              </div>
+              <div class="ops-card">
+                <header><p>Approximate scene map</p><p>pins</p></header>
+                <div class="mini-map">
+                  <div class="map-zone" style="left:5%;top:10%;width:42%;height:36%;">corridor</div>
+                  <div class="map-zone" style="left:52%;top:10%;width:40%;height:36%;">lift lobby</div>
+                  <div class="map-zone" style="left:5%;top:58%;width:87%;height:27%;">stretcher path</div>
+                  <div class="map-pin" style="left:75%;top:65%;">!</div>
+                  <div class="map-pin" style="left:36%;top:36%;">P</div>
+                </div>
+              </div>
+              <div class="record-panel pdf-record">
+                <div class="pdf-meta">
+                  <p class="label">Generated export</p>
+                  <p>Confirmed timeline, source-frame evidence, and handover summary packaged for report-ready review.</p>
+                  <p class="export-button">Export incident PDF</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="side-proof">
+            <p class="quote-line">The prototype flow is visible in one place: observe, confirm, then export the record.</p>
+            <div class="proof-list">
+              <div class="proof-item"><p class="mark">01</p><p>Alert queue shows what changed, not every frame.</p></div>
+              <div class="proof-item"><p class="mark">02</p><p>Map pins and timeline events link back to source frames.</p></div>
+              <div class="proof-item"><p class="mark">03</p><p>Incident record export starts from confirmed facts.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">5 / 8</p></div>
+        <aside class="notes">
+          2:45-3:40
+          
+          This is the product we want you to evaluate: the Ops Centre view and the exportable incident record.
+          
+          On the left, live feeds are connected to a prioritised review queue. The operator does not need to stare at every frame equally. The system surfaces what changed, such as blocked stretcher access, crowding near a crew, or smoke near an exit route.
+          
+          Below that, approximate map pins add scene context. The operator can see where a cue came from and how it relates to the incident area.
+          
+          Inside the same interface, confirmed timeline events and source-frame evidence can be packaged into a generated incident PDF.
+          
+          That is the main workflow: observe, confirm, then export. The report starts from confirmed facts, not from memory after the incident.
+        </aside>
+      </section>
+
+      <section id="scenario">
+        <div class="slide-top">
+          <div>
+            <p class="eyebrow">Example incident moment</p>
+            <h2>One cue, one source frame, one confirmed event.</h2>
+            <p class="subtitle">The system separates AI-suggested observations from officer-confirmed incident facts.</p>
+          </div>
+        </div>
+        <div class="content scenario-layout">
+          <div class="bodycam-frame">
+            <img src="assets/images/06-pitch-bodycam-medical-safety.png" alt="Responder bodycam frame showing corridor access and crowd context">
+            <div class="target-box"></div>
+            <p class="target-label">AI cue for review</p>
+          </div>
+          <div class="evidence-card">
+            <p class="kicker">Source-frame evidence card</p>
+            <div class="cue-summary"><p>Suggested cue</p><p>Stretcher access may be constrained by crowding near corridor.</p></div>
+            <div class="timeline-mini">
+              <div class="event"><p>14:06</p><p>AI suggests patient access constraint from Medic 1 source frame.</p></div>
+              <div class="event"><p>14:07</p><p>1stSight pins the cue to the scene map for Ops Centre review.</p></div>
+              <div class="event"><p>14:08</p><p>Confirmed event enters timeline and handover summary.</p></div>
+            </div>
+            <div class="safe-boundary"><p>Safety boundary: no medical diagnosis and no automated command. 1stSight packages visible evidence for human confirmation.</p></div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">6 / 8</p></div>
+        <aside class="notes">
+          3:40-4:25
+          
+          Here is one example.
+          
+          In a medical response, the model may suggest that stretcher access is constrained because of crowding near a corridor. At this point, it is only an AI cue for review.
+          
+          1stSight can pin that cue to the scene map automatically. The Ops Centre officer then inspects the source frame and approves, rejects, or edits it before it becomes a confirmed event.
+          
+          If the officer confirms it, the event enters the incident timeline and handover summary with the original frame attached.
+          
+          The boundary matters. 1stSight does not perform medical diagnosis, facial recognition, or automated command. It packages visible evidence so humans can verify it faster and more consistently.
+        </aside>
+      </section>
+
+      <section id="architecture">
+        <div class="slide-top">
+          <div>
+            <p class="eyebrow">Technical credibility</p>
+            <h2>Simple enough to prototype, structured enough to deploy.</h2>
+            <p class="subtitle">1stSight can be demonstrated quickly while keeping the deployment path aligned to Dell Cloud Native Platform.</p>
+          </div>
+        </div>
+        <div class="content architecture-layout">
+          <div class="architecture-map">
+            <div class="arch-node"><p>Capture</p><p>Mobile PWA simulates responder bodycam with sampled frames and metadata.</p></div>
+            <div class="arch-node"><p>Ingest</p><p>Backend receives frames, incident ID, responder source, timestamp, and approximate location.</p></div>
+            <div class="arch-node"><p>Analyze</p><p>gpt-5.4-mini flags visible scene cues; deepseek-v4-pro consolidates confirmed records.</p></div>
+            <div class="arch-node"><p>Record + UI</p><p>Event store keeps source frames and officer actions. Ops Centre reviews map pins, timeline, handover, and report export.</p></div>
+          </div>
+          <div class="tech-notes">
+            <div class="tech-card"><p>Deployment path</p><p>The web app and backend services run on Dell Cloud Native Platform, creating a clear route from demo prototype to deployable system.</p></div>
+            <div class="tech-card"><p>Model boundary</p><p>Inference sits behind the backend: gpt-5.4-mini for vision triage, deepseek-v4-pro for timeline and report analysis.</p></div>
+            <div class="image-panel diagram-image"><img src="assets/images/07-pitch-evidence-trail-tight.png" alt="Evidence trail from bodycam frame to report export"></div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">7 / 8</p></div>
+        <aside class="notes">
+          4:25-5:00
+          
+          Technically, this is simple enough to prototype, but structured enough to deploy properly.
+          
+          Capture can begin as a mobile PWA that simulates a responder bodycam. The backend ingests sampled frames and metadata, including incident ID, responder source, timestamp, and approximate location.
+          
+          `gpt-5.4-mini` handles the visual cue extraction from sampled bodycam frames. `deepseek-v4-pro` handles the text-side analysis: timeline consolidation, handover summary, and report drafting from confirmed records.
+          
+          The record layer stores source frames and officer actions. The UI then presents the map pins, timeline, handover notes, and report export.
+          
+          The web app and backend services can run on Dell Cloud Native Platform. The model calls sit behind the backend, so the Ops Centre workflow does not have to change if SCDF later changes the approved model provider.
+        </aside>
+      </section>
+
+      <section id="closing">
+        <div class="centered-slide-content">
+          <div class="slide-top">
+            <div>
+              <h2>Advance the product that turns bodycam visibility into incident memory.</h2>
+            </div>
+          </div>
+          <div class="content closing-layout">
+            <div class="closing-statement">
+              <p class="closing-promise">1stSight turns bodycam visibility into verified incident memory.</p>
+              <div class="ask-box"><p>Prototype evaluation</p><p>Move 1stSight from concept to prototype.</p></div>
+            </div>
+            <div class="closing-proof">
+              <div class="proof-item"><p class="mark">01</p><p>Works with the existing direction of responder bodycams and Ops Centre visibility.</p></div>
+              <div class="proof-item"><p class="mark">02</p><p>Keeps frontliners hands-free while reducing the monitoring burden upstairs.</p></div>
+              <div class="proof-item"><p class="mark">03</p><p>Turns confirmed observations into timeline, handover, AAR, and report-ready records.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="source-line"><p class="slide-number">8 / 8</p></div>
+        <aside class="notes">
+          5:00-5:30
+          
+          To close, 1stSight moves bodycams from visibility to incident memory.
+          
+          It fits SCDF's direction toward responder cameras and stronger Ops Centre monitoring. It keeps frontliners hands-free. It reduces the burden on officers who have to monitor multiple feeds. And it turns confirmed observations into timeline events, handover notes, after-action material, and report-ready records.
+          
+          Our ask is simple: move 1stSight from concept into a prototype.
+        </aside>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+  <script>
+    Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      hash: true,
+      controls: true,
+      progress: true,
+      slideNumber: false,
+      transition: 'none',
+      backgroundTransition: 'none',
+      center: false,
+      pdfSeparateFragments: false,
+      plugins: [ RevealNotes ]
+    });
+  </script>
+</body>
+</html>
