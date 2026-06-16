@@ -8,13 +8,13 @@
 | Team members | Joseph Poon, Tze Kai Lim |
 | Institution | Singapore Institute of Technology (SIT) |
 | Challenge | SCDF-Dell Lifesavers' Innovation Challenge 2026 |
-| Proposed solution | Command & Control dashboard that turns bodycam footage into structured incident intelligence |
+| Proposed solution | Command & Control dashboard that turns bodycam footage into structured incident intelligence and a Draft Fire Incident Intelligence Report |
 
 ## Current Positioning
 
 1stSight is a Command & Control dashboard, not a new bodycam or frontline hardware product.
 
-It turns bodycam footage into structured incident intelligence: AI alerts, source-frame evidence, live timeline events, officer confirmations, and handover/reporting summaries.
+It turns bodycam footage into structured incident intelligence: AI alerts, source-frame evidence, live timeline events, officer confirmations, an evidence-linked **Draft Fire Incident Intelligence Report**, and AAR/post-incident review.
 
 The firefighter-side prototype is intentionally lightweight. A phone PWA acts as a hands-free capture layer and sends sampled frames. The main product is the C&C dashboard where officers review, confirm, summarise, and export incident intelligence.
 
@@ -22,7 +22,7 @@ The firefighter-side prototype is intentionally lightweight. A phone PWA acts as
 
 1stSight makes bodycam footage useful beyond major crises.
 
-For one responder or many, the dashboard flags hazards, possible victim distress, blocked access, smoke conditions, fire cues, and changing scene context. It then turns those cues into evidence, timeline events, confirmations, and handover/reporting summaries.
+For one responder or many, the dashboard flags hazards, possible victim distress, blocked access, smoke conditions, fire cues, and changing scene context. It then turns those cues into evidence, timeline events, confirmations, a draft incident intelligence report, and AAR material.
 
 This matters because SCDF may not activate bodycam workflows for every routine case. The product must therefore show value even in smaller incidents:
 
@@ -51,7 +51,7 @@ Raw bodycam video is not enough. It may give C&C more visibility, but it can als
 | Mode | Purpose | Key behaviour |
 | --- | --- | --- |
 | Firefighter capture layer | Provide a bodycam-like feed for the prototype. | Phone PWA captures sampled frames hands-free and sends responder, timestamp, status, and incident context. |
-| Command & Control dashboard | Turn visual footage into usable incident intelligence. | Shows near-live feeds, AI alerts, source-frame evidence, responder status, approximate floor plan, timeline, officer confirmations, summary, and export. |
+| Command & Control dashboard | Turn visual footage into usable incident intelligence. | Shows near-live feeds, AI alerts, source-frame evidence, responder status, approximate floor plan, timeline, officer confirmations, Draft Fire Incident Intelligence Report, and export. |
 
 The production direction can align with SCDF bodycam and Drager FireGround workflows. The prototype uses phones only to prove the dashboard value quickly.
 
@@ -75,7 +75,7 @@ The C&C officer should not need to watch every frame continuously.
 3. Alerts appear with confidence, responder source, timestamp, and source frame.
 4. Officer confirms, dismisses, or annotates alerts.
 5. Timeline records AI suggestions, confirmations, annotations, feed degradation, and exports.
-6. Dashboard generates a summary that separates AI-suggested observations from C&C-confirmed facts.
+6. Dashboard generates a Draft Fire Incident Intelligence Report that separates AI-suggested observations from C&C-confirmed facts.
 
 ## AI Strategy
 
@@ -90,23 +90,24 @@ AI can suggest what deserves attention, but C&C decides what becomes an operatio
 | Exit and blocked access review | Flags visible exits, exit signs, blocked paths, narrowed corridors, and obstructions. | Supports access, egress, and evacuation awareness. |
 | Alert prioritisation | Reduces repeated low-value alerts and highlights repeated or high-risk cues. | Lowers monitoring burden for C&C. |
 | Source-frame evidence | Links every alert to the frame that triggered it. | Keeps AI explainable and reviewable. |
-| Incident summary | Converts confirmed events into plain-English handover/reporting notes. | Reduces repeated radio-style updates and improves continuity. |
+| Draft incident intelligence report + AAR | Converts confirmed events into plain-English, evidence-linked report and post-incident review sections. | Reduces repeated radio-style updates and improves continuity without claiming official SCDF report status. |
 
-## Gemini, Dell, And NVIDIA Positioning
+## Runtime AI, Dell, And NVIDIA Positioning
 
 Dell should remain the main platform story. The required Dell Cloud Native Platform can host the secure C&C dashboard, backend services, frame ingestion, event APIs, database services, and deployment workflow.
 
-Gemini Flash/Pro can be described as an external multimodal inference option for the prototype, not as a replacement for Dell.
+The demo should work first with deterministic/mock AI. Runtime model calls are stretch functionality layered after the evidence workflow is reliable.
 
 | Component | Recommended positioning |
 | --- | --- |
 | Dell Cloud Native Platform | Required secure deployment foundation for the C&C dashboard and backend. |
 | Dell CSC Demo Studio | Useful environment to evaluate and demonstrate AI/dashboard capabilities if available. |
 | NVIDIA NIM | Dell-aligned model path for future containerised or self-hosted inference options. |
-| Gemini Flash | External fast triage option for sampled-frame review during the prototype. |
-| Gemini Pro | External deeper review option for uncertain or high-impact frames, such as possible victim distress. |
+| google / `gemini-3-flash-preview` | Fast multimodal triage option for sampled-frame review. |
+| openai / `gpt-5.4-mini` | Low-latency alert JSON structuring and timeline update option. |
+| openai / `gpt-5.5` | Strongest final evidence-linked report drafting option. |
 
-Best message: Dell hosts and secures the dashboard. Gemini Flash/Pro can accelerate prototype vision analysis. Dell/NVIDIA options provide a credible future deployment path.
+Best message: Dell hosts and secures the dashboard. Mock AI guarantees demo reliability. 0.5–1 second sampled frames support near-live alerts, while 15–30 second chunks support storage, reporting, replay, and AAR. Gemini/OpenAI can accelerate prototype intelligence, while Dell/NVIDIA options provide a credible future deployment path.
 
 ## Responsible AI Principles
 
@@ -121,6 +122,17 @@ Best message: Dell hosts and secures the dashboard. Gemini Flash/Pro can acceler
 | No facial recognition by default | No facial recognition or identity matching unless explicitly approved and governed. |
 | Degraded-feed transparency | Delayed, disconnected, or stale feeds are shown clearly. |
 
+## Report Type Boundary
+
+SCDF's public e-services expose two requestable incident report types: **Fire Report** and **Ambulance Report**.
+
+1stSight should not claim to generate either official report. The prototype creates a **Draft Fire Incident Intelligence Report** for C&C review:
+
+- Fire Report-adjacent: supports location/time, nature of incident, confirmed fireground cues, damage notes, injury/casualty notes, extinguishment/action notes, and evidence references.
+- Not an official SCDF Fire Report: does not determine probable cause, liability, or final investigation findings.
+- Not an Ambulance Report: does not handle patient identity, consent forms, medical diagnosis, insurance workflow, or hospital conveyance unless manually entered as a C&C note.
+- Default probable cause wording: `Not determined by 1stSight prototype`.
+
 ## Prototype Scope
 
 The prototype should prove the C&C value with a small, controlled demonstration.
@@ -128,10 +140,10 @@ The prototype should prove the C&C value with a small, controlled demonstration.
 | Deliverable | Purpose |
 | --- | --- |
 | Phone-based hands-free capture | Simulate bodycam footage without waiting for hardware integration. |
-| C&C dashboard | Show feed tiles, responder status, alerts, timeline, floor plan, confirmation states, summary, and export. |
+| C&C dashboard | Show feed tiles, responder status, alerts, timeline, floor plan, confirmation states, Draft Fire Incident Intelligence Report, and export. |
 | AI alerting | Flag smoke, fire cues, possible victim distress, exits, blocked access, and scene changes. |
 | Source-frame review | Let officers inspect the evidence behind each alert. |
-| Timeline and summary | Convert confirmed observations into handover/reporting output. |
+| Timeline, Draft Fire Incident Intelligence Report, and AAR | Convert confirmed observations into evidence-linked C&C review, reporting, and post-incident learning output. |
 | One-feed and multi-feed scenarios | Prove value for both smaller incidents and larger incidents. |
 | Dell deployment story | Show how the prototype can run on Dell Cloud Native Platform and later explore Dell/NVIDIA AI paths. |
 
@@ -146,7 +158,7 @@ Use this sequence to explain how the prototype becomes credible in order without
 | 3. Dashboard | Feed tiles, responder status, and timeline. | C&C can see the incident state. |
 | 4. AI cues | Hazards, possible victim distress, exits, and blocked access. | AI value becomes demonstrable. |
 | 5. Scenarios | One-feed and multi-feed incidents with approximate floor plan pins. | Small and large incident value is clear. |
-| 6. Confirmation | Officer confirmation, dismissal, annotation, and summary. | Human control is explicit. |
+| 6. Confirmation | Officer confirmation, dismissal, annotation, and draft report generation. | Human control is explicit. |
 | 7. Evidence | Audit trail, confidence states, degraded-feed handling, and export. | Review and handover become credible. |
 | 8. Readiness | Dell platform deployment, scenario rehearsal, and reliability polish. | The prototype is ready for judging and mentor review. |
 
@@ -162,7 +174,7 @@ Purpose: prove 1stSight is useful before an incident becomes a major crisis.
 2. The feed shows smoke, narrowed access, possible obstruction, or possible victim distress.
 3. AI flags the cue and links the source frame.
 4. C&C confirms or dismisses the cue.
-5. Timeline and summary preserve the confirmed observation for handover/reporting.
+5. Timeline and Draft Fire Incident Intelligence Report preserve the confirmed observation for handover/reporting.
 
 ### Multi-Responder Or Larger Incident Scenario
 
@@ -171,8 +183,8 @@ Purpose: prove 1stSight helps C&C prioritise across multiple feeds.
 1. Two to three responders provide different views of a warehouse or complex premises.
 2. AI flags smoke growth, blocked access, exit cues, fire cues, or possible victim distress.
 3. C&C reviews source frames and confirms the highest-value cues.
-4. Dashboard updates the floor plan, timeline, and summary.
-5. Officer exports a concise incident snapshot for handover or review.
+4. Dashboard updates the floor plan, timeline, and draft report.
+5. Officer exports a concise Draft Fire Incident Intelligence Report for handover or review.
 
 ## Out Of Scope For The Prototype
 
@@ -204,7 +216,7 @@ The prototype should stay focused and avoid promising production integration too
 | --- | --- |
 | Problem Definition and Analysis, 20% | Addresses a clear operational gap: raw bodycam footage is not structured incident intelligence. |
 | Strategies and Recommendations, 30% | Recommends a practical prototype focused on command visibility, evidence review, and reporting support. |
-| Effective Use of AI, 20% | Uses multimodal vision analysis, alert prioritisation, source-frame evidence, incident timeline, and summary generation. |
+| Effective Use of AI, 20% | Uses multimodal vision analysis, alert prioritisation, source-frame evidence, incident timeline, and draft report generation. |
 | Solution Evaluation, 30% | Provides demonstrable outcomes, Dell platform alignment, responsible AI controls, and operational value. |
 
 ## Fit With SCDF Direction
@@ -214,7 +226,7 @@ The prototype should stay focused and avoid promising production integration too
 | SCDF direction | 1stSight fit |
 | --- | --- |
 | Future-ready operations | Gives command earlier and clearer visual context. |
-| Connected SCDF | Connects responder feeds, C&C dashboard, event timeline, evidence, and summaries. |
+| Connected SCDF | Connects responder feeds, C&C dashboard, event timeline, evidence, and draft reports. |
 | Digital-first approach | Converts fireground visuals into structured data and reviewable events. |
 | Operational excellence | Reduces monitoring burden and improves handover/reporting quality. |
 | Responder safety | Keeps firefighters hands-free while C&C receives better situational context. |
@@ -223,11 +235,11 @@ The prototype should stay focused and avoid promising production integration too
 
 1stSight is strong because it is visible, useful, and buildable.
 
-It is visible because judges can understand the product when they see bodycam feeds become AI alerts, source-frame evidence, timeline updates, and summaries.
+It is visible because judges can understand the product when they see bodycam feeds become AI alerts, source-frame evidence, timeline updates, and a draft report.
 
 It is useful because it does not depend only on major crises. It helps with one-feed incidents and scales up to multi-feed incidents.
 
-It is buildable because the prototype uses phones for capture, sampled frames for practical AI review, Dell Cloud Native Platform for deployment, and Gemini Flash/Pro as an external prototype inference option if needed.
+It is buildable because the prototype uses phones for capture, sampled frames for practical AI review, deterministic mock AI for demo reliability, Dell Cloud Native Platform for deployment, and optional runtime model calls after the core evidence workflow works.
 
 Most importantly, it respects frontline reality. Firefighters should not be asked to operate another complex tool during an emergency. 1stSight puts the intelligence workflow where it belongs: with C&C officers who need to see, prioritise, confirm, and communicate.
 
@@ -246,3 +258,5 @@ This document uses the following source basis from the project resources:
 3. SCDF Annual Statistics 2025 for fire call volumes, fire category increases, injuries, fatalities, and fire hazard notice data.
 4. SCDF Transformation 2030 for future-ready operations, connected SCDF, digital-first approach, and intelligence-driven organisation direction.
 5. SCDF Workplan 2026 themes on readiness, operational excellence, preparedness, partnerships, and future-ready capability.
+6. SCDF Fire Report and Ambulance Report public e-service descriptions.
+7. `SCDF_FIRE_REPORT_STRUCTURE.md` and `SCDF_AMBULANCE_REPORT_STRUCTURE.md` research notes.

@@ -2,6 +2,12 @@
 
 You are an expert full-stack developer building `brwne`, an Agentic E2E testing platform. You must adhere strictly to the following architectural constraints. Do not deviate from these rules under any circumstances.
 
+read the following files in `resources/` as context:
+- `Meet the Mentors Session Finalists.pdf`
+- `SCDF Challenge NVIDIA NIM.md`
+- `SCDF Challenge OpenShift Deployment Guide.md`
+- `SCDF x Dell Innovation Challenge.md`
+
 # Deterministic Coder
 
 ## STRICT DOCUMENTATION ADHERENCE
