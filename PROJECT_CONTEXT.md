@@ -69,21 +69,21 @@ After the fire dies down, the warehouse owner arrives, tries to force entry into
 - **Provider:** OpenAI through AI SDK's OpenAI provider.
 - **Model:** `gpt-5.5` is the highest-accuracy Cloud AI model for multimodal vision, tool calling, and reasoning-heavy workflows where intelligence matters more than local-only execution.
 - **API Key:** `OPENAI_API_KEY` is required for OpenAI model calls and must not be exposed through `NEXT_PUBLIC_*`.
-- **Testing Provider:** `ai-sdk-provider-codex-cli` may be used for local testing through the user's ChatGPT subscription; it is not the production Cloud AI path for the deployed demo.
+- **Dev Fallback Provider:** In AI model use cases, `Dev fallback` means `ai-sdk-provider-codex-cli` on the local laptop through the user's ChatGPT subscription when OpenAI provider credentials or the GB10 endpoint are unavailable; it is not the production Cloud AI path for the deployed demo.
 - **Optional NVIDIA NIM:** `NVIDIA_API_KEY` is only required if using hosted NVIDIA NIM APIs instead of the local GB10 endpoint.
 - **Compute Boundary:** OpenShift does not provide GPUs for hosted LLMs; GPU-backed local inference runs through GB10, while cloud inference runs through external provider APIs.
 
 ### AI Model Use Cases
 
-- **Video-to-structured incident extraction (vision):** Model: `gpt-5.5`; converts one-second bodycam samples into structured incident objects, timestamps, source references, short evidence descriptions, and confidence notes.
-- **Best evidence frame selection (vision):** Model: `gpt-5.5`; selects the clearest screenshot/frame that supports each incident object, especially flame burst and physical abuse evidence.
-- **Bounding box and visual label generation (vision):** Model: `gpt-5.5`; creates approximate bounding boxes and one-phrase labels for fire growth, smoke spread, blocked exits, unsafe entry, pushing, and attempted punch evidence.
-- **Incident matching, grouping, and titling:** Model: `Nemotron Nano 9B v2`; determines whether a new incident object belongs to an existing incident or starts a new one, then groups related objects under titles such as Fire Escalation or Physical Abuse.
-- **Live recommendation generation:** Model: `gpt-5.5`; creates reviewable Ops Centre recommendations such as Deploy Enhanced Task Force with reason and evidence fields.
-- **Natural-language post-incident search:** Model: `Nemotron Nano 9B v2`; maps officer queries such as `warehouse owner is abusive?` to relevant incidents, tags, and evidence cards after keyword/tag retrieval.
-- **Post-incident timeline summarization:** Model: `Nemotron Nano 9B v2`; turns captured incident objects into a chronological evidence timeline for review.
-- **Report evidence selection (vision):** Model: `gpt-5.5`; selects only the relevant screenshots/evidence cards from selected incidents for inclusion in the report.
-- **Structured observation report generation:** Model: `Nemotron Nano 9B v2`; generates selected-incident observation reports with relevant screenshots and concise analysis.
+- **Video-to-structured incident extraction (vision):** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; converts one-second bodycam samples into structured incident objects, timestamps, source references, short evidence descriptions, and confidence notes.
+- **Best evidence frame selection (vision):** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; selects the clearest screenshot/frame that supports each incident object, especially flame burst and physical abuse evidence.
+- **Bounding box and visual label generation (vision):** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; creates approximate bounding boxes and one-phrase labels for fire growth, smoke spread, blocked exits, unsafe entry, pushing, and attempted punch evidence.
+- **Incident matching, grouping, and titling:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.2-codex-mini`; determines whether a new incident object belongs to an existing incident or starts a new one, then groups related objects under titles such as Fire Escalation or Physical Abuse.
+- **Live recommendation generation:** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; creates reviewable Ops Centre recommendations such as Deploy Enhanced Task Force with reason and evidence fields.
+- **Natural-language post-incident search:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.2-codex-mini`; maps officer queries such as `warehouse owner is abusive?` to relevant incidents, tags, and evidence cards after keyword/tag retrieval.
+- **Post-incident timeline summarization:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.3-codex`; turns captured incident objects into a chronological evidence timeline for review.
+- **Report evidence selection (vision):** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; selects only the relevant screenshots/evidence cards from selected incidents for inclusion in the report.
+- **Structured observation report generation:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.3-codex`; generates selected-incident observation reports with relevant screenshots and concise analysis.
 
 ## 4. Run & Development Commands
 
@@ -97,6 +97,7 @@ After the fire dies down, the warehouse owner arrives, tries to force entry into
 - **State Management:** Keep the hackathon prototype minimal; use deterministic scenario state and lightweight persistence before adding a production database.
 - **API & Data Fetching:** Keep model calls behind backend/API boundaries so the Ops Centre workflow is not coupled to a specific model provider.
 - **AI Output Contract:** All model pipeline steps must use structured output validated with Zod; vision is required only for use cases marked `(vision)`, and tool calling is optional for the demo pipeline.
+- **Development Model Fallback:** `ai-sdk-provider-codex-cli` may replace OpenAI provider or GB10 calls only for local laptop development; keep the same Zod-validated structured schemas and avoid optional schema fields in Codex object generation.
 - **Demo Algorithms:**
   - **Video chunking:** Split bodycam footage into 5-second chunks.
   - **Frame sampling:** Sample 1 frame per second from each chunk.
@@ -108,33 +109,10 @@ After the fire dies down, the warehouse owner arrives, tries to force entry into
   - **Timeline and report generation:** Use `Nemotron Nano 9B v2` to generate post-incident timelines and structured observation reports.
 - **Types/Interfaces:** Use explicit domain models for incidents, responders, evidence, events, recommendations, decision reviews, map markers, and reports.
 - **AI Autonomy:** AI may autonomously create incident titles, incident objects, timeline entries, evidence screenshots, tags, optional minimap updates, and draft recommendations; humans review important or high-impact decisions such as Enhanced Task Force deployment and final report conclusions.
-- **Demo Reliability:** Use staged/YouTube video input and deterministic fallback behavior before relying on live camera, livestreaming, or external AI APIs; product UI should present the footage as live 1stSight feeds.
+- **Demo Reliability:** Use deterministic fallback behavior for AI/API failures; product UI should present demo assets as live 1stSight feeds.
 - **Safety Boundaries:** Do not present 1stSight as autonomous tactical command, a medical diagnosis system, facial recognition, or an official SCDF Fire Report / Ambulance Report generator unless explicitly approved.
 
-## 6. Core Architecture & User Flows
-
-### End Users: Responder & Ops Centre
-
-- **Responder:** Provides staged bodycam footage for the demo flow; real bodycam or phone capture is outside the first demo scope.
-- **Ops Centre Officer:** Uses the 1stSight dashboard to review live incident intelligence, approve high-impact recommendations, search post-incident evidence, and generate structured observation reports.
-
-### Dell Cloud Native Platform
-
-- **Production Demo Target:** Hosts the deployed 1stSight dashboard/backend on Dell Cloud Native Platform / Red Hat OpenShift.
-- **Development Runtime:** Runs locally on the developer laptop during implementation, with the same app behavior and port `8080` target for containerized deployment.
-- **Responsibilities:** Handles data ingestion, dashboard services, evidence storage, API coordination, PDF report generation, and routing between GB10 local text reasoning and Cloud AI multimodal analysis.
-
-### GB10 / NVIDIA DGX Spark
-
-- **Role:** Provides local compute for post-incident text reasoning, search synthesis, timeline summarization, and structured observation report generation.
-- **Integration Path:** Exposes a local hosted model endpoint through AI SDK's OpenAI-compatible provider support.
-- **Responsibilities:** Handles local text reasoning through the single GB10-hosted `Nemotron Nano 9B v2` endpoint.
-
-### Cloud AI
-
-- **Role:** Provides demo multimodal bodycam analysis and fallback reasoning when local inference cannot handle required vision tasks or latency/resource constraints.
-- **Integration Path:** Uses AI SDK's OpenAI provider for `gpt-5.5` via OpenAI key.
-- **Responsibilities:** Supports video-to-structured incident extraction, best evidence frame selection, bounding boxes, recommendation generation, timeline updates, report generation, and post-incident summaries.
+## 6. Architecture Diagram & Demo Flow
 
 ```mermaid
 flowchart LR
@@ -146,13 +124,32 @@ flowchart LR
   cloud --> platform
 ```
 
-### User Flows
+### Demo Flow
 
-- **Pre-Arrival Flow:** Ops Centre sees a Singapore deployment map with the Basic Task Force travelling from Punggol Fire Station to the Punggol warehouse, then enters the incident view when the section reaches the address.
-- **Firefighter User Flow:** The responder viewpoint is represented by staged or sourced fire/assault footage loaded into the system; real bodycam or phone capture is outside the demo flow.
-- **Ops Centre Flow - Live Incident:** A small warehouse fire escalates inside a storage room without the firefighter reporting it, 1stSight detects the flame burst from Firefighter A's bodycam, creates Fire Escalation timeline evidence, and recommends Deploy Enhanced Task Force with reason `flame spread increased inside storage room` and evidence `Firefighter A bodycam, 14:03:21`.
-- **Ops Centre Flow - Responder Safety:** After the fire dies down, the warehouse owner attempts to force entry, pushes an SCDF responder, and attempts a punch; 1stSight records the physical abuse incident with evidence frames for post-incident review.
-- **Ops Centre Flow - Post-Incident:** Ops Centre searches the post-incident timeline with natural language or suggested incident tags such as `abuse`, reviews default-selected evidence cards with bounding boxes and one-phrase labels, rejects false flags if needed, and exports a structured observation report for the selected incidents only.
+#### End User: Responder Source
+
+1. Responder bodycam viewpoint is represented by staged or sourced fire/assault footage loaded into 1stSight.
+2. 1stSight presents the footage as live responder feeds during the demo.
+3. Source video is chunked into 5-second segments and sampled at 1 frame per second.
+4. Each sampled frame keeps responder, source video, chunk, frame, and timestamp references.
+
+#### Ops Centre Officer: Live Incident
+
+1. Officer opens the deployment map and watches the Basic Task Force travel from Punggol Fire Station to the Punggol warehouse.
+2. Officer enters the live incident dashboard when the section reaches the incident site.
+3. Officer monitors responder feed cards, live events, and action prompts.
+4. 1stSight detects fire escalation from Firefighter A's bodycam and creates Fire Escalation timeline evidence.
+5. 1stSight recommends Deploy Enhanced Task Force with reason `flame spread increased inside storage room` and evidence `Firefighter A bodycam, 14:03:21`.
+6. Officer reviews the recommendation and can approve, reject, or edit the decision record.
+
+#### Ops Centre Officer: Post-Incident
+
+1. Officer switches to incident review after the live scenario ends.
+2. Officer searches naturally or selects a suggested tag such as `abuse`.
+3. 1stSight shows the physical abuse incident timeline with default-selected evidence frames.
+4. Officer reviews evidence cards with bounding boxes, one-phrase labels, source references, and review state.
+5. Officer rejects false flags or adjusts selected evidence if needed.
+6. Officer exports a structured observation report containing only the selected incident evidence and analysis.
 
 ## 7. State Models
 
@@ -181,7 +178,6 @@ flowchart LR
 ## 9. Assumptions, Risks & Missing Information
 
 - **Assumption:** `PROJECT_CONTEXT.md` is the single source of truth for current product, demo, architecture, and implementation direction.
-- **Assumption:** Live streaming, WebRTC, and real bodycam integration are out of scope for the first demo unless re-approved.
 - **Risk:** YouTube warehouse-fire footage may require careful sourcing, editing, and usage checks; self-filmed assault footage avoids rights ambiguity for the abuse segment.
 - **Risk:** GB10 availability, model compatibility, and Cloudflare Tunnel reachability must be validated before relying on local text reasoning in the deployed demo.
 - **Risk:** Cloud AI use for sensitive incident footage requires explicit data-governance approval before any real SCDF-like data is sent to third-party providers.
