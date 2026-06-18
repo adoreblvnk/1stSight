@@ -151,6 +151,22 @@ flowchart LR
 5. Officer rejects false flags or adjusts selected evidence if needed.
 6. Officer exports a structured observation report containing only the selected incident evidence and analysis.
 
+### Rough 10-Minute Presenter Flow
+
+The demo should be presenter-controlled rather than video-length-controlled. Fire clips can run in parallel as three responder feeds, with the fire escalation appearing around `1:20` in the relevant feed. The UI should include `Pause / Resume`, `Jump to escalation`, `Start abuse incident`, and `Conclude incident` controls so presenters can slow down for judges or skip ahead when needed.
+
+| Approx. time | Presenter beat | Product moment |
+| --- | --- | --- |
+| 0:00-1:00 | Introduce the raw-bodycam monitoring problem and 1stSight's Ops Centre role. | Show 1stSight as Command & Control intelligence, not a bodycam replacement. |
+| 1:00-1:45 | Explain that SCDF has received a call for a fire at a Punggol warehouse, then click the Basic Task Force as it reaches the site. | Map transitions into the live incident dashboard. |
+| 1:45-3:30 | Let the three fire feeds run in parallel and explain the monitoring load. | Live feed cards, live events, and source-linked timeline begin filling in. |
+| 3:30-4:45 | Fire escalation is detected or jumped to if timing needs compression. | 1stSight creates Fire Escalation evidence and recommends Deploy Enhanced Task Force. |
+| 4:45-5:45 | Explain human-in-the-loop approval. | Officer reviews reason and evidence, then approves, rejects, or edits the decision record. |
+| 5:45-6:45 | Start the recorded abuse case after the fire scenario. | Physical Abuse incident is added to the incident timeline as a separate responder-safety event. |
+| 6:45-8:15 | Conclude the incident and open review mode. | Officer searches or selects `abuse`, then reviews default-selected evidence cards. |
+| 8:15-9:15 | Show evidence review and report generation. | Bounding boxes, one-phrase labels, source references, false-flag rejection, and structured observation report export. |
+| 9:15-10:00 | Close with architecture and deployment story. | Dell Cloud Native Platform hosts the app, GB10 handles local text reasoning, and Cloud AI handles vision-heavy tasks. |
+
 ## 7. State Models
 
 - **Incident:** Top-level scenario group such as Fire Escalation or Physical Abuse, containing related incident objects and report state.
