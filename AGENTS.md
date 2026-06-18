@@ -71,3 +71,14 @@ Actively discover and invoke specialized capabilities when solving tasks. Do not
 
 ## DESIGN CONTEXT
 For UI work, use `impeccable` and read `PRODUCT.md` plus `DESIGN.md`. 
+
+## IMAGE GENERATION
+Use Codex CLI non-interactively with the built-in image generation skill by invoking $imagegen inside a single-quoted prompt so the shell does not expand
+```bash
+codex exec '$imagegen generate a premium SaaS hero background, warm brown gradients, no text, save as public/hero-bg.png'.
+```
+
+For editing or matching an existing asset, attach it as image input and still use $imagegen:
+```bash
+codex exec -i reference.png '$imagegen create a matching website hero background from this reference, save as public/hero-bg.png'.
+```

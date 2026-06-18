@@ -34,14 +34,16 @@ After the fire dies down, the warehouse owner arrives, tries to force entry into
 
 ### Laptop / Dell Cloud Native Platform
 
-- **Runtime & Languages:** Node.js `24`, npm, TypeScript `6`.
+- **Runtime & Languages:** Node.js `24`, npm `11`, TypeScript `5`.
 - **Frameworks & Libraries:**
   - **App Framework:** Next.js `16`, React `19`.
-  - **UI:** Tailwind CSS `4`, shadcn/ui, motion.
+  - **UI:** Tailwind CSS `4`, shadcn/ui components, Base UI, motion.
   - **AI SDK:** AI SDK `6`, `@ai-sdk/openai`, `@ai-sdk/openai-compatible`, `ai-sdk-provider-codex-cli`.
   - **Maps:** `@vis.gl/react-google-maps`.
   - **PDF Export:** `@react-pdf/renderer`.
-  - **Validation:** Zod.
+  - **Video Processing:** Use system `ffmpeg` from the host/container path; use `execa` and `sharp` for orchestration and frame/image optimization.
+  - **Dates:** `date-fns`.
+  - **Validation:** Zod `4`.
 - **State & Data:** Core data includes incidents, incident objects, responder video/frame evidence, event timelines, recommendations, minimap markers, decision reviews, and draft reports.
 - **Development Runtime:** The developer laptop runs the same application locally during implementation and testing.
 - **OpenShift Hosting [Cloud Native Platform]:** Dell Cloud Native Platform / Red Hat OpenShift hosts the deployed dashboard/backend, and the containerized app listens on port `8080`.
@@ -87,13 +89,14 @@ After the fire dies down, the warehouse owner arrives, tries to force entry into
 
 ## 4. Run & Development Commands
 
-- **Prerequisites:** Docker, Git, Node.js `24`, npm, OpenShift/Keycloak access, and Harbor access.
+- **Prerequisites:** Docker, Git, Node.js `24`, npm `11`, system `ffmpeg`, OpenShift/Keycloak access, and Harbor access.
 - **Start Services:** `npm run dev` for local development; containerized deployment runs the app on port `8080` for OpenShift.
-- **Useful Commands:** `npm run lint`, `npm run typecheck`, `npm run build`.
+- **Useful Commands:** `npm run lint`, `npx tsc --noEmit`, `npm run build`.
 
 ## 5. Critical Implementation Rules & Conventions
 
-- **Code Organization:** Implement the app as a Next.js App Router project under `/app`, with reusable UI components, domain models, demo data, and AI adapters kept separate.
+- **Product Posture:** Build 1stSight as a production-shaped prototype, not a throwaway mockup. Use real product boundaries with real API / AI calls.
+- **Code Organization:** Implement the app as a root-level Next.js App Router project using `src/app`, `src/components`, `src/lib`, and browser-served media under `public/videos`.
 - **State Management:** Keep the hackathon prototype minimal; use deterministic scenario state and lightweight persistence before adding a production database.
 - **API & Data Fetching:** Keep model calls behind backend/API boundaries so the Ops Centre workflow is not coupled to a specific model provider.
 - **AI Output Contract:** All model pipeline steps must use structured output validated with Zod; vision is required only for use cases marked `(vision)`, and tool calling is optional for the demo pipeline.
@@ -155,7 +158,7 @@ flowchart LR
 
 The demo should be presenter-controlled rather than video-length-controlled. Fire clips can run in parallel as three responder feeds, with the fire escalation appearing around `1:20` in the relevant feed. The UI should include `Pause / Resume`, `Jump to escalation`, `Start abuse incident`, and `Conclude incident` controls so presenters can slow down for judges or skip ahead when needed.
 
-| Approx. time | Presenter beat | Product moment |
+| Approx. time | Demo beat | Product moment |
 | --- | --- | --- |
 | 0:00-1:00 | Introduce the raw-bodycam monitoring problem and 1stSight's Ops Centre role. | Show 1stSight as Command & Control intelligence, not a bodycam replacement. |
 | 1:00-1:45 | Explain that SCDF has received a call for a fire at a Punggol warehouse, then click the Basic Task Force as it reaches the site. | Map transitions into the live incident dashboard. |
@@ -189,7 +192,7 @@ The demo should be presenter-controlled rather than video-length-controlled. Fir
 - **Cloudflare Tunnel:** Secure HTTPS tunnel from the deployed OpenShift app to the GB10-hosted OpenAI-compatible `vLLM` endpoint.
 - **NVIDIA NIM:** Model-serving path through hosted API calls or self-hosted containers, subject to GB10/GPU limits.
 - **Cloud AI Providers:** Use AI SDK's OpenAI provider for `gpt-5.5` via OpenAI key and AI SDK's OpenAI-compatible provider for the local hosted GB10 model exposed through an OpenAI-compatible endpoint.
-- **Video Sources:** Demo footage combines warehouse-fire footage from YouTube or similar sources with self-filmed warehouse-owner assault footage.
+- **Video Sources:** Demo footage combines warehouse-fire footage from YouTube or similar sources with self-filmed warehouse-owner assault footage; local fire clips are served from `public/videos/fire/` as `/videos/fire/...` URLs.
 
 ## 9. Assumptions, Risks & Missing Information
 
