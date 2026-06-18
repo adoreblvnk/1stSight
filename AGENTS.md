@@ -68,3 +68,6 @@ Actively discover and invoke specialized capabilities when solving tasks. Do not
 2. ACTIVATION (Syntax must be exact):
    - To use a skill, output: `use <name>` skill (e.g., `use docker-expert` skill)
    - To use an MCP, output: `use <name>` MCP (e.g., `use playwright` MCP)
+
+## DESIGN CONTEXT
+For UI work, use `impeccable` and read `PRODUCT.md` plus `DESIGN.md`. 

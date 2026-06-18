@@ -1,10 +1,35 @@
 {
   "version": 1,
   "skills": {
+    "ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "computedHash": "7ed1d9712b9bac9cd0506394c772717698720a28499183a0cd8d6a4c0424ca60"
+    },
     "image-generation": {
       "source": "claude-office-skills/skills",
       "sourceType": "github",
       "computedHash": "82412c7d34a72172b34cc09e65038390ab0688701ded9d8f682e587e2b7c1646"
+    },
+    "next-best-practices": {
+      "source": "vercel-labs/next-skills",
+      "sourceType": "github",
+      "computedHash": "923cf68cb8f4ce917d81744b78b93ff586d3146b6c96dacfef797237b4897f16"
+    },
+    "react-pdf": {
+      "source": "vercel-labs/json-render",
+      "sourceType": "github",
+      "computedHash": "a02018e64af5fc7e07e09fdd27ed43cc2b34b4ff1fbfcc21c0b391564f6a9528"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "computedHash": "ac9d0d69caac7de1d1e5647f3db3bcd2f13af355d6b3a78780fbf7fc80e8dca0"
+    },
+    "vllm-deploy-simple": {
+      "source": "vllm-project/vllm-skills",
+      "sourceType": "github",
+      "computedHash": "9f85b10904d29c635f8a249a9a3c7eba3bc370b383958a913dd7f674a7d14ee0"
     }
   }
 }
