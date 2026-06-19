@@ -317,14 +317,14 @@ function IncidentSelector({ state, selectedIncidentId, onIncidentChange }: { sta
   );
 }
 
-function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, showSidebar = true, background = "neutral", children }: { state: ScenarioState; activeState: string; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; background?: PageBackgroundKey; children: ReactNode }) {
+function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, showSidebar = true, background = "neutral", fixedViewport = false, children }: { state: ScenarioState; activeState: string; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; background?: PageBackgroundKey; fixedViewport?: boolean; children: ReactNode }) {
   const pathname = usePathname();
 
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.12, ease: "circOut" }}>
-      <div className="relative isolate min-h-[100dvh] bg-background text-foreground">
+      <div className={cn("relative isolate bg-background text-foreground", fixedViewport ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-[100dvh]")}>
         <PageAmbientBackground background={background} />
-        <header className="sticky top-0 z-20 border-b border-command-border bg-background">
+        <header className={cn("sticky top-0 z-20 border-b border-command-border bg-background", fixedViewport && "shrink-0")}>
           <div className="mx-auto flex min-h-14 max-w-[1760px] flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:py-0">
             <div className="flex min-w-0 items-center gap-3">
               <div className="grid size-8 place-items-center border border-foreground bg-foreground text-background">
@@ -363,9 +363,9 @@ function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, sh
           </div>
         </header>
 
-        <div className={cn("relative z-10 mx-auto grid max-w-[1760px] gap-4 p-4 sm:p-6", showSidebar && "xl:grid-cols-[260px_minmax(0,1fr)]")}>
+        <div className={cn("relative z-10 mx-auto grid w-full max-w-[1760px] gap-4 p-4 sm:p-6", fixedViewport && "min-h-0 flex-1 overflow-hidden", showSidebar && "xl:grid-cols-[260px_minmax(0,1fr)]")}>
           {showSidebar ? <IncidentSidebar state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={onIncidentChange} /> : null}
-          <main className="flex min-w-0 flex-col gap-4">{children}</main>
+          <main className={cn("flex min-w-0 flex-col gap-4", fixedViewport && "h-full min-h-0 overflow-hidden")}>{children}</main>
         </div>
       </div>
     </MotionConfig>
@@ -466,9 +466,9 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMark
 
   if (!apiKey) {
     return (
-      <div className="relative min-h-[calc(100dvh-10rem)] overflow-hidden bg-screen p-4 text-screen-foreground">
+      <div className="relative h-full min-h-0 overflow-hidden bg-screen p-4 text-screen-foreground">
         <div className="absolute inset-0 deployment-grid opacity-30" />
-        <div className="relative flex h-full min-h-[calc(100dvh-12rem)] flex-col justify-between border border-screen-border bg-screen/90 p-4">
+        <div className="relative flex h-full min-h-0 flex-col justify-between overflow-auto border border-screen-border bg-screen/90 p-4">
           <div className="font-mono text-xs uppercase tracking-widest text-screen-foreground/60">Map fallback, select a marker for details</div>
           <div className="grid gap-3 sm:grid-cols-3">
             {state.deploymentMarkers.map((marker) => (
@@ -487,9 +487,9 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMark
   }
 
   return (
-    <div className="relative min-h-[calc(100dvh-10rem)] border-b border-border">
+    <div className="relative min-h-0 flex-1 border-b border-border">
       <APIProvider apiKey={apiKey}>
-        <Map className="h-[calc(100dvh-10rem)] min-h-[620px]" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK" mapId={mapId}>
+        <Map className="h-full min-h-0" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK" mapId={mapId}>
           {state.deploymentMarkers.map((marker) => (
             <AdvancedMarker key={marker.id} position={marker.position} title={`${marker.label}: ${marker.status}`} onClick={() => onSelectMarker(marker)} />
           ))}
@@ -873,8 +873,8 @@ export function MapDashboard({ initialState, initialIncidentId }: { initialState
   }
 
   return (
-    <AppShell state={state} activeState="deployment map" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="map">
-      <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
+    <AppShell state={state} activeState="deployment map" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="map" fixedViewport>
+      <section className={cn(commandScope, "flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="command-texture command-texture-map relative flex min-h-12 flex-wrap items-center justify-between gap-3 overflow-hidden border-b border-border px-4 py-3">
           <HeroImageBackdrop src={heroImages.map} alt="AI generated operations map background" />
           <div className="relative">
@@ -995,8 +995,8 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   }
 
   return (
-    <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="live">
-      <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
+    <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="live" fixedViewport>
+      <section className={cn(commandScope, "shrink-0 overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
           <div className="command-texture command-texture-live relative overflow-hidden bg-card p-4">
             <HeroImageBackdrop src={heroImages.live} alt="AI generated live bodycam feed background" />
@@ -1033,12 +1033,12 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         </div>
       </section>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Panel title="Live responder feeds" label="Feeds">
+      <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Panel title="Live responder feeds" label="Feeds" className="h-full min-h-0 overflow-y-auto">
           <BodycamGrid state={state} incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} />
         </Panel>
 
-        <div className="grid gap-4 xl:sticky xl:top-20">
+        <div className="grid max-h-full auto-rows-max content-start gap-4 overflow-y-auto xl:sticky xl:top-20">
           <Panel title="Case brief" label="Caller report" className="xl:hidden">
             <details className="p-4">
               <summary className="cursor-pointer font-mono text-xs uppercase tracking-widest text-muted-foreground">Open caller brief</summary>
