@@ -2,7 +2,7 @@ import React from "react";
 import { NextRequest } from "next/server";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { z } from "zod";
-import { getScenarioState } from "@/lib/scenario";
+import { getIncidentById, getScenarioState } from "@/lib/scenario";
 
 export const runtime = "nodejs";
 
@@ -120,6 +120,16 @@ function insetBox(box: z.infer<typeof runtimeBoxSchema>) {
 }
 
 function sanitizeAnalysis(analysis: RuntimeAnalysis): RuntimeAnalysis {
+  const incident = getIncidentById(analysis.incidentId);
+
+  if (!incident) {
+    throw new Error("Incident was not found.");
+  }
+
+  if (!incident.supportsRuntimeAnalysis) {
+    throw new Error(incident.unavailableReason ?? "Report export is unavailable for this incident.");
+  }
+
   const evidence = [...analysis.evidence]
     .slice(0, 3)
     .map((item) => ({
@@ -143,6 +153,7 @@ function sanitizeAnalysis(analysis: RuntimeAnalysis): RuntimeAnalysis {
 
 function ReportDocument({ analysis }: { analysis: RuntimeAnalysis }) {
   const state = getScenarioState();
+  const incident = getIncidentById(analysis.incidentId);
 
   return React.createElement(
     Document,
@@ -160,7 +171,8 @@ function ReportDocument({ analysis }: { analysis: RuntimeAnalysis }) {
         View,
         { style: styles.section },
         React.createElement(Text, { style: styles.sectionTitle }, "Scenario"),
-        React.createElement(Text, null, `${state.title} / ${state.incidentClock}`),
+        React.createElement(Text, null, `${incident?.title ?? analysis.incidentTitle} / ${analysis.incidentId} / ${state.incidentClock}`),
+        incident ? React.createElement(Text, { style: styles.evidence }, incident.location) : null,
         React.createElement(Text, { style: styles.evidence }, analysis.generatedFrom),
       ),
       React.createElement(
@@ -237,7 +249,13 @@ export async function POST(request: NextRequest) {
   }
 
   const requestBody = parsed.data;
-  const analysis = sanitizeAnalysis(requestBody.analysis);
+  let analysis: RuntimeAnalysis;
+
+  try {
+    analysis = sanitizeAnalysis(requestBody.analysis);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Report export is unavailable for this incident." }, { status: 400 });
+  }
   // React PDF Node API: https://react-pdf.org/node
   const document = React.createElement(ReportDocument, { analysis }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
   const buffer = await renderToBuffer(document);

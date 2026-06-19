@@ -6,11 +6,12 @@ import { execa } from "execa";
 import { z } from "zod";
 import { generateStructuredStrict } from "@/lib/ai/model";
 import { postIncidentAnalysisSchema } from "@/lib/ai/schemas";
-import { getScenarioState } from "@/lib/scenario";
+import { getRuntimeIncident } from "@/lib/scenario";
 
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
+  incidentId: z.string().min(1),
   feedIds: z.array(z.string()).default([]),
 });
 
@@ -74,10 +75,25 @@ function isSupportedRecommendation(recommendation: { title: string; reason: stri
 }
 
 export async function POST(request: Request) {
-  const body = bodySchema.parse(await request.json().catch(() => ({})));
-  const state = getScenarioState();
+  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Post-incident analysis requires an incident ID and current feed IDs." }, { status: 400 });
+  }
+
+  const body = parsed.data;
+  const { incident, responders: incidentResponders } = getRuntimeIncident(body.incidentId);
+
+  if (!incident) {
+    return NextResponse.json({ error: "Incident was not found." }, { status: 404 });
+  }
+
+  if (!incident.supportsRuntimeAnalysis || incidentResponders.length === 0) {
+    return NextResponse.json({ error: incident.unavailableReason ?? "Post-incident analysis is unavailable for this incident." }, { status: 400 });
+  }
+
   const requestedFeedIds = new Set(body.feedIds);
-  const responders = state.responders.filter((responder) => requestedFeedIds.size === 0 || requestedFeedIds.has(responder.id));
+  const responders = incidentResponders.filter((responder) => requestedFeedIds.size === 0 || requestedFeedIds.has(responder.id));
 
   if (responders.length === 0) {
     return NextResponse.json({ error: "No matching responder feeds were found for analysis." }, { status: 400 });
@@ -186,6 +202,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...analysis,
+      incidentId: incident.id,
+      incidentTitle: incident.title,
       generatedFrom: "request-time ffmpeg extraction from public/videos/fire",
       evidence: normalizedEvidence.map(({ rank, ...item }) => ({ ...item, order: rank })),
       recommendations: normalizedRecommendations.map(({ rank, ...item }) => ({ ...item, order: rank })),

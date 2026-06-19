@@ -1,5 +1,7 @@
 import type { ScenarioState } from "@/lib/domain";
 
+export const DEFAULT_INCIDENT_ID = "punggol-warehouse-fire";
+
 export const scenarioState: ScenarioState = {
   scenarioId: "punggol-warehouse-ops-2026-07-03",
   title: "Punggol warehouse fire response review",
@@ -40,21 +42,57 @@ export const scenarioState: ScenarioState = {
   ],
   incidents: [
     {
-      id: "inc-caller-report",
+      id: DEFAULT_INCIDENT_ID,
       title: "Caller report: small warehouse fire",
       severity: "watch",
       status: "live",
       startTime: "13:56:10",
+      location: "21 Punggol Field Walk",
+      position: { lat: 1.415, lng: 103.9105 },
       summary: "Caller reports a small fire inside Punggol warehouse, 21 Punggol Field Walk. Caller remains outside and reports no visible injuries.",
       tags: ["fire response", "deployment"],
+      objectIds: ["obj-bodycam-a-attack", "obj-flame-spread", "obj-bodycam-c-entry-control"],
+      evidenceIds: ["ev-fire-a-attack", "ev-fire-b-escalation", "ev-fire-c-entry-control"],
+      responderIds: ["ff-a", "ff-b", "ff-c"],
+      supportsRuntimeAnalysis: true,
+    },
+    {
+      id: "jurong-chemical-leak",
+      title: "Chemical vapour report at Jurong logistics yard",
+      severity: "elevated",
+      status: "live",
+      startTime: "15:18:44",
+      location: "8 Jurong Pier Road",
+      position: { lat: 1.3099, lng: 103.7239 },
+      summary: "Site supervisor reports vapour near a loading bay. First appliances are staging while HazMat assessment is pending.",
+      tags: ["deployment", "blocked access"],
       objectIds: [],
       evidenceIds: [],
+      responderIds: [],
+      supportsRuntimeAnalysis: false,
+      unavailableReason: "No responder video has been attached to this incident.",
+    },
+    {
+      id: "tampines-mall-medical-assist",
+      title: "Medical assist at Tampines retail concourse",
+      severity: "watch",
+      status: "review",
+      startTime: "16:07:12",
+      location: "4 Tampines Central 5",
+      position: { lat: 1.3535, lng: 103.9451 },
+      summary: "Mall security requests ambulance support for a collapsed member of public. Crowd control and access routing are being coordinated.",
+      tags: ["deployment", "blocked access"],
+      objectIds: [],
+      evidenceIds: [],
+      responderIds: [],
+      supportsRuntimeAnalysis: false,
+      unavailableReason: "No bodycam footage is available for review.",
     },
   ],
   incidentObjects: [
     {
       id: "obj-bodycam-a-attack",
-      incidentId: "inc-fire-response",
+      incidentId: DEFAULT_INCIDENT_ID,
       title: "Interior attack feed indexed",
       timestamp: "14:02:10",
       source: "Firefighter A bodycam",
@@ -65,7 +103,7 @@ export const scenarioState: ScenarioState = {
     },
     {
       id: "obj-flame-spread",
-      incidentId: "inc-fire-escalation",
+      incidentId: DEFAULT_INCIDENT_ID,
       title: "Storage-room fire growth",
       timestamp: "14:03:21",
       source: "Firefighter B",
@@ -76,7 +114,7 @@ export const scenarioState: ScenarioState = {
     },
     {
       id: "obj-bodycam-c-entry-control",
-      incidentId: "inc-fire-response",
+      incidentId: DEFAULT_INCIDENT_ID,
       title: "Entry-control feed indexed",
       timestamp: "14:04:06",
       source: "Firefighter C bodycam",
@@ -93,7 +131,9 @@ export const scenarioState: ScenarioState = {
   deploymentMarkers: [
     { id: "station", label: "Punggol Fire Station", kind: "station", position: { lat: 1.4023, lng: 103.8972 }, status: "origin" },
     { id: "btf", label: "Basic Task Force", kind: "unit", position: { lat: 1.4103, lng: 103.9051 }, status: "approaching" },
-    { id: "warehouse", label: "Punggol warehouse", kind: "incident", position: { lat: 1.415, lng: 103.9105 }, status: "live incident" },
+    { id: "warehouse", incidentId: DEFAULT_INCIDENT_ID, label: "Punggol warehouse", kind: "incident", position: { lat: 1.415, lng: 103.9105 }, status: "live incident" },
+    { id: "jurong-yard", incidentId: "jurong-chemical-leak", label: "Jurong logistics yard", kind: "incident", position: { lat: 1.3099, lng: 103.7239 }, status: "awaiting footage" },
+    { id: "tampines-concourse", incidentId: "tampines-mall-medical-assist", label: "Tampines retail concourse", kind: "incident", position: { lat: 1.3535, lng: 103.9451 }, status: "review pending" },
   ],
   architecture: [
     { id: "browser", label: "Ops Centre dashboard", detail: "Browser UI receives only NEXT_PUBLIC_GOOGLE_MAPS_API_KEY and calls route handlers.", boundary: "Browser" },
@@ -106,7 +146,7 @@ export const scenarioState: ScenarioState = {
     id: "report-fire-response-evidence",
     title: "Structured Evidence Report: Fire Response Bodycam Review",
     generatedAt: "2026-07-03T14:40:00+08:00",
-    incidentIds: ["inc-fire-response", "inc-fire-escalation"],
+    incidentIds: [DEFAULT_INCIDENT_ID],
     evidenceIds: ["ev-fire-a-attack", "ev-fire-b-escalation", "ev-fire-c-entry-control"],
     reviewState: "pending-review",
     claims: [
@@ -126,6 +166,35 @@ export const scenarioState: ScenarioState = {
 
 export function getScenarioState() {
   return scenarioState;
+}
+
+// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+export function getIncidentById(incidentId: string) {
+  return scenarioState.incidents.find((incident) => incident.id === incidentId) ?? null;
+}
+
+// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+export function getSelectedIncidentId(incidentId: string | null | undefined) {
+  return getIncidentById(incidentId ?? "")?.id ?? DEFAULT_INCIDENT_ID;
+}
+
+// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+export function getIncidentResponders(incidentId: string) {
+  const incident = getIncidentById(incidentId);
+
+  if (!incident) return [];
+
+  const responderIds = new Set(incident.responderIds);
+  return scenarioState.responders.filter((responder) => responderIds.has(responder.id));
+}
+
+// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+export function getRuntimeIncident(incidentId: string) {
+  const incident = getIncidentById(incidentId);
+
+  if (!incident) return { incident: null, responders: [] };
+
+  return { incident, responders: getIncidentResponders(incident.id) };
 }
 
 export function findEvidence(id: string) {

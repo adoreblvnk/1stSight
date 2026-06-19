@@ -1,6 +1,13 @@
 import { ReviewDashboard } from "@/components/ops-dashboard";
-import { getScenarioState } from "@/lib/scenario";
+import { getScenarioState, getSelectedIncidentId } from "@/lib/scenario";
 
-export default function ReviewPage() {
-  return <ReviewDashboard initialState={getScenarioState()} />;
+type Props = {
+  searchParams: Promise<{ incident?: string }>;
+};
+
+export default async function ReviewPage({ searchParams }: Props) {
+  // Next.js searchParams API: https://nextjs.org/docs/app/api-reference/file-conventions/page#searchparams-optional
+  const { incident } = await searchParams;
+
+  return <ReviewDashboard initialState={getScenarioState()} initialIncidentId={getSelectedIncidentId(incident)} />;
 }

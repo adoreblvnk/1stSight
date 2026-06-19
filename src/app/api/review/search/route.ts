@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateStructuredStrict } from "@/lib/ai/model";
 import { runtimeEvidenceSearchSchema } from "@/lib/ai/schemas";
+import { getRuntimeIncident } from "@/lib/scenario";
 
 export const runtime = "nodejs";
 
@@ -28,12 +29,29 @@ const evidenceSchema = z.object({
 });
 
 const bodySchema = z.object({
+  incidentId: z.string().min(1),
   query: z.string().min(1),
   evidence: z.array(evidenceSchema).min(1),
 });
 
 export async function POST(request: NextRequest) {
-  const body = bodySchema.parse(await request.json());
+  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Run post-incident analysis first, then search with the latest runtime evidence payload." }, { status: 400 });
+  }
+
+  const body = parsed.data;
+  const { incident } = getRuntimeIncident(body.incidentId);
+
+  if (!incident) {
+    return NextResponse.json({ error: "Incident was not found." }, { status: 404 });
+  }
+
+  if (!incident.supportsRuntimeAnalysis) {
+    return NextResponse.json({ error: incident.unavailableReason ?? "Evidence search is unavailable for this incident." }, { status: 400 });
+  }
+
   const evidenceCatalog = body.evidence.map((item) => ({
     frameId: item.frameId,
     sourceVideo: item.sourceVideo,

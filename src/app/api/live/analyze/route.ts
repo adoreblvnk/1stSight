@@ -6,13 +6,14 @@ import { execa } from "execa";
 import { z } from "zod";
 import { generateStructuredStrict } from "@/lib/ai/model";
 import { liveAnalysisSchema } from "@/lib/ai/schemas";
-import { getScenarioState } from "@/lib/scenario";
+import { getRuntimeIncident } from "@/lib/scenario";
 
 export const runtime = "nodejs";
 
 const chunkDurationSeconds = 5;
 
 const bodySchema = z.object({
+  incidentId: z.string().min(1),
   feeds: z.array(
     z.object({
       responderId: z.string(),
@@ -113,9 +114,18 @@ export async function POST(request: Request) {
   }
 
   const body = parsed.data;
-  const state = getScenarioState();
-  const responderById = new Map(state.responders.map((responder) => [responder.id, responder]));
-  const allowedSources = new Set(state.responders.map((responder) => responder.videoSrc));
+  const { incident, responders: incidentResponders } = getRuntimeIncident(body.incidentId);
+
+  if (!incident) {
+    return NextResponse.json({ error: "Incident was not found." }, { status: 404 });
+  }
+
+  if (!incident.supportsRuntimeAnalysis || incidentResponders.length === 0) {
+    return NextResponse.json({ error: incident.unavailableReason ?? "Live analysis is unavailable for this incident." }, { status: 400 });
+  }
+
+  const responderById = new Map(incidentResponders.map((responder) => [responder.id, responder]));
+  const allowedSources = new Set(incidentResponders.map((responder) => responder.videoSrc));
   const feeds = body.feeds.flatMap((feed) => {
     const responder = responderById.get(feed.responderId);
 
@@ -211,6 +221,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...analysis,
+      incidentId: incident.id,
+      incidentTitle: incident.title,
       events: supportedEvents.map((event) => {
         const sourceFrame = frames.find((frame) => event.source.includes(frame.frameId) || event.source.includes(frame.sourceResponder)) ?? fallbackFrame;
 

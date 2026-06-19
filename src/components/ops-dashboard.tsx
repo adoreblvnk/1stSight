@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MutableRefObject, type ReactNode } from "react";
 // Next.js Link API: https://nextjs.org/docs/app/api-reference/components/link
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 // Google Maps React API: https://visgl.github.io/react-google-maps/docs/get-started
 import { AdvancedMarker, APIProvider, Map } from "@vis.gl/react-google-maps";
 // Motion React: https://motion.dev/docs/react
@@ -17,7 +17,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 // REUI Timeline: https://github.com/keenthemes/reui/blob/main/registry-reui/bases/base/components/timeline/c-timeline-2.tsx
 import { Timeline, TimelineContent, TimelineDate, TimelineHeader, TimelineIndicator, TimelineItem, TimelineSeparator, TimelineTitle } from "@/components/reui/timeline";
-import type { DecisionReview, DeploymentMarker, ScenarioState } from "@/lib/domain";
+import type { DecisionReview, DeploymentMarker, Incident, Responder, ScenarioState } from "@/lib/domain";
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
 import { cn } from "@/lib/utils";
 
@@ -79,6 +79,19 @@ const routeItems = [
   { href: "/live", label: "Live Dashboard" },
   { href: "/review", label: "Post-Incident Review" },
 ];
+
+function incidentHref(href: string, incidentId: string) {
+  return `${href}?incident=${encodeURIComponent(incidentId)}`;
+}
+
+function getIncident(state: ScenarioState, incidentId: string) {
+  return state.incidents.find((incident) => incident.id === incidentId) ?? state.incidents[0];
+}
+
+function getIncidentResponders(state: ScenarioState, incident: Incident) {
+  const responderIds = new Set(incident.responderIds);
+  return state.responders.filter((responder) => responderIds.has(responder.id));
+}
 
 function OperationalBadge({ children, tone }: { children: ReactNode; tone?: keyof typeof statusTone }) {
   return (
@@ -230,7 +243,28 @@ function mergeLiveAnalysis(previous: LiveAnalysis | null, next: LiveAnalysisOutp
   };
 }
 
-function AppShell({ state, activeState, showSidebar = true, children }: { state: ScenarioState; activeState: string; showSidebar?: boolean; children: ReactNode }) {
+function IncidentSelector({ state, selectedIncidentId, onIncidentChange }: { state: ScenarioState; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void }) {
+  const selectedIncident = getIncident(state, selectedIncidentId);
+
+  return (
+    <label className="flex min-w-[min(100%,22rem)] flex-col gap-1">
+      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Incident</span>
+      <select
+        value={selectedIncident.id}
+        onChange={(event) => onIncidentChange(event.target.value)}
+        className="h-9 rounded-sm border border-border bg-card px-3 font-mono text-xs uppercase tracking-widest text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {state.incidents.map((incident) => (
+          <option key={incident.id} value={incident.id}>
+            {incident.location} / {incident.status}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, showSidebar = true, children }: { state: ScenarioState; activeState: string; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; children: ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -254,7 +288,7 @@ function AppShell({ state, activeState, showSidebar = true, children }: { state:
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={incidentHref(item.href, selectedIncidentId)}
                     className={cn(
                       "h-9 border px-3 py-2 font-mono text-xs uppercase tracking-widest transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       active ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -266,6 +300,9 @@ function AppShell({ state, activeState, showSidebar = true, children }: { state:
                 );
               })}
             </nav>
+            <div className="flex items-end gap-3">
+              <IncidentSelector state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={onIncidentChange} />
+            </div>
             <div className="hidden items-center gap-2 xl:flex">
               <OperationalBadge tone={activeState === "concluded" ? "approved" : "pending-review"}>{activeState}</OperationalBadge>
             </div>
@@ -273,7 +310,7 @@ function AppShell({ state, activeState, showSidebar = true, children }: { state:
         </header>
 
         <div className={cn("mx-auto grid max-w-[1760px] gap-4 p-4 sm:p-6", showSidebar && "xl:grid-cols-[260px_minmax(0,1fr)]")}>
-          {showSidebar ? <IncidentSidebar state={state} /> : null}
+          {showSidebar ? <IncidentSidebar state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={onIncidentChange} /> : null}
           <main className="flex min-w-0 flex-col gap-4">{children}</main>
         </div>
       </div>
@@ -281,33 +318,35 @@ function AppShell({ state, activeState, showSidebar = true, children }: { state:
   );
 }
 
-function IncidentSidebar({ state }: { state: ScenarioState }) {
+function IncidentSidebar({ state, selectedIncidentId, onIncidentChange }: { state: ScenarioState; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void }) {
+  const selectedIncident = getIncident(state, selectedIncidentId);
+
   return (
     <aside className="h-fit overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card xl:sticky xl:top-20">
       <div className="border-b border-border p-4">
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Incident</p>
-        <h2 className="mt-1 text-lg font-semibold">{state.title}</h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Evidence-first monitoring, human-reviewed recommendations, and post-incident report export.</p>
+        <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{selectedIncident.location}</p>
       </div>
       <div className="grid gap-px bg-border">
         {state.incidents.map((incident) => (
-          <div key={incident.id} className="bg-card p-4">
+          <button key={incident.id} type="button" onClick={() => onIncidentChange(incident.id)} className={cn("bg-card p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50", incident.id === selectedIncidentId && "bg-muted")}> 
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">{incident.title}</p>
               <OperationalBadge>{incident.severity}</OperationalBadge>
             </div>
-            <p className="mt-2 font-mono text-xs text-muted-foreground">{incident.startTime}</p>
+            <p className="mt-2 font-mono text-xs text-muted-foreground">{incident.startTime} / {incident.location}</p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{incident.summary}</p>
-          </div>
+          </button>
         ))}
       </div>
     </aside>
   );
 }
 
-function MarkerDetail({ marker, state }: { marker: DeploymentMarker; state: ScenarioState }) {
+function MarkerDetail({ marker, state, selectedIncidentId }: { marker: DeploymentMarker; state: ScenarioState; selectedIncidentId: string }) {
   const linkedResponder = state.responders.find((responder) => responder.position.lat === marker.position.lat && responder.position.lng === marker.position.lng);
-  const linkedIncident = marker.kind === "incident" ? state.incidents.find((incident) => incident.status === "live") ?? state.incidents[0] : null;
+  const linkedIncident = marker.incidentId ? getIncident(state, marker.incidentId) : marker.kind === "incident" ? getIncident(state, selectedIncidentId) : null;
 
   return (
     <motion.aside initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className="absolute bottom-4 right-4 top-auto z-10 w-[min(420px,calc(100%-2rem))] border border-border bg-card p-4 lg:bottom-6 lg:right-6">
@@ -333,7 +372,12 @@ function MarkerDetail({ marker, state }: { marker: DeploymentMarker; state: Scen
           <div className="bg-background p-3">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Incident state</p>
             <p className="mt-1 text-sm font-medium">{linkedIncident.title}</p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{linkedIncident.location}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{linkedIncident.summary}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" className="rounded-sm" render={<Link href={incidentHref("/live", linkedIncident.id)} />} nativeButton={false}>Open live</Button>
+              <Button size="sm" variant="outline" className="rounded-sm" render={<Link href={incidentHref("/review", linkedIncident.id)} />} nativeButton={false}>Open review</Button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -341,11 +385,11 @@ function MarkerDetail({ marker, state }: { marker: DeploymentMarker; state: Scen
   );
 }
 
-function DeploymentMap({ state, selectedMarker, onSelectMarker }: { state: ScenarioState; selectedMarker: DeploymentMarker | null; onSelectMarker: (marker: DeploymentMarker) => void }) {
+function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMarker }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; onSelectMarker: (marker: DeploymentMarker) => void }) {
   const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string; googleMapsMapId: string } | null>(null);
   const apiKey = mapsConfig?.googleMapsApiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
-  const center = state.deploymentMarkers.find((marker) => marker.id === "warehouse")?.position ?? state.deploymentMarkers[0].position;
+  const center = state.deploymentMarkers.find((marker) => marker.incidentId === selectedIncidentId)?.position ?? state.deploymentMarkers[0].position;
 
   useEffect(() => {
     let mounted = true;
@@ -374,7 +418,7 @@ function DeploymentMap({ state, selectedMarker, onSelectMarker }: { state: Scena
           <div className="font-mono text-xs uppercase tracking-widest text-screen-foreground/60">Map fallback, select a marker for details</div>
           <div className="grid gap-3 sm:grid-cols-3">
             {state.deploymentMarkers.map((marker) => (
-              <button key={marker.id} type="button" onClick={() => onSelectMarker(marker)} className="border border-screen-border bg-black/35 p-3 text-left transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+              <button key={marker.id} type="button" onClick={() => onSelectMarker(marker)} className={cn("border border-screen-border bg-black/35 p-3 text-left transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50", marker.incidentId === selectedIncidentId && "border-accent")}>
                 <p className="font-mono text-xs text-screen-foreground/55">{marker.kind}</p>
                 <p className="text-sm font-medium">{marker.label}</p>
                 <p className="font-mono text-xs text-screen-foreground/55">{marker.position.lat.toFixed(4)}, {marker.position.lng.toFixed(4)}</p>
@@ -382,7 +426,7 @@ function DeploymentMap({ state, selectedMarker, onSelectMarker }: { state: Scena
               </button>
             ))}
           </div>
-          <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} /> : null}</AnimatePresence>
+          <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} selectedIncidentId={selectedIncidentId} /> : null}</AnimatePresence>
         </div>
       </div>
     );
@@ -397,16 +441,16 @@ function DeploymentMap({ state, selectedMarker, onSelectMarker }: { state: Scena
           ))}
         </Map>
       </APIProvider>
-      <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} /> : null}</AnimatePresence>
+      <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} selectedIncidentId={selectedIncidentId} /> : null}</AnimatePresence>
     </div>
   );
 }
 
-function BodycamGrid({ state, mode, playing, activeAudioResponderId, onAudioChange, videoRefs }: { state: ScenarioState; mode: DemoMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>> }) {
+function BodycamGrid({ state, incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs }: { state: ScenarioState; incident: Incident; responders: Responder[]; mode: DemoMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>> }) {
   const cue = state.liveAnalysisCue;
 
   useEffect(() => {
-    state.responders.forEach((responder) => {
+    responders.forEach((responder) => {
       const video = videoRefs.current[responder.id];
       if (!video) return;
       video.muted = activeAudioResponderId !== responder.id;
@@ -414,7 +458,7 @@ function BodycamGrid({ state, mode, playing, activeAudioResponderId, onAudioChan
       if (playing) void video.play();
       else video.pause();
     });
-  }, [activeAudioResponderId, cue.responderId, cue.timestampSeconds, mode, playing, state.responders, videoRefs]);
+  }, [activeAudioResponderId, cue.responderId, cue.timestampSeconds, mode, playing, responders, videoRefs]);
 
   function renderFeed(responder: ScenarioState["responders"][number]) {
     return (
@@ -445,7 +489,13 @@ function BodycamGrid({ state, mode, playing, activeAudioResponderId, onAudioChan
 
   return (
     <div className="grid gap-px bg-border md:grid-cols-2">
-      {state.responders.map((responder) => renderFeed(responder))}
+      {responders.length ? responders.map((responder) => renderFeed(responder)) : (
+        <div className="min-h-72 bg-screen p-4 text-screen-foreground md:col-span-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">No footage</p>
+          <p className="mt-2 text-sm font-medium">{incident.title}</p>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-screen-foreground/70">{incident.unavailableReason ?? "No responder video has been attached to this incident."}</p>
+        </div>
+      )}
       <div className="min-h-52 bg-screen text-screen-foreground">
         <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
           <div>
@@ -562,14 +612,14 @@ function RecommendationReview({ analysis }: { analysis: LiveAnalysis | null }) {
   );
 }
 
-function RuntimeEvidenceTimeline({ evidence, sessionStartMs }: { evidence: RuntimeEvidence[]; sessionStartMs: number | null }) {
+function RuntimeEvidenceTimeline({ evidence, sessionStartMs, emptyMessage = "Building the evidence timeline from analyzed video frames." }: { evidence: RuntimeEvidence[]; sessionStartMs: number | null; emptyMessage?: string }) {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
   const selectedEvidence = evidence.find((item) => item.frameId === selectedFrameId) ?? evidence[0];
 
   if (evidence.length === 0) {
     return (
       <div className="bg-screen p-4 text-sm text-screen-foreground/65">
-        Building the evidence timeline from analyzed video frames.
+        {emptyMessage}
       </div>
     );
   }
@@ -630,7 +680,7 @@ function RuntimeEvidenceTimeline({ evidence, sessionStartMs }: { evidence: Runti
   );
 }
 
-function RuntimeSearchPanel({ evidence, onResultsChange }: { evidence: RuntimeEvidence[]; onResultsChange: (items: RuntimeEvidence[], hasFilter: boolean) => void }) {
+function RuntimeSearchPanel({ incidentId, evidence, onResultsChange }: { incidentId: string; evidence: RuntimeEvidence[]; onResultsChange: (items: RuntimeEvidence[], hasFilter: boolean) => void }) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<RuntimeEvidenceSearchOutput | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -658,7 +708,7 @@ function RuntimeSearchPanel({ evidence, onResultsChange }: { evidence: RuntimeEv
       const response = await fetch("/api/review/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, evidence: searchEvidence }),
+        body: JSON.stringify({ incidentId, query, evidence: searchEvidence }),
       });
       const payload = await response.json();
 
@@ -752,31 +802,48 @@ function DecisionResult({ decision }: { decision: DecisionReview | null }) {
   );
 }
 
-export function MapDashboard({ initialState }: { initialState: ScenarioState }) {
+export function MapDashboard({ initialState, initialIncidentId }: { initialState: ScenarioState; initialIncidentId: string }) {
   const [state] = useState(initialState);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const [selectedMarker, setSelectedMarker] = useState<DeploymentMarker | null>(null);
+  const selectedIncident = getIncident(state, selectedIncidentId);
+
+  function selectIncident(incidentId: string) {
+    setSelectedIncidentId(incidentId);
+    setSelectedMarker(state.deploymentMarkers.find((marker) => marker.incidentId === incidentId) ?? null);
+    router.replace(incidentHref(pathname, incidentId), { scroll: false });
+  }
 
   return (
-    <AppShell state={state} activeState="deployment map" showSidebar={false}>
+    <AppShell state={state} activeState="deployment map" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false}>
       <section className="overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card">
         <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Deployment map</p>
-            <h2 className="text-sm font-semibold">Map-first operational surface</h2>
+            <h2 className="text-sm font-semibold">{selectedIncident.title}</h2>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
           </div>
-          <Button size="lg" className="rounded-sm" render={<Link href="/live" />} nativeButton={false}>
+          <Button size="lg" className="rounded-sm" render={<Link href={incidentHref("/live", selectedIncidentId)} />} nativeButton={false}>
             <MapPinned data-icon="inline-start" />
             Enter live dashboard
           </Button>
         </div>
-        <DeploymentMap state={state} selectedMarker={selectedMarker} onSelectMarker={setSelectedMarker} />
+        <DeploymentMap state={state} selectedIncidentId={selectedIncidentId} selectedMarker={selectedMarker} onSelectMarker={(marker) => {
+          setSelectedMarker(marker);
+          if (marker.incidentId) selectIncident(marker.incidentId);
+        }} />
       </section>
     </AppShell>
   );
 }
 
-export function LiveDashboard({ initialState }: { initialState: ScenarioState }) {
+export function LiveDashboard({ initialState, initialIncidentId }: { initialState: ScenarioState; initialIncidentId: string }) {
   const [state] = useState(initialState);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const sessionStartMs = useMountedSessionStart();
   const [mode, setMode] = useState<DemoMode>("live");
   const [playing, setPlaying] = useState(true);
@@ -787,15 +854,32 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const liveLoopRef = useRef(false);
   const analyzeInFlightRef = useRef(false);
+  const selectedIncident = getIncident(state, selectedIncidentId);
+  const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
+  const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
+
+  function selectIncident(incidentId: string) {
+    setMode("live");
+    setPlaying(true);
+    setActiveAudioResponderId(null);
+    setAnalysis(null);
+    setAnalysisError(null);
+    videoRefs.current = {};
+    liveLoopRef.current = false;
+    analyzeInFlightRef.current = false;
+    setSelectedIncidentId(incidentId);
+    router.replace(incidentHref(pathname, incidentId), { scroll: false });
+  }
 
   const analyzeChunk = useCallback((nextTimes?: Record<string, number>) => {
+    if (!canRunLiveAnalysis) return;
     if (analyzeInFlightRef.current) return;
     analyzeInFlightRef.current = true;
 
     startTransition(async () => {
       try {
         setAnalysisError(null);
-        const feeds = state.responders.map((responder) => {
+        const feeds = incidentResponders.map((responder) => {
           const video = videoRefs.current[responder.id];
 
           return {
@@ -808,7 +892,7 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
         const response = await fetch("/api/live/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ feeds }),
+          body: JSON.stringify({ incidentId: selectedIncident.id, feeds }),
         });
         const result = await response.json();
         if (!response.ok) {
@@ -820,9 +904,10 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
         analyzeInFlightRef.current = false;
       }
     });
-  }, [startTransition, state.responders]);
+  }, [canRunLiveAnalysis, incidentResponders, selectedIncident.id, startTransition]);
 
   useEffect(() => {
+    if (!canRunLiveAnalysis) return;
     if (!playing || mode === "concluded") return;
 
     liveLoopRef.current = true;
@@ -836,12 +921,12 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
       liveLoopRef.current = false;
       window.clearInterval(interval);
     };
-  }, [analyzeChunk, mode, playing]);
+  }, [analyzeChunk, canRunLiveAnalysis, mode, playing]);
 
   function jumpToEscalation() {
     setMode("escalation");
     const cue = state.liveAnalysisCue;
-    const nextTimes = Object.fromEntries(state.responders.map((responder) => [responder.id, responder.id === cue.responderId ? cue.timestampSeconds : videoRefs.current[responder.id]?.currentTime ?? 0]));
+    const nextTimes = Object.fromEntries(incidentResponders.map((responder) => [responder.id, responder.id === cue.responderId ? cue.timestampSeconds : videoRefs.current[responder.id]?.currentTime ?? 0]));
     const target = videoRefs.current[cue.responderId];
     if (target) target.currentTime = cue.timestampSeconds;
     analyzeChunk(nextTimes);
@@ -853,32 +938,34 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
   }
 
   return (
-    <AppShell state={state} activeState={mode} showSidebar={false}>
+    <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false}>
       <section className="overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card">
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
           <div className="bg-card p-4">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Live operations</p>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">Monitor bodycams while live analysis adds supported events.</p>
-            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{isPending ? "Analyzing current feeds" : "Continuous analysis active"}</p>
+            <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
+            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : "Continuous analysis active") : "Runtime analysis unavailable"}</p>
           </div>
           <div className="flex flex-wrap gap-2 bg-card p-4 lg:justify-end">
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setPlaying((value) => !value)}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setPlaying((value) => !value)} disabled={!canRunLiveAnalysis}>
               {playing ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
               {playing ? "Pause" : "Resume"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setActiveAudioResponderId(null)} disabled={activeAudioResponderId === null}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setActiveAudioResponderId(null)} disabled={!canRunLiveAnalysis || activeAudioResponderId === null}>
               <VolumeX data-icon="inline-start" />
               Mute all
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={jumpToEscalation} disabled={isPending}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={jumpToEscalation} disabled={!canRunLiveAnalysis || isPending}>
               <FastForward data-icon="inline-start" />
               Advance feeds
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" render={<Link href="/review" />} nativeButton={false}>
+            <Button size="lg" variant="outline" className="rounded-sm" render={<Link href={incidentHref("/review", selectedIncidentId)} />} nativeButton={false}>
               <Search data-icon="inline-start" />
-              Open fire evidence review
+              Open incident review
             </Button>
-            <Button size="lg" className="rounded-sm" onClick={concludeIncident}>
+            <Button size="lg" className="rounded-sm" onClick={concludeIncident} disabled={!canRunLiveAnalysis}>
               <Square data-icon="inline-start" />
               Conclude incident
             </Button>
@@ -888,7 +975,7 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Live bodycams" label="Feeds">
-          <BodycamGrid state={state} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} />
+          <BodycamGrid state={state} incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} />
         </Panel>
 
         <div className="grid gap-4 xl:sticky xl:top-20">
@@ -896,7 +983,7 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
             <details className="p-4">
               <summary className="cursor-pointer font-mono text-xs uppercase tracking-widest text-muted-foreground">Open caller brief</summary>
               <div className="mt-3 grid gap-px bg-border">
-                {state.incidents.map((incident) => (
+                {[selectedIncident].map((incident) => (
                   <div key={incident.id} className="bg-card p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{incident.title}</p>
@@ -913,7 +1000,7 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
             <details className="p-4">
               <summary className="cursor-pointer font-mono text-xs uppercase tracking-widest text-muted-foreground">Open caller brief</summary>
               <div className="mt-3 grid gap-px bg-border">
-                {state.incidents.map((incident) => (
+                {[selectedIncident].map((incident) => (
                   <div key={incident.id} className="bg-card p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{incident.title}</p>
@@ -939,8 +1026,11 @@ export function LiveDashboard({ initialState }: { initialState: ScenarioState })
   );
 }
 
-export function ReviewDashboard({ initialState }: { initialState: ScenarioState }) {
+export function ReviewDashboard({ initialState, initialIncidentId }: { initialState: ScenarioState; initialIncidentId: string }) {
   const [state] = useState(initialState);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const [analysis, setAnalysis] = useState<RuntimeAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -950,16 +1040,31 @@ export function ReviewDashboard({ initialState }: { initialState: ScenarioState 
   const [isExportPending, startExportTransition] = useTransition();
   const analysisStartedRef = useRef(false);
   const sessionStartMs = useMountedSessionStart();
+  const selectedIncident = getIncident(state, selectedIncidentId);
+  const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
+  const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
   const canExportReport = sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
 
+  function selectIncident(incidentId: string) {
+    setAnalysis(null);
+    setAnalysisError(null);
+    setExportError(null);
+    setActiveEvidence([]);
+    setHasEvidenceFilter(false);
+    analysisStartedRef.current = false;
+    setSelectedIncidentId(incidentId);
+    router.replace(incidentHref(pathname, incidentId), { scroll: false });
+  }
+
   const runAnalysis = useCallback(() => {
+    if (!canRunReviewAnalysis) return;
     startTransition(async () => {
       setAnalysisError(null);
       setExportError(null);
       const response = await fetch("/api/review/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedIds: state.responders.map((responder) => responder.id) }),
+        body: JSON.stringify({ incidentId: selectedIncident.id, feedIds: incidentResponders.map((responder) => responder.id) }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -976,13 +1081,14 @@ export function ReviewDashboard({ initialState }: { initialState: ScenarioState 
       setActiveEvidence([...normalizedAnalysis.evidence].sort((a, b) => a.order - b.order));
       setHasEvidenceFilter(false);
     });
-  }, [startTransition, state.responders]);
+  }, [canRunReviewAnalysis, incidentResponders, selectedIncident.id, startTransition]);
 
   useEffect(() => {
+    if (!canRunReviewAnalysis) return;
     if (analysisStartedRef.current) return;
     analysisStartedRef.current = true;
     runAnalysis();
-  }, [runAnalysis]);
+  }, [canRunReviewAnalysis, runAnalysis]);
 
   function exportReport() {
     if (!analysis || activeEvidence.length === 0 || sessionStartMs === null) return;
@@ -1039,21 +1145,22 @@ export function ReviewDashboard({ initialState }: { initialState: ScenarioState 
   }
 
   return (
-    <AppShell state={state} activeState="post-incident review" showSidebar={false}>
+    <AppShell state={state} activeState="post-incident review" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false}>
       <section className="overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card">
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
           <div className="bg-card p-4">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Post-incident review</p>
-            <h2 className="mt-1 text-lg font-semibold">Runtime evidence analysis</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">Evidence is extracted automatically from the current videos.</p>
-            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered" : ""}` : "Queued for analysis"}</p>
+            <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence is extracted automatically from the current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
+            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered" : ""}` : "Queued for analysis") : "Runtime analysis unavailable"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 bg-card p-4 lg:justify-end">
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={runAnalysis} disabled={isPending}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={runAnalysis} disabled={!canRunReviewAnalysis || isPending}>
               <Search data-icon="inline-start" />
               {isPending ? "Analyzing" : "Refresh analysis"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={exportReport} disabled={!canExportReport}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportReport}>
               <Download data-icon="inline-start" />
               {isExportPending ? "Exporting" : "Export PDF"}
             </Button>
@@ -1066,11 +1173,11 @@ export function ReviewDashboard({ initialState }: { initialState: ScenarioState 
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <Panel title="Evidence timeline" label="Evidence">
-          <RuntimeEvidenceTimeline evidence={analysis ? activeEvidence : []} sessionStartMs={sessionStartMs} />
+          <RuntimeEvidenceTimeline evidence={analysis ? activeEvidence : []} sessionStartMs={sessionStartMs} emptyMessage={canRunReviewAnalysis ? "Building the evidence timeline from analyzed video frames." : selectedIncident.unavailableReason ?? "No review footage is attached."} />
         </Panel>
 
         <Panel title="Search" label="Secondary" className="h-fit xl:sticky xl:top-20">
-          <RuntimeSearchPanel evidence={analysis?.evidence ?? []} onResultsChange={(items, hasFilter) => {
+          <RuntimeSearchPanel incidentId={selectedIncident.id} evidence={analysis?.evidence ?? []} onResultsChange={(items, hasFilter) => {
             setActiveEvidence(items);
             setHasEvidenceFilter(hasFilter);
           }} />
@@ -1097,10 +1204,10 @@ export function ReviewDashboard({ initialState }: { initialState: ScenarioState 
         <Panel title="Generate incident PDF" label="Report">
           <div className="p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {analysis ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"}.` : "Analysis starts automatically."}
+              {canRunReviewAnalysis ? (analysis ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"}.` : "Analysis starts automatically.") : "Export is disabled until footage is available."}
             </p>
             {analysis ? (
-              <Button size="sm" variant="outline" className="mt-4 rounded-sm" onClick={exportReport} disabled={!canExportReport}>
+              <Button size="sm" variant="outline" className="mt-4 rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportReport}>
                 <Download data-icon="inline-start" />
                 {isExportPending ? "Exporting" : "Download report"}
               </Button>

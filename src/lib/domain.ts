@@ -65,10 +65,15 @@ export type Incident = {
   severity: "watch" | "elevated" | "critical";
   status: "live" | "review" | "concluded";
   startTime: string;
+  location: string;
+  position: Coordinates;
   summary: string;
   tags: IncidentTag[];
   objectIds: string[];
   evidenceIds: string[];
+  responderIds: string[];
+  supportsRuntimeAnalysis: boolean;
+  unavailableReason?: string;
 };
 
 export type IncidentEvent = {
@@ -104,6 +109,7 @@ export type DecisionReview = {
 
 export type DeploymentMarker = {
   id: string;
+  incidentId?: string;
   label: string;
   kind: "station" | "unit" | "incident" | "hazard" | "platform" | "model";
   position: Coordinates;
