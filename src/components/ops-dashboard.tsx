@@ -15,13 +15,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+// shadcn/ui Select: https://ui.shadcn.com/docs/components/base/select
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // REUI Timeline: https://github.com/keenthemes/reui/blob/main/registry-reui/bases/base/components/timeline/c-timeline-2.tsx
 import { Timeline, TimelineContent, TimelineDate, TimelineHeader, TimelineIndicator, TimelineItem, TimelineSeparator, TimelineTitle } from "@/components/reui/timeline";
 import type { DecisionReview, DeploymentMarker, Incident, Responder, ScenarioState } from "@/lib/domain";
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
 import { cn } from "@/lib/utils";
 
-const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry"]);
+const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident"]);
 
 type DemoMode = "live" | "escalation" | "concluded";
 
@@ -80,6 +82,32 @@ const routeItems = [
   { href: "/review", label: "Post-Incident Review" },
 ];
 
+const heroImages = {
+  // codex exec '$imagegen generate an operational command centre map hero background for a firefighter bodycam incident dashboard, Singapore urban grid at night, dark inset screen material, restrained emergency amber accents, no text, no logos, save as public/ai-images/ops-map-hero.png'
+  map: "/ai-images/ops-map-hero.png",
+  // codex exec '$imagegen generate a live responder bodycam operations background, three abstract video feeds, smoke and emergency lighting implied but not graphic, command dashboard mood, dark screen surface, no text, no logos, save as public/ai-images/live-feeds-hero.png'
+  live: "/ai-images/live-feeds-hero.png",
+  // codex exec '$imagegen generate a post incident evidence review background image, bodycam frame contact sheet aesthetic, subtle bounding box overlays, dark screen surface, warm paper interface accents, no text, no logos, save as public/ai-images/evidence-review-hero.png'
+  review: "/ai-images/evidence-review-hero.png",
+} as const;
+
+const paperScope = "[--background:var(--paper)] [--border:oklch(82%_0.004_260)] [--card:var(--paper)] [--foreground:var(--paper-foreground)] [--muted:oklch(90%_0.003_260)] [--muted-foreground:oklch(39%_0.004_260)] [--secondary:oklch(90%_0.003_260)] [--disabled:oklch(88%_0.003_260)] [--disabled-foreground:oklch(48%_0.004_260)] [--disabled-border:oklch(76%_0.004_260)]";
+const commandScope = "[--background:var(--command)] [--border:var(--command-border)] [--card:var(--command)] [--foreground:var(--command-foreground)] [--muted:oklch(29%_0.005_260)] [--muted-foreground:var(--command-muted-foreground)] [--secondary:oklch(29%_0.005_260)]";
+
+const panelTone = {
+  paper: cn(paperScope, "border-border bg-paper text-paper-foreground"),
+  command: cn(commandScope, "border-command-border bg-command text-command-foreground"),
+} as const;
+
+const pageTextureTone = {
+  map: "command-texture-map",
+  live: "command-texture-live",
+  review: "command-texture-review",
+  neutral: "command-texture-neutral",
+} as const;
+
+type PageBackgroundKey = keyof typeof pageTextureTone;
+
 function incidentHref(href: string, incidentId: string) {
   return `${href}?incident=${encodeURIComponent(incidentId)}`;
 }
@@ -101,9 +129,9 @@ function OperationalBadge({ children, tone }: { children: ReactNode; tone?: keyo
   );
 }
 
-function Panel({ title, label, children, className }: { title: string; label?: string; children: ReactNode; className?: string }) {
+function Panel({ title, label, children, tone = "command", className }: { title: string; label?: string; children: ReactNode; tone?: keyof typeof panelTone; className?: string }) {
   return (
-    <section className={cn("overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card", className)}>
+    <section className={cn("overflow-hidden rounded-[var(--radius-shell)] border", panelTone[tone], className)}>
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-4 py-2">
         <div>
           {label ? <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p> : null}
@@ -115,6 +143,20 @@ function Panel({ title, label, children, className }: { title: string; label?: s
   );
 }
 
+function HeroImageBackdrop({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <Image src={src} alt={alt} fill priority unoptimized className="object-cover opacity-35" sizes="100vw" />
+      <div className="absolute inset-0 bg-[color-mix(in_oklch,var(--card),transparent_14%)]" />
+      <div className="absolute inset-0 deployment-grid opacity-20" />
+    </div>
+  );
+}
+
+function PageAmbientBackground({ background }: { background: PageBackgroundKey }) {
+  return <div className={cn("command-texture pointer-events-none fixed inset-0 z-0 bg-background", pageTextureTone[background])} aria-hidden="true" />;
+}
+
 function incidentTags(tags: string[]) {
   return tags
     .map((tag) => tag.toLowerCase().replace(/-/g, " "))
@@ -122,9 +164,13 @@ function incidentTags(tags: string[]) {
       if (tag.includes("entry")) return "entry approach";
       if (tag.includes("smoke")) return "smoke spread";
       if (tag.includes("flame") || tag.includes("fire")) return "fire escalation";
+      if (tag.includes("hazmat") || tag.includes("chemical") || tag.includes("gas")) return "hazmat";
+      if (tag.includes("medical") || tag.includes("casualty") || tag.includes("ambulance")) return "medical";
+      if (tag.includes("civil") || tag.includes("crowd")) return "civil";
+      if (tag.includes("collapse") || tag.includes("blocked") || tag.includes("hazard")) return "hazard";
       if (tag.includes("hose") || tag.includes("firefighter") || tag.includes("responder")) return "ground operations";
       if (tag.includes("visibility")) return "visibility";
-      return incidentLevelTags.has(tag) ? tag : "fire response";
+      return incidentLevelTags.has(tag) ? tag : "incident";
     })
     .filter((tag, index, values) => values.indexOf(tag) === index)
     .slice(0, 3);
@@ -245,32 +291,40 @@ function mergeLiveAnalysis(previous: LiveAnalysis | null, next: LiveAnalysisOutp
 
 function IncidentSelector({ state, selectedIncidentId, onIncidentChange }: { state: ScenarioState; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void }) {
   const selectedIncident = getIncident(state, selectedIncidentId);
+  const incidentOptions = state.incidents.map((incident) => ({
+    label: `${incident.location} / ${incident.status}`,
+    value: incident.id,
+  }));
 
   return (
-    <label className="flex min-w-[min(100%,22rem)] flex-col gap-1">
+    <div className="flex min-w-[min(100%,22rem)] flex-col gap-1">
       <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Incident</span>
-      <select
-        value={selectedIncident.id}
-        onChange={(event) => onIncidentChange(event.target.value)}
-        className="h-9 rounded-sm border border-border bg-card px-3 font-mono text-xs uppercase tracking-widest text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        {state.incidents.map((incident) => (
-          <option key={incident.id} value={incident.id}>
-            {incident.location} / {incident.status}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select items={incidentOptions} value={selectedIncident.id} onValueChange={(incidentId) => incidentId && onIncidentChange(incidentId)}>
+        <SelectTrigger size="default" className="h-9 w-full rounded-sm border-border bg-card font-mono text-xs uppercase tracking-widest text-foreground">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start" className="rounded-sm border-border font-mono text-xs uppercase tracking-widest">
+          <SelectGroup>
+            {incidentOptions.map((incident) => (
+              <SelectItem key={incident.value} value={incident.value} className="rounded-sm">
+                {incident.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
-function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, showSidebar = true, children }: { state: ScenarioState; activeState: string; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; children: ReactNode }) {
+function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, showSidebar = true, background = "neutral", children }: { state: ScenarioState; activeState: string; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; background?: PageBackgroundKey; children: ReactNode }) {
   const pathname = usePathname();
 
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.12, ease: "circOut" }}>
-      <div className="min-h-[100dvh] bg-background text-foreground">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
+      <div className="relative isolate min-h-[100dvh] bg-background text-foreground">
+        <PageAmbientBackground background={background} />
+        <header className="sticky top-0 z-20 border-b border-command-border bg-background">
           <div className="mx-auto flex min-h-14 max-w-[1760px] flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:py-0">
             <div className="flex min-w-0 items-center gap-3">
               <div className="grid size-8 place-items-center border border-foreground bg-foreground text-background">
@@ -291,7 +345,7 @@ function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, sh
                     href={incidentHref(item.href, selectedIncidentId)}
                     className={cn(
                       "h-9 border px-3 py-2 font-mono text-xs uppercase tracking-widest transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                      active ? "border-command-border bg-screen text-screen-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                     aria-current={active ? "page" : undefined}
                   >
@@ -309,7 +363,7 @@ function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, sh
           </div>
         </header>
 
-        <div className={cn("mx-auto grid max-w-[1760px] gap-4 p-4 sm:p-6", showSidebar && "xl:grid-cols-[260px_minmax(0,1fr)]")}>
+        <div className={cn("relative z-10 mx-auto grid max-w-[1760px] gap-4 p-4 sm:p-6", showSidebar && "xl:grid-cols-[260px_minmax(0,1fr)]")}>
           {showSidebar ? <IncidentSidebar state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={onIncidentChange} /> : null}
           <main className="flex min-w-0 flex-col gap-4">{children}</main>
         </div>
@@ -349,7 +403,7 @@ function MarkerDetail({ marker, state, selectedIncidentId }: { marker: Deploymen
   const linkedIncident = marker.incidentId ? getIncident(state, marker.incidentId) : marker.kind === "incident" ? getIncident(state, selectedIncidentId) : null;
 
   return (
-    <motion.aside initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className="absolute bottom-4 right-4 top-auto z-10 w-[min(420px,calc(100%-2rem))] border border-border bg-card p-4 lg:bottom-6 lg:right-6">
+    <motion.aside initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className={cn(paperScope, "absolute bottom-4 right-4 top-auto z-10 w-[min(420px,calc(100%-2rem))] border border-border bg-paper p-4 text-paper-foreground lg:bottom-6 lg:right-6")}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{marker.kind}</p>
@@ -499,8 +553,8 @@ function BodycamGrid({ state, incident, responders, mode, playing, activeAudioRe
       <div className="min-h-52 bg-screen text-screen-foreground">
         <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">Bodycam D</p>
-            <p className="text-sm font-medium">Reserved</p>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">Reserve feed</p>
+            <p className="text-sm font-medium">Unassigned</p>
           </div>
           <span className="size-2 border border-screen-foreground/30" />
         </div>
@@ -632,19 +686,19 @@ function RuntimeEvidenceTimeline({ evidence, sessionStartMs, emptyMessage = "Bui
           const boxes = item.boxes.slice(0, 3).map(insetBox);
 
           return (
-            <TimelineItem key={`${item.frameId}-${index}`} step={index + 1} className="sm:group-data-[orientation=vertical]/timeline:ms-36 group-data-[orientation=vertical]/timeline:not-last:pb-4">
+            <TimelineItem key={`${item.frameId}-${index}`} step={index + 1} className="sm:group-data-[orientation=vertical]/timeline:ms-44 group-data-[orientation=vertical]/timeline:not-last:pb-5">
               <TimelineHeader>
                 <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
-                <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-36 sm:group-data-[orientation=vertical]/timeline:w-24 sm:group-data-[orientation=vertical]/timeline:text-right">
+                <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-44 sm:group-data-[orientation=vertical]/timeline:w-32 sm:group-data-[orientation=vertical]/timeline:text-right">
                   {formatMountedSessionClock(sessionStartMs, item.frameTimestampSeconds)}
                 </TimelineDate>
                 <TimelineTitle className="sr-only">{item.name}</TimelineTitle>
                 <TimelineIndicator className={cn("border-screen-foreground/50 bg-screen", selected && "border-accent bg-accent")} />
               </TimelineHeader>
               <TimelineContent className="text-screen-foreground">
-                <button type="button" onClick={() => setSelectedFrameId(item.frameId)} className={cn("grid w-full gap-3 border bg-black/35 p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1fr)]", selected ? "border-accent" : "border-screen-border hover:border-screen-foreground/50")} aria-pressed={selected}>
-                  <div className="relative aspect-video overflow-hidden bg-black">
-                    <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1024px) 420px, 100vw" />
+                <button type="button" onClick={() => setSelectedFrameId(item.frameId)} className={cn("grid w-full gap-3 border bg-black/35 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-[minmax(320px,1.15fr)_minmax(240px,0.85fr)] xl:grid-cols-[minmax(400px,1.2fr)_minmax(260px,0.8fr)]", selected ? "border-accent" : "border-screen-border hover:border-screen-foreground/50")} aria-pressed={selected}>
+                  <div className="relative aspect-video min-h-52 overflow-hidden bg-black">
+                    <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1280px) 760px, (min-width: 1024px) 58vw, 100vw" />
                     {boxes.map((box, boxIndex) => (
                       <div key={`${item.frameId}-${box.label}-${boxIndex}`} className="absolute border-2 border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }}>
                         <span className="absolute left-0 top-0 grid size-5 place-items-center border border-screen bg-warning font-mono text-[10px] font-semibold text-background">{boxIndex + 1}</span>
@@ -809,6 +863,8 @@ export function MapDashboard({ initialState, initialIncidentId }: { initialState
   const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const [selectedMarker, setSelectedMarker] = useState<DeploymentMarker | null>(null);
   const selectedIncident = getIncident(state, selectedIncidentId);
+  const dashboardTarget = selectedIncident.status === "review" ? "/review" : "/live";
+  const dashboardLabel = selectedIncident.status === "review" ? "Enter review dashboard" : "Enter live dashboard";
 
   function selectIncident(incidentId: string) {
     setSelectedIncidentId(incidentId);
@@ -817,17 +873,18 @@ export function MapDashboard({ initialState, initialIncidentId }: { initialState
   }
 
   return (
-    <AppShell state={state} activeState="deployment map" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false}>
-      <section className="overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card">
-        <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2">
-          <div>
+    <AppShell state={state} activeState="deployment map" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="map">
+      <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
+        <div className="command-texture command-texture-map relative flex min-h-12 flex-wrap items-center justify-between gap-3 overflow-hidden border-b border-border px-4 py-3">
+          <HeroImageBackdrop src={heroImages.map} alt="AI generated operations map background" />
+          <div className="relative">
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Deployment map</p>
             <h2 className="text-sm font-semibold">{selectedIncident.title}</h2>
             <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
           </div>
-          <Button size="lg" className="rounded-sm" render={<Link href={incidentHref("/live", selectedIncidentId)} />} nativeButton={false}>
+          <Button size="lg" className="relative rounded-sm" render={<Link href={incidentHref(dashboardTarget, selectedIncidentId)} />} nativeButton={false}>
             <MapPinned data-icon="inline-start" />
-            Enter live dashboard
+            {dashboardLabel}
           </Button>
         </div>
         <DeploymentMap state={state} selectedIncidentId={selectedIncidentId} selectedMarker={selectedMarker} onSelectMarker={(marker) => {
@@ -938,15 +995,18 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   }
 
   return (
-    <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false}>
-      <section className="overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card">
+    <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="live">
+      <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
-          <div className="bg-card p-4">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Live operations</p>
-            <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
-            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : "Continuous analysis active") : "Runtime analysis unavailable"}</p>
+          <div className="command-texture command-texture-live relative overflow-hidden bg-card p-4">
+            <HeroImageBackdrop src={heroImages.live} alt="AI generated live bodycam feed background" />
+            <div className="relative">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Live operations</p>
+              <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : "Continuous analysis active") : "Runtime analysis unavailable"}</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 bg-card p-4 lg:justify-end">
             <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setPlaying((value) => !value)} disabled={!canRunLiveAnalysis}>
@@ -957,7 +1017,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <VolumeX data-icon="inline-start" />
               Mute all
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={jumpToEscalation} disabled={!canRunLiveAnalysis || isPending}>
+            <Button size="lg" variant="destructive" className="rounded-sm" onClick={jumpToEscalation} disabled={!canRunLiveAnalysis || isPending}>
               <FastForward data-icon="inline-start" />
               Advance feeds
             </Button>
@@ -965,7 +1025,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <Search data-icon="inline-start" />
               Open incident review
             </Button>
-            <Button size="lg" className="rounded-sm" onClick={concludeIncident} disabled={!canRunLiveAnalysis}>
+            <Button size="lg" variant="destructive" className="rounded-sm" onClick={concludeIncident} disabled={!canRunLiveAnalysis}>
               <Square data-icon="inline-start" />
               Conclude incident
             </Button>
@@ -974,7 +1034,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
       </section>
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Panel title="Live bodycams" label="Feeds">
+        <Panel title="Live responder feeds" label="Feeds">
           <BodycamGrid state={state} incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} />
         </Panel>
 
@@ -984,7 +1044,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <summary className="cursor-pointer font-mono text-xs uppercase tracking-widest text-muted-foreground">Open caller brief</summary>
               <div className="mt-3 grid gap-px bg-border">
                 {[selectedIncident].map((incident) => (
-                  <div key={incident.id} className="bg-card p-3">
+                  <div key={incident.id} className={cn(paperScope, "bg-paper p-3 text-paper-foreground")}>
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{incident.title}</p>
                       <OperationalBadge>{incident.severity}</OperationalBadge>
@@ -1001,7 +1061,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <summary className="cursor-pointer font-mono text-xs uppercase tracking-widest text-muted-foreground">Open caller brief</summary>
               <div className="mt-3 grid gap-px bg-border">
                 {[selectedIncident].map((incident) => (
-                  <div key={incident.id} className="bg-card p-3">
+                  <div key={incident.id} className={cn(paperScope, "bg-paper p-3 text-paper-foreground")}>
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{incident.title}</p>
                       <OperationalBadge>{incident.severity}</OperationalBadge>
@@ -1018,7 +1078,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
           </Panel>
           <RecommendationReview analysis={analysis} />
           {analysisError ? (
-            <div className="border border-destructive bg-card p-3 text-sm text-destructive">{analysisError}</div>
+            <div className="border border-destructive bg-command p-3 text-sm text-destructive">{analysisError}</div>
           ) : null}
         </div>
       </div>
@@ -1145,15 +1205,18 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }
 
   return (
-    <AppShell state={state} activeState="post-incident review" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false}>
-      <section className="overflow-hidden rounded-[var(--radius-shell)] border border-border bg-card">
+    <AppShell state={state} activeState="post-incident review" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="review">
+      <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
-          <div className="bg-card p-4">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Post-incident review</p>
-            <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence is extracted automatically from the current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
-            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered" : ""}` : "Queued for analysis") : "Runtime analysis unavailable"}</p>
+          <div className="command-texture command-texture-review relative overflow-hidden bg-card p-4">
+            <HeroImageBackdrop src={heroImages.review} alt="AI generated evidence review background" />
+            <div className="relative">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Post-incident review</p>
+              <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence is extracted automatically from the current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered" : ""}` : "Queued for analysis") : "Runtime analysis unavailable"}</p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 bg-card p-4 lg:justify-end">
             <Button size="lg" variant="outline" className="rounded-sm" onClick={runAnalysis} disabled={!canRunReviewAnalysis || isPending}>
@@ -1168,15 +1231,15 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
         </div>
       </section>
 
-      {analysisError ? <div className="border border-destructive bg-card p-3 text-sm text-destructive">{analysisError}</div> : null}
-      {exportError ? <div className="border border-destructive bg-card p-3 text-sm text-destructive">{exportError}</div> : null}
+      {analysisError ? <div className="border border-destructive bg-command p-3 text-sm text-destructive">{analysisError}</div> : null}
+      {exportError ? <div className="border border-destructive bg-command p-3 text-sm text-destructive">{exportError}</div> : null}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <Panel title="Evidence timeline" label="Evidence">
           <RuntimeEvidenceTimeline evidence={analysis ? activeEvidence : []} sessionStartMs={sessionStartMs} emptyMessage={canRunReviewAnalysis ? "Building the evidence timeline from analyzed video frames." : selectedIncident.unavailableReason ?? "No review footage is attached."} />
         </Panel>
 
-        <Panel title="Search" label="Secondary" className="h-fit xl:sticky xl:top-20">
+        <Panel title="Search" label="Secondary" tone="paper" className="h-fit xl:sticky xl:top-20">
           <RuntimeSearchPanel incidentId={selectedIncident.id} evidence={analysis?.evidence ?? []} onResultsChange={(items, hasFilter) => {
             setActiveEvidence(items);
             setHasEvidenceFilter(hasFilter);
@@ -1201,7 +1264,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
           </div>
         </Panel>
 
-        <Panel title="Generate incident PDF" label="Report">
+        <Panel title="Generate incident PDF" label="Report" tone="paper">
           <div className="p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
               {canRunReviewAnalysis ? (analysis ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"}.` : "Analysis starts automatically.") : "Export is disabled until footage is available."}

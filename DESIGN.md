@@ -2,13 +2,13 @@
 
 ## Theme
 
-1stSight uses an operational Editorial Factory visual system adapted for `impeccable`: warm paper substrate, dark inset screen surfaces, terse labels, grid-line structure, restrained emergency red, and sparse signal-like motion.
+1stSight uses a flat graphite command-console system adapted for `impeccable`: charcoal app shell, graphite command panels, deep black evidence and video canvases, light paper insets for forms and reports, terse labels, grid-line structure, restrained emergency red, and sparse signal-like motion.
 
-The product is a dashboard and review tool, so design serves the task. Use familiar product UI patterns, preserve C&C officer trust, and avoid ornamental strangeness. The physical scene is an Ops Centre officer monitoring a live warehouse incident under time pressure, then reviewing evidence after the incident; the interface should be legible, calm, and evidence-dense rather than cinematic.
+The product is a dashboard and review tool, so design serves the task. Use familiar product UI patterns, preserve C&C officer trust, and avoid ornamental strangeness. The physical scene is an Ops Centre officer monitoring a live warehouse incident under time pressure, then reviewing evidence after the incident; the interface should be legible, calm, and evidence-dense rather than cinematic, decorative, or wallpaper-driven.
 
 ## Color
 
-Use OKLCH tokens and semantic roles. Light mode is the default; dark appears only as inset surfaces for video, logs, terminal-like output, or AI trace review.
+Use OKLCH tokens and semantic roles. Graphite is the app-shell default. Command panels use graphite; evidence/video canvases use deeper near-black; paper appears only as an inset material for forms, report/PDF areas, text-heavy document controls, and map callouts where readability needs a light surface. Do not return to pale admin cards pasted over dark imagery.
 
 ```css
 /* Tailwind CSS theme variables: https://tailwindcss.com/docs/theme */
@@ -16,23 +16,34 @@ Use OKLCH tokens and semantic roles. Light mode is the default; dark appears onl
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-background: oklch(96.5% 0.01 85);
-  --color-surface: oklch(98.5% 0 0);
-  --color-foreground: oklch(20% 0 0);
-  --color-muted-foreground: oklch(55% 0 0);
-  --color-border: oklch(90% 0.01 85);
+  --color-background: oklch(19% 0.004 260);
+  --color-surface: oklch(24% 0.004 260);
+  --color-foreground: oklch(93% 0.002 260);
+  --color-muted-foreground: oklch(73% 0.006 260);
+  --color-border: oklch(34% 0.006 260);
 
-  --color-accent: oklch(48% 0.18 29);
-  --color-accent-foreground: oklch(98% 0 0);
+  --color-accent: oklch(67% 0.12 67);
+  --color-accent-foreground: oklch(15% 0.004 260);
 
   --color-success: oklch(52% 0.18 145);
   --color-destructive: oklch(55% 0.22 25);
+  --color-destructive-foreground: oklch(98% 0.002 260);
   --color-warning: oklch(60% 0.18 55);
   --color-info: oklch(55% 0.15 240);
 
-  --color-screen: oklch(15% 0 0);
-  --color-screen-foreground: oklch(95% 0 0);
-  --color-screen-border: oklch(25% 0 0);
+  --color-screen: oklch(10% 0.002 260);
+  --color-screen-foreground: oklch(95% 0.002 260);
+  --color-screen-border: oklch(25% 0.004 260);
+
+  --color-command: oklch(22% 0.005 260);
+  --color-command-foreground: oklch(93% 0.002 260);
+  --color-command-muted-foreground: oklch(73% 0.006 260);
+  --color-command-border: oklch(34% 0.006 260);
+  --color-paper: oklch(96.5% 0.002 260);
+  --color-paper-foreground: oklch(18% 0.004 260);
+  --color-disabled: oklch(30% 0.004 260);
+  --color-disabled-foreground: oklch(66% 0.006 260);
+  --color-disabled-border: oklch(42% 0.006 260);
 
   --radius-none: 0px;
   --radius-sm: 2px;
@@ -43,7 +54,9 @@ Use OKLCH tokens and semantic roles. Light mode is the default; dark appears onl
 }
 ```
 
-Use `--color-accent` for primary actions, active navigation indicators, focus treatment, and rare editorial emphasis. Do not use red as a large background wash, generic decoration, or replacement for destructive/error semantics. Use semantic status tokens only for their operational meanings.
+Use `--color-accent` for restrained amber/oxide focus, selection, ordinary active states, and rare editorial emphasis. Active route tabs use graphite/black neutral treatment, not red. Reserve red for destructive, high-impact, escalation, rejected, and error states. Use semantic status tokens only for their operational meanings.
+
+Full-page backgrounds use a flat graphite texture, not AI hero imagery. Use low-contrast grid/noise texture only as operational material behind the app shell. Route hero strips may use AI-generated background images for map, live, and review context, but those images must stay clipped to the local hero/header container and never become page-wide wallpaper. Do not use decorative gradients, radial washes, vignettes, glowing backdrops, gradient text, or image treatments that make the product read like a generic AI/SaaS dashboard. Route-specific texture tone may subtly shift for map, live, and review contexts, but foreground panels must stay readable and mostly opaque.
 
 ## Typography
 
@@ -60,17 +73,17 @@ IBM Plex is the only type system.
 
 The interface is structured by borders, dividers, and ownership of panels, not floating cards or soft depth.
 
-- Page substrate: `background`.
-- Outer section shell: `surface`, `border`, `overflow-hidden`, and `--radius-shell` only where the major shell needs a contained edge.
-- Inner panels: step to `background`, `screen`, or a semantic treatment instead of stacking `surface` on `surface`.
+- Page substrate: graphite `background`.
+- Outer section shell: graphite `command`, `border`, `overflow-hidden`, and `--radius-shell` only where the major shell needs a contained edge.
+- Inner panels: step to `screen`, `paper`, or a semantic treatment instead of stacking pale cards on command panels.
 - Use `border`, `divide-x`, and `divide-y` to create a shared blueprint grid.
 - Avoid double borders.
 - Do not use soft shadows as hierarchy.
 
 Desktop app shell:
 
-- Top nav: `h-14`, sticky, `border-b`, translucent paper background, and high enough z-index for app navigation.
-- Sidebar: `lg:w-60`, `border-r`, paper background, scrollable when needed.
+- Top nav: `h-14`, sticky, graphite background, `border-b`, and high enough z-index for app navigation.
+- Sidebar: `lg:w-60`, graphite command background, `border-r`, scrollable when needed.
 - Main content: `min-w-0 flex-1 overflow-auto bg-background`.
 
 Responsive behavior:
@@ -116,7 +129,7 @@ Use `MotionConfig reducedMotion="user"` at the highest intentional motion bounda
 
 ## Screen Surfaces
 
-Use dark inset treatment for video frames, logs, AI traces, terminal output, generated code, and code-editor surfaces. Dark is an inset material, never the whole app shell.
+Use deep black inset treatment for video frames, evidence canvases, logs, AI traces, terminal output, generated code, and code-editor surfaces. Graphite is the shell and command material; near-black is the evidence/video material; paper is an inset material only.
 
 - Prefer CodeMirror 6 for editor-like code surfaces.
 - Keep gutters darker than the editor body.
@@ -133,8 +146,8 @@ Use dark inset treatment for video frames, logs, AI traces, terminal output, gen
 
 ## Bans
 
-- Generic SaaS glow, gradient text, soft card stacks, glassmorphism, and decorative shadows.
-- Full-page dark mode for the C&C dashboard.
+- Generic SaaS glow, gradient text, decorative gradients, vignettes, soft card stacks, glassmorphism, and decorative shadows.
+- Pale admin cards as default live/review panel material.
 - Extra font families.
 - Oversized card radii; use square structure and `rounded-sm` controls.
 - Pill badges for operational statuses.
