@@ -1,0 +1,133 @@
+import type { ScenarioState } from "@/lib/domain";
+
+export const scenarioState: ScenarioState = {
+  scenarioId: "punggol-warehouse-ops-2026-07-03",
+  title: "Punggol warehouse fire response review",
+  incidentClock: "14:03:21",
+  deploymentProgress: 78,
+  liveAnalysisCue: {
+    responderId: "ff-b",
+    timestampSeconds: 78,
+  },
+  responders: [
+    {
+      id: "ff-a",
+      name: "Firefighter A",
+      role: "Interior attack",
+      feedLabel: "Bodycam A",
+      videoSrc: "/videos/fire/fire-feed-a.mp4",
+      status: "interior",
+      position: { lat: 1.4152, lng: 103.9105 },
+    },
+    {
+      id: "ff-b",
+      name: "Firefighter B",
+      role: "Hose support",
+      feedLabel: "Bodycam B",
+      videoSrc: "/videos/fire/fire-feed-b-escalation.mp4",
+      status: "monitoring",
+      position: { lat: 1.4149, lng: 103.9108 },
+    },
+    {
+      id: "ff-c",
+      name: "Firefighter C",
+      role: "Entry control",
+      feedLabel: "Bodycam C",
+      videoSrc: "/videos/fire/fire-feed-c.mp4",
+      status: "post-incident",
+      position: { lat: 1.4147, lng: 103.9101 },
+    },
+  ],
+  incidents: [
+    {
+      id: "inc-caller-report",
+      title: "Caller report: small warehouse fire",
+      severity: "watch",
+      status: "live",
+      startTime: "13:56:10",
+      summary: "Caller reports a small fire inside Punggol warehouse, 21 Punggol Field Walk. Caller remains outside and reports no visible injuries.",
+      tags: ["fire response", "deployment"],
+      objectIds: [],
+      evidenceIds: [],
+    },
+  ],
+  incidentObjects: [
+    {
+      id: "obj-bodycam-a-attack",
+      incidentId: "inc-fire-response",
+      title: "Interior attack feed indexed",
+      timestamp: "14:02:10",
+      source: "Firefighter A bodycam",
+      summary: "Bodycam A records firefighters operating near the initial fire area with visible flame glow and hose-line movement.",
+      evidenceId: "ev-fire-a-attack",
+      tags: ["fire response", "visibility"],
+      reviewState: "selected",
+    },
+    {
+      id: "obj-flame-spread",
+      incidentId: "inc-fire-escalation",
+      title: "Storage-room fire growth",
+      timestamp: "14:03:21",
+      source: "Firefighter B",
+      summary: "Interior feed shows flame growth crossing shelving and smoke thickening near the storage-room ceiling.",
+      evidenceId: "ev-fire-b-escalation",
+      tags: ["fire escalation", "smoke spread"],
+      reviewState: "pending-review",
+    },
+    {
+      id: "obj-bodycam-c-entry-control",
+      incidentId: "inc-fire-response",
+      title: "Entry-control feed indexed",
+      timestamp: "14:04:06",
+      source: "Firefighter C bodycam",
+      summary: "Bodycam C records entry-control conditions, smoke near the access point, and responder positioning during the fire response.",
+      evidenceId: "ev-fire-c-entry-control",
+      tags: ["fire response", "entry control", "smoke spread"],
+      reviewState: "selected",
+    },
+  ],
+  evidence: [],
+  events: [],
+  recommendations: [],
+  decisions: [],
+  deploymentMarkers: [
+    { id: "station", label: "Punggol Fire Station", kind: "station", position: { lat: 1.4023, lng: 103.8972 }, status: "origin" },
+    { id: "btf", label: "Basic Task Force", kind: "unit", position: { lat: 1.4103, lng: 103.9051 }, status: "approaching" },
+    { id: "warehouse", label: "Punggol warehouse", kind: "incident", position: { lat: 1.415, lng: 103.9105 }, status: "live incident" },
+  ],
+  architecture: [
+    { id: "browser", label: "Ops Centre dashboard", detail: "Browser UI receives only NEXT_PUBLIC_GOOGLE_MAPS_API_KEY and calls route handlers.", boundary: "Browser" },
+    { id: "openshift", label: "Dell Cloud Native Platform / OpenShift", detail: "Next.js dashboard and backend route handlers run in a container on port 8080.", boundary: "OpenShift" },
+    { id: "harbor", label: "Harbor registry", detail: "Container image is built locally and pushed to Harbor for OpenShift deployment.", boundary: "Harbor" },
+    { id: "gb10", label: "GB10 / vLLM / Nemotron", detail: "OpenAI-compatible text endpoint is reached through Cloudflare Tunnel; OpenShift has no GPU.", boundary: "GB10" },
+    { id: "cloud-ai", label: "Cloud AI", detail: "Vision-heavy evidence extraction can use cloud AI through server-side keys only.", boundary: "Cloud AI" },
+  ],
+  report: {
+    id: "report-fire-response-evidence",
+    title: "Structured Evidence Report: Fire Response Bodycam Review",
+    generatedAt: "2026-07-03T14:40:00+08:00",
+    incidentIds: ["inc-fire-response", "inc-fire-escalation"],
+    evidenceIds: ["ev-fire-a-attack", "ev-fire-b-escalation", "ev-fire-c-entry-control"],
+    reviewState: "pending-review",
+    claims: [
+      {
+        text: "Three current uploaded videos are indexed as fire-response bodycam feeds from firefighters on scene.",
+        reason: "Responder metadata maps Bodycam A, Bodycam B, and Bodycam C to fire-response video sources.",
+        evidence: "Firefighter A bodycam, Firefighter B bodycam, and Firefighter C bodycam",
+      },
+      {
+        text: "Fire escalation and smoke conditions are available for review and report export.",
+        reason: "Selected evidence cards describe fire growth, reduced visibility, and entry-control events.",
+        evidence: "Bodycam A 14:02:10, Bodycam B 14:03:21, Bodycam C 14:04:06",
+      },
+    ],
+  },
+};
+
+export function getScenarioState() {
+  return scenarioState;
+}
+
+export function findEvidence(id: string) {
+  return scenarioState.evidence.find((item) => item.id === id);
+}

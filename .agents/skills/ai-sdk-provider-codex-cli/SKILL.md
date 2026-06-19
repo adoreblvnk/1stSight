@@ -278,7 +278,7 @@ const { text } = await generateText({
       role: 'user',
       content: [
         { type: 'text', text: 'What do you see in this image?' },
-        { type: 'image', image: imageBuffer, mimeType: 'image/png' },
+        { type: 'image', image: imageBuffer, mediaType: 'image/png' },
       ],
     },
   ],

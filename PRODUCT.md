@@ -12,9 +12,9 @@ Responder footage comes from firefighters or responders, but responders are not 
 
 ## Product Purpose
 
-1stSight is a Command & Control dashboard for live operations and post-incident review. It turns responder bodycam footage into event timelines, suggested actions, evidence frames, draft reports, and optional scene context so Ops Centre officers can focus on the broader incident picture instead of watching every individual feed.
+1stSight is a Command & Control dashboard for live operations and post-incident review. It turns responder bodycam footage into event timelines, suggested actions, evidence frames, and draft reports so Ops Centre officers can focus on the broader incident picture instead of watching every individual feed.
 
-The demo must make one thing obvious: 1stSight catches operationally important moments, such as fire escalation or responder abuse, even when they are not verbally escalated by the front line.
+The current demo must make one thing obvious: 1stSight catches operationally important fire-response moments, such as fire escalation, even when they are not verbally escalated by the front line. Responder-abuse review remains evidence-dependent and should only appear after separate footage is ingested.
 
 ## Brand Personality
 
@@ -35,8 +35,8 @@ The interface should feel like a serious command tool: calm under pressure, dens
 - Evidence before assertion: every incident, recommendation, and report claim should link back to a timestamped source or selected frame.
 - Human authority stays visible: high-impact actions and final report conclusions remain reviewable decisions, not autonomous commands.
 - Operational density with discipline: show enough context for C&C work, but use grid lines, panel ownership, and terse labels to avoid clutter.
-- Live view stays calm: do not draw bounding boxes over live bodycam footage; reserve visual annotations for post-incident evidence review.
-- Demo reliability beats technical theater: staged footage and deterministic fallback states are acceptable when they make the intended workflow clear.
+- Live view stays calm: bodycam footage, event stream, and recommendations stay visually distinct.
+- Runtime evidence beats technical theater: staged footage can seed the scenario, but post-incident findings, selected frames, bounding boxes, search answers, and exported evidence must come from request-time analysis or fail visibly.
 
 ## Accessibility & Inclusion
 

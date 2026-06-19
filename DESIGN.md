@@ -93,7 +93,7 @@ Use shadcn/ui primitives first and wrap locally only when a repeated pattern has
 - Loading uses skeletons, progress lines, cursor marks, or screen-local acquisition effects; no centered circular spinners.
 - Empty states are left-aligned inside their content column and should teach the next action without filler copy.
 
-Post-incident evidence cards may show bounding boxes and one-phrase labels. Live bodycam feed cards must not draw bounding boxes over the feed.
+Post-incident evidence cards may show bounding boxes and one-phrase labels. Live bodycam cards use feed identity and event references.
 
 ## Motion
 
