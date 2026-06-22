@@ -2,13 +2,13 @@
 
 ## Theme
 
-1stSight uses a flat graphite command-console system adapted for `impeccable`: charcoal app shell, graphite command panels, deep black evidence and video canvases, light paper insets for forms and reports, terse labels, grid-line structure, restrained emergency red, and sparse signal-like motion.
+1stSight uses a flat graphite command-console system adapted for `impeccable`: charcoal app shell, graphite command panels, deep black evidence and video canvases, light paper insets for forms and AAR briefing slides, terse labels, grid-line structure, restrained emergency red, and sparse signal-like motion.
 
-The product is a dashboard and review tool, so design serves the task. Use familiar product UI patterns, preserve C&C officer trust, and avoid ornamental strangeness. The physical scene is an Ops Centre officer monitoring a live warehouse incident under time pressure, then reviewing evidence after the incident; the interface should be legible, calm, and evidence-dense rather than cinematic, decorative, or wallpaper-driven.
+The product is a dashboard and review tool, so design serves the task. Use familiar product UI patterns, preserve C&C officer trust, and avoid ornamental strangeness. The physical scene is an Ops Centre officer monitoring a live residential fire under time pressure, then reviewing responder-safety evidence from a separate medical assistance incident; the interface should be legible, calm, and evidence-dense rather than cinematic, decorative, or wallpaper-driven.
 
 ## Color
 
-Use OKLCH tokens and semantic roles. Graphite is the app-shell default. Command panels use graphite; evidence/video canvases use deeper near-black; paper appears only as an inset material for forms, report/PDF areas, text-heavy document controls, and map callouts where readability needs a light surface. Do not return to pale admin cards pasted over dark imagery.
+Use OKLCH tokens and semantic roles. Graphite is the app-shell default. Command panels use graphite; evidence/video canvases use deeper near-black; paper appears only as an inset material for forms, slide/PDF areas, text-heavy document controls, and map callouts where readability needs a light surface. Do not return to pale admin cards pasted over dark imagery.
 
 ```css
 /* Tailwind CSS theme variables: https://tailwindcss.com/docs/theme */
@@ -142,7 +142,7 @@ Use deep black inset treatment for video frames, evidence canvases, logs, AI tra
 - Every incident event should carry timestamp, source feed, review state, and linked evidence reference.
 - Review-only annotations include bounding boxes and short labels; live monitoring uses alerts and linked references instead.
 - Use `abuse`, `fire escalation`, `blocked access`, `unsafe entry`, and similar tags as operational filters, not decorative chips.
-- Reports should look like structured observation reports, not official SCDF forms unless explicitly approved.
+- AAR briefing PDFs should look like concise presentation slides, not dense long-form documents or official SCDF forms.
 
 ## Bans
 
@@ -153,11 +153,11 @@ Use deep black inset treatment for video frames, evidence canvases, logs, AI tra
 - Pill badges for operational statuses.
 - Repeating stripe backgrounds as decoration; preserve factory character through borders, grid structure, labels, and state motion instead.
 - Decorative page-load animations.
-- Centered mobile hero layouts for public/demo pages.
+- Centered mobile hero layouts for public-facing pages.
 - Duplicate status, helper text, or primary actions across adjacent surfaces.
 
 ## Implementation Notes
 
 When the Next.js app is scaffolded, put CSS-first Tailwind tokens in `app/globals.css`, use App Router conventions, keep Motion in client components only, and keep static layout structure in server components where possible.
 
-Use `@vis.gl/react-google-maps` for the deployment map, `@react-pdf/renderer` for structured observation reports, and keep model calls behind backend/API boundaries. Do not expose `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, `GB10_MODEL_ID`, or `GB10_OPENAI_API_KEY` through `NEXT_PUBLIC_*`; only `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is browser-exposed.
+Use `@vis.gl/react-google-maps` for the deployment map, `@react-pdf/renderer` for slide-style AAR briefing PDFs, and keep model calls behind backend/API boundaries. Do not expose `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, `GB10_MODEL_ID`, or `GB10_OPENAI_API_KEY` through `NEXT_PUBLIC_*`; only `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is browser-exposed.

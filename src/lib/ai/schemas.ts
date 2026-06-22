@@ -1,19 +1,5 @@
 import { z } from "zod";
 
-export const fireEscalationSchema = z.object({
-  incidentId: z.string(),
-  title: z.string(),
-  summary: z.string(),
-  reason: z.string(),
-  evidence: z.string(),
-  videoSrc: z.string(),
-  timestampSeconds: z.number(),
-  analysisBoundary: z.string(),
-  sourceTimestamp: z.string(),
-  recommendation: z.string(),
-  reviewState: z.enum(["system-created", "pending-review", "approved", "rejected", "selected"]),
-});
-
 export const recommendationReviewSchema = z.object({
   recommendationId: z.string(),
   decision: z.enum(["approved", "rejected", "edited"]),
@@ -120,7 +106,6 @@ export const runtimeEvidenceSearchSchema = z.object({
   evidenceFrameIds: z.array(z.string()),
 });
 
-export type FireEscalationOutput = z.infer<typeof fireEscalationSchema>;
 export type RecommendationReviewOutput = z.infer<typeof recommendationReviewSchema>;
 export type SearchResultOutput = z.infer<typeof searchResultSchema>;
 export type ReportPlanOutput = z.infer<typeof reportPlanSchema>;

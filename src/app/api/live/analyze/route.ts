@@ -83,6 +83,12 @@ function onePhrase(text: string) {
   return text.replace(/\s+/g, " ").split(/[.!?]/)[0].trim();
 }
 
+function incidentPromptContext(incident: { title: string; location: string; tags: string[] }) {
+  const tags = incident.tags.length ? incident.tags.join(", ") : "incident operations";
+
+  return `${incident.title} at ${incident.location}. Incident tags: ${tags}.`;
+}
+
 async function getVideoDurationSeconds(videoPath: string) {
   // ffprobe CLI: https://ffmpeg.org/ffprobe.html
   const { stdout } = await execa("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoPath]);
@@ -188,7 +194,7 @@ export async function POST(request: Request) {
           content: [
             {
               type: "text",
-              text: `Analyze this live 5-second bodycam chunk for operationally significant fire-response events. Use only visible evidence in the images. Create events only from major observed changes such as fire escalation, smoke spread, hazardous material cues, blocked access, casualty risk, or resource escalation. Do not create events for unclear, dark, or low-signal frames. Keep every event title, recommendation title, action, reason, and evidence concise but specific. Recommendations are only for SCDF HQ Ops Centre Command and Control officers. Supported C&C actions include raise alarm level, notify HazMat or ambulance staging, request aerial support, request additional resource support, or deploy Enhanced Task Force. Deploy Enhanced Task Force only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. Avoid field-team tactical instructions. Derive any recommendation from those returned events and their evidence; if no strong C&C action is supported, return recommendation.shouldRecommend false with empty strings for recommendation text fields. Set recommendation.evidenceFrameId to one listed frame id and leave recommendation.evidenceImageUrl empty. Do not infer facts from the scenario brief. Available frame ids:\n${frameCatalog}`,
+              text: `Analyze this live 5-second responder-video chunk for operationally significant incident events. Incident context: ${incidentPromptContext(incident)} Use only visible evidence in the images. Create events only from major observed changes such as escalation, spread, hazardous material cues, blocked access, casualty risk, or resource escalation. Do not create events for unclear, dark, or low-signal frames. Keep every event title, recommendation title, action, reason, and evidence concise but specific. Recommendations are only for SCDF HQ Ops Centre Command and Control officers. Supported C&C actions include raise alarm level, notify HazMat or ambulance staging, request aerial support, request additional resource support, or deploy Enhanced Task Force. Deploy Enhanced Task Force only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. Avoid field-team tactical instructions. Derive any recommendation from those returned events and their evidence; if no strong C&C action is supported, return recommendation.shouldRecommend false with empty strings for recommendation text fields. Set recommendation.evidenceFrameId to one listed frame id and leave recommendation.evidenceImageUrl empty. Do not infer facts from the scenario brief. Available frame ids:\n${frameCatalog}`,
             },
             ...frames.flatMap((frame) => [
               {
@@ -245,7 +251,7 @@ export async function POST(request: Request) {
         evidenceFrameId: selectedFrame.frameId,
         evidenceImageUrl: `data:image/png;base64,${selectedFrame.image.toString("base64")}`,
       },
-      generatedFrom: "request-time ffmpeg extraction from public/videos/fire",
+      generatedFrom: `request-time ffmpeg extraction for ${incident.title}`,
       chunkStartSeconds,
       chunkDurationSeconds,
     });

@@ -6,15 +6,15 @@ product
 
 ## Users
 
-Primary users are SCDF Ops Centre / Command & Control officers using 1stSight during live operations and post-incident review. They are monitoring responder bodycam footage, reviewing AI-created incident evidence, approving high-impact recommendations, searching incident timelines, and preparing structured observation reports.
+Primary users are SCDF Ops Centre / Command & Control officers using 1stSight during live operations and post-incident review. They are monitoring responder bodycam footage, reviewing AI-created incident evidence, approving high-impact recommendations, searching incident timelines, and preparing concise AAR briefing slides.
 
-Responder footage comes from firefighters or responders, but responders are not the primary app users in the first demo. SCDF/Dell mentors and judges are the secondary audience for the hackathon presentation.
+Responder footage comes from firefighters, paramedics, or other responders, but responders are not the primary app users in the first presented workflow. SCDF/Dell mentors and judges are the secondary audience for the hackathon presentation.
 
 ## Product Purpose
 
-1stSight is a Command & Control dashboard for live operations and post-incident review. It turns responder bodycam footage into event timelines, suggested actions, evidence frames, and draft reports so Ops Centre officers can focus on the broader incident picture instead of watching every individual feed.
+1stSight is a Command & Control dashboard for live operations and post-incident review. It turns responder bodycam footage into event timelines, suggested actions, evidence frames, and slide-style AAR briefing PDFs so Ops Centre officers can focus on the broader incident picture instead of watching every individual feed.
 
-The current demo must make one thing obvious: 1stSight catches operationally important fire-response moments, such as fire escalation, even when they are not verbally escalated by the front line. Responder-abuse review remains evidence-dependent and should only appear after separate footage is ingested.
+The current presentation must make two things obvious: 1stSight catches operationally important fire-response moments, such as fire escalation, even when they are not verbally escalated by the front line; and it can turn available bodycam footage into faster evidence-linked responder-safety AAR briefing slides.
 
 ## Brand Personality
 
@@ -28,15 +28,15 @@ The interface should feel like a serious command tool: calm under pressure, dens
 - Full dark-mode command center tropes where everything becomes cinematic instead of readable.
 - AI-agent dashboards that over-emphasize magic, autonomy, or chat instead of evidence and review.
 - Consumer video-feed apps that make the footage the whole product and hide operational decisions.
-- Official-report generators that imply 1stSight autonomously produces SCDF Fire Reports or Ambulance Reports.
+- Official-report generators that imply 1stSight autonomously produces SCDF Fire Reports or Ambulance Reports instead of AAR briefing slides for officer review.
 
 ## Design Principles
 
-- Evidence before assertion: every incident, recommendation, and report claim should link back to a timestamped source or selected frame.
-- Human authority stays visible: high-impact actions and final report conclusions remain reviewable decisions, not autonomous commands.
+- Evidence before assertion: every incident, recommendation, and slide claim should link back to a timestamped source or selected frame.
+- Human authority stays visible: high-impact actions and final AAR slide conclusions remain reviewable decisions, not autonomous commands.
 - Operational density with discipline: show enough context for C&C work, but use grid lines, panel ownership, and terse labels to avoid clutter.
 - Live view stays calm: bodycam footage, event stream, and recommendations stay visually distinct.
-- Runtime evidence beats technical theater: staged footage can seed the scenario, but post-incident findings, selected frames, bounding boxes, search answers, and exported evidence must come from request-time analysis or fail visibly.
+- Runtime evidence before technical theater: source footage can seed the scenario, but post-incident findings, selected frames, bounding boxes, search answers, and exported evidence must come from request-time analysis or fail visibly.
 
 ## Accessibility & Inclusion
 

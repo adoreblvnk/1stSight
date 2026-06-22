@@ -74,6 +74,12 @@ function isSupportedRecommendation(recommendation: { title: string; reason: stri
   return /raise alarm|alarm level|hazmat|ambulance|staging|aerial|resource support|additional resource|blocked access|collapse/i.test(text);
 }
 
+function incidentPromptContext(incident: { title: string; location: string; tags: string[] }) {
+  const tags = incident.tags.length ? incident.tags.join(", ") : "incident operations";
+
+  return `${incident.title} at ${incident.location}. Incident tags: ${tags}.`;
+}
+
 export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
 
@@ -148,7 +154,7 @@ export async function POST(request: Request) {
           content: [
             {
               type: "text",
-              text: `Analyze these extracted fire-response bodycam frame candidates for post-incident review. Use only visible evidence in the images. Select only evidence-worthy real frame ids from the candidate set. Keep each evidence description short and action-oriented. Use incident-level tags such as fire escalation, ground operations, entry approach, smoke spread, or visibility; do not use tiny object tags. Return no more than 3 bounding boxes per selected frame. Recommendations are only for SCDF HQ Ops Centre Command and Control officers. Do not create a recommendation unless evidence strongly supports a C&C action such as raising alarm level, HazMat or ambulance staging, aerial support, additional resource support, or blocked-access/collapse escalation. Deploy Enhanced Task Force only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. If evidence is not strong, return an empty recommendations array. Do not claim abuse, assault, medical emergency, owner contact, push, or punch unless visible in the frames. Available frame ids:\n${frameCatalog}`,
+              text: `Analyze these extracted responder-video frame candidates for post-incident review. Incident context: ${incidentPromptContext(incident)} Use only visible evidence in the images. Select only evidence-worthy real frame ids from the candidate set. Keep each evidence description short and action-oriented. Use incident-level tags such as escalation, operations, access, hazard, casualty assistance, smoke spread, or visibility; do not use tiny object tags. Return no more than 3 bounding boxes per selected frame. Recommendations are only for SCDF HQ Ops Centre Command and Control officers. Do not create a recommendation unless evidence strongly supports a C&C action such as raising alarm level, HazMat or ambulance staging, aerial support, additional resource support, or blocked-access/collapse escalation. Deploy Enhanced Task Force only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. If evidence is not strong, return an empty recommendations array. Do not claim abuse, assault, medical emergency, owner contact, push, or punch unless visible in the frames. Available frame ids:\n${frameCatalog}`,
             },
             ...frames.flatMap((frame) => [
               {
@@ -204,7 +210,7 @@ export async function POST(request: Request) {
       ...analysis,
       incidentId: incident.id,
       incidentTitle: incident.title,
-      generatedFrom: "request-time ffmpeg extraction from public/videos/fire",
+      generatedFrom: `request-time ffmpeg extraction for ${incident.title}`,
       evidence: normalizedEvidence.map(({ rank, ...item }) => ({ ...item, order: rank })),
       recommendations: normalizedRecommendations.map(({ rank, ...item }) => ({ ...item, order: rank })),
     });

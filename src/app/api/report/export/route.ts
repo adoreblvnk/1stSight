@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
 
 type RuntimeAnalysis = z.infer<typeof runtimeAnalysisSchema>;
 
-const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry"]);
+const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident"]);
 
 function incidentTags(tags: string[]) {
   return tags
@@ -82,9 +82,13 @@ function incidentTags(tags: string[]) {
       if (tag.includes("entry")) return "entry approach";
       if (tag.includes("smoke")) return "smoke spread";
       if (tag.includes("flame") || tag.includes("fire")) return "fire escalation";
+      if (tag.includes("hazmat") || tag.includes("chemical") || tag.includes("gas")) return "hazmat";
+      if (tag.includes("medical") || tag.includes("casualty") || tag.includes("ambulance")) return "medical";
+      if (tag.includes("civil") || tag.includes("crowd")) return "civil";
+      if (tag.includes("collapse") || tag.includes("blocked") || tag.includes("hazard")) return "hazard";
       if (tag.includes("hose") || tag.includes("firefighter") || tag.includes("responder")) return "ground operations";
       if (tag.includes("visibility")) return "visibility";
-      return incidentLevelTags.has(tag) ? tag : "fire response";
+      return incidentLevelTags.has(tag) ? tag : "incident";
     })
     .filter((tag, index, values) => values.indexOf(tag) === index)
     .slice(0, 3);
