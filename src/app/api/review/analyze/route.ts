@@ -15,7 +15,7 @@ const bodySchema = z.object({
   feedIds: z.array(z.string()).default([]),
 });
 
-const sampleRatios = [0.18, 0.5, 0.82];
+const candidateRatios = [0.18, 0.5, 0.82];
 
 function formatTimestamp(seconds: number) {
   const roundedSeconds = Math.max(0, Math.round(seconds));
@@ -37,10 +37,12 @@ async function getVideoDurationSeconds(videoPath: string) {
   return duration;
 }
 
-function getCandidateSeconds(durationSeconds: number) {
-  return [...new Set(sampleRatios.map((ratio) => Math.max(1, Math.min(durationSeconds - 0.5, Math.round(durationSeconds * ratio)))))]
+function getCandidateSeconds(durationSeconds: number, incidentType: "fire" | "medical") {
+  const incidentCues = incidentType === "medical" ? [21.5, 22, 22.5] : [76, 76.5, 77];
+  return [...new Set([...incidentCues, ...candidateRatios.map((ratio) => Math.max(1, Math.min(durationSeconds - 0.5, Math.round(durationSeconds * ratio))))])]
+    .map((seconds) => Math.min(seconds, Math.max(1, durationSeconds - 0.5)))
     .filter((seconds) => Number.isFinite(seconds) && seconds > 0)
-    .slice(0, 3);
+    .slice(0, 5);
 }
 
 function clampPercent(value: number) {
@@ -80,6 +82,14 @@ function incidentPromptContext(incident: { title: string; location: string; tags
   return `${incident.title} at ${incident.location}. Incident tags: ${tags}.`;
 }
 
+function incidentAnalysisInstructions(incident: { type: "fire" | "medical" }) {
+  if (incident.type === "medical") {
+    return "Medical/responder-safety priorities: patient distress, responder approach, crowding, obstruction, unsafe proximity, sudden movement toward responder, possible physical contact with responder, crew intervention, and patient movement or transfer. Distinguish confirmed, probable, and unclear evidence; do not overclaim intent or assault from a single frame.";
+  }
+
+  return "Fire priorities: smoke, flame growth, sudden fire burst, visibility loss, blocked access, unsafe entry, entry-control issues, and resource escalation cues. Enhanced Task Force language must be framed as Ground Commander consideration, not Ops Centre approval or a direct deployment order.";
+}
+
 export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
 
@@ -113,7 +123,7 @@ export async function POST(request: Request) {
       responders.map(async (responder) => {
         const videoPath = path.join(process.cwd(), "public", responder.videoSrc.replace(/^\//, ""));
         const durationSeconds = await getVideoDurationSeconds(videoPath);
-        const candidateSeconds = getCandidateSeconds(durationSeconds);
+        const candidateSeconds = getCandidateSeconds(durationSeconds, incident.type);
 
         return Promise.all(
           candidateSeconds.map(async (timestampSeconds) => {
@@ -154,7 +164,7 @@ export async function POST(request: Request) {
           content: [
             {
               type: "text",
-              text: `Analyze these extracted responder-video frame candidates for post-incident review. Incident context: ${incidentPromptContext(incident)} Use only visible evidence in the images. Select only evidence-worthy real frame ids from the candidate set. Keep each evidence description short and action-oriented. Use incident-level tags such as escalation, operations, access, hazard, casualty assistance, smoke spread, or visibility; do not use tiny object tags. Return no more than 3 bounding boxes per selected frame. Recommendations are only for SCDF HQ Ops Centre Command and Control officers. Do not create a recommendation unless evidence strongly supports a C&C action such as raising alarm level, HazMat or ambulance staging, aerial support, additional resource support, or blocked-access/collapse escalation. Deploy Enhanced Task Force only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. If evidence is not strong, return an empty recommendations array. Do not claim abuse, assault, medical emergency, owner contact, push, or punch unless visible in the frames. Available frame ids:\n${frameCatalog}`,
+              text: `Analyze these extracted responder-video frame candidates for post-incident review. Incident context: ${incidentPromptContext(incident)} ${incidentAnalysisInstructions(incident)} Use only visible evidence in the images. Select only evidence-worthy real frame ids from the candidate set. Keep each evidence description short and action-oriented. Use incident-level tags such as escalation, operations, access, hazard, medical assistance, responder safety, physical contact, unsafe proximity, crew intervention, smoke spread, or visibility; do not use tiny object tags. Return no more than 3 bounding boxes per selected frame. Recommendations are evidence-linked considerations for the Ground Commander through Ops Centre, not Ops Centre approvals or direct deployment orders. Do not create a recommendation unless evidence strongly supports a C&C action such as raising alarm level consideration, HazMat or ambulance staging, aerial support, additional resource support, or blocked-access/collapse escalation. Flag Enhanced Task Force consideration for Ground Commander only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. If evidence is not strong, return an empty recommendations array. Do not claim abuse, assault, medical emergency, owner contact, push, or punch unless visible in the frames. Available frame ids:\n${frameCatalog}`,
             },
             ...frames.flatMap((frame) => [
               {

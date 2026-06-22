@@ -11,6 +11,7 @@ import { getRuntimeIncident } from "@/lib/scenario";
 export const runtime = "nodejs";
 
 const chunkDurationSeconds = 5;
+const frameIntervalSeconds = 0.5;
 
 const bodySchema = z.object({
   incidentId: z.string().min(1),
@@ -42,7 +43,7 @@ function opsCentreRecommendation(events: Array<{ title: string; evidence: string
   const eventText = events.map((event) => `${event.title} ${event.evidence}`).join(" ");
 
   if (/hazmat|chemical|gas|spill|unknown container/i.test(eventText)) return "Notify HazMat and ambulance staging";
-  if (/uncontrolled|large fire|rapid escalation|beyond initial attack|multiple compartments|resource escalation|defensive operations/i.test(eventText)) return "Deploy Enhanced Task Force";
+  if (/uncontrolled|large fire|rapid escalation|beyond initial attack|multiple compartments|resource escalation|defensive operations|fire burst|overhead flames?|flames? visible above|flame growth|ceiling flames?|intense flames?/i.test(eventText)) return "Flag Enhanced Task Force consideration for Ground Commander";
   if (/roof|upper|height|aerial|window/i.test(eventText)) return "Request additional aerial support";
   if (/blocked|entry|access|collapse|debris/i.test(eventText)) return "Request additional resource support";
 
@@ -63,7 +64,7 @@ function incidentCategory(title: string, evidence: string) {
 
 function supportsEnhancedTaskForce(title: string, action: string, reason: string, evidence: string) {
   return /enhanced task force/i.test(`${title} ${action}`)
-    && /uncontrolled|large fire|rapid escalation|beyond initial attack|multiple compartments|resource escalation|defensive operations/i.test(`${reason} ${evidence}`);
+    && /uncontrolled|large fire|rapid escalation|beyond initial attack|multiple compartments|resource escalation|defensive operations|fire burst/i.test(`${reason} ${evidence}`);
 }
 
 function supportsOpsCentreRecommendation(title: string, action: string, reason: string, evidence: string) {
@@ -87,6 +88,14 @@ function incidentPromptContext(incident: { title: string; location: string; tags
   const tags = incident.tags.length ? incident.tags.join(", ") : "incident operations";
 
   return `${incident.title} at ${incident.location}. Incident tags: ${tags}.`;
+}
+
+function incidentAnalysisInstructions(incident: { type: "fire" | "medical" }) {
+  if (incident.type === "medical") {
+    return "Medical/responder-safety analysis priorities: patient distress, responder approach, crowding, obstruction, unsafe proximity, sudden movement toward responder, possible physical contact, crew intervention, and patient movement or transfer. Distinguish confirmed, probable, or unclear evidence instead of overclaiming from a single frame.";
+  }
+
+  return "Fire analysis priorities: smoke, flame growth, sudden fire burst, visibility loss, blocked access, unsafe entry, entry-control issues, and resource escalation cues. For a large fire burst or rapid fire growth, flag Enhanced Task Force consideration for Ground Commander only when supported by visible evidence; do not say Ops Centre approves, deploys, or orders reinforcement.";
 }
 
 async function getVideoDurationSeconds(videoPath: string) {
@@ -153,14 +162,15 @@ export async function POST(request: Request) {
         const videoPath = resolvePublicVideo(feed.videoSrc);
         const durationSeconds = await getVideoDurationSeconds(videoPath);
         const chunkStartSeconds = Math.max(0, Math.floor(Math.max(0, feed.currentTime) / chunkDurationSeconds) * chunkDurationSeconds);
-        const sampleSeconds = [chunkStartSeconds + 2]
+        const frameCount = Math.ceil(chunkDurationSeconds / frameIntervalSeconds);
+        const frameSeconds = Array.from({ length: frameCount }, (_, index) => chunkStartSeconds + index * frameIntervalSeconds)
           .map((seconds) => Math.min(Math.max(0, seconds), Math.max(0, durationSeconds - 0.5)))
           .filter((seconds, index, values) => values.indexOf(seconds) === index);
 
         return Promise.all(
-          sampleSeconds.map(async (timestampSeconds) => {
+          frameSeconds.map(async (timestampSeconds) => {
             const safeSource = path.basename(feed.videoSrc, path.extname(feed.videoSrc)).replace(/[^a-zA-Z0-9_-]/g, "-");
-            const frameId = `${feed.responder.id}-${safeSource}-${Math.round(timestampSeconds)}s`;
+            const frameId = `${feed.responder.id}-${safeSource}-${String(timestampSeconds).replace(/\./g, "_")}s`;
             const outputPath = path.join(cacheDir, `${frameId}.png`);
 
             // ffmpeg CLI: https://ffmpeg.org/ffmpeg.html
@@ -194,7 +204,7 @@ export async function POST(request: Request) {
           content: [
             {
               type: "text",
-              text: `Analyze this live 5-second responder-video chunk for operationally significant incident events. Incident context: ${incidentPromptContext(incident)} Use only visible evidence in the images. Create events only from major observed changes such as escalation, spread, hazardous material cues, blocked access, casualty risk, or resource escalation. Do not create events for unclear, dark, or low-signal frames. Keep every event title, recommendation title, action, reason, and evidence concise but specific. Recommendations are only for SCDF HQ Ops Centre Command and Control officers. Supported C&C actions include raise alarm level, notify HazMat or ambulance staging, request aerial support, request additional resource support, or deploy Enhanced Task Force. Deploy Enhanced Task Force only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. Avoid field-team tactical instructions. Derive any recommendation from those returned events and their evidence; if no strong C&C action is supported, return recommendation.shouldRecommend false with empty strings for recommendation text fields. Set recommendation.evidenceFrameId to one listed frame id and leave recommendation.evidenceImageUrl empty. Do not infer facts from the scenario brief. Available frame ids:\n${frameCatalog}`,
+              text: `Analyze this live 5-second responder-video chunk as a temporal frame sequence for operationally significant incident events. Incident context: ${incidentPromptContext(incident)} ${incidentAnalysisInstructions(incident)} Use only visible evidence in the images and describe what changed across frames. Create events only from major observed changes. Do not create events for unclear, dark, or low-signal frames. Keep every event title, recommendation title, action, reason, and evidence concise but specific. Recommendations are evidence-linked considerations for the Ground Commander through Ops Centre, not Ops Centre approvals or direct deployment orders. Supported C&C recommendations include raise alarm level consideration, notify HazMat or ambulance staging, request aerial support, request additional resource support, or flag Enhanced Task Force consideration for Ground Commander. Derive any recommendation from those returned events and their evidence; if no strong C&C action is supported, return recommendation.shouldRecommend false with empty strings for recommendation text fields. Set recommendation.evidenceFrameId to one listed frame id and leave recommendation.evidenceImageUrl empty. Do not infer facts from the scenario brief. Available frame ids:\n${frameCatalog}`,
             },
             ...frames.flatMap((frame) => [
               {
@@ -220,9 +230,13 @@ export async function POST(request: Request) {
     const fallbackRecommendationTitle = opsCentreRecommendation(supportedEvents);
     const modelRecommendationAllowed = supportsOpsCentreRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
     const shouldRecommend = analysis.recommendation.shouldRecommend && supportedEvents.length > 0 && (modelRecommendationAllowed || fallbackRecommendationTitle.length > 0);
-    const recommendationTitle = shouldRecommend && modelRecommendationAllowed
+    const fallbackIsEnhancedTaskForce = /enhanced task force/i.test(fallbackRecommendationTitle);
+    const recommendationTitle = shouldRecommend && fallbackIsEnhancedTaskForce
+      ? fallbackRecommendationTitle
+      : shouldRecommend && modelRecommendationAllowed
       ? onePhrase(analysis.recommendation.title)
       : fallbackRecommendationTitle;
+    const gcRecommendationTitle = /enhanced task force/i.test(recommendationTitle) ? "Flag Enhanced Task Force consideration for Ground Commander" : recommendationTitle;
     const recommendationReason = onePhrase(analysis.recommendation.reason || analysis.recommendation.evidence || supportedEvents[0]?.title || "supported by current live frames");
 
     return NextResponse.json({
@@ -244,8 +258,8 @@ export async function POST(request: Request) {
       recommendation: {
         ...analysis.recommendation,
         shouldRecommend,
-        title: recommendationTitle,
-        action: recommendationTitle,
+        title: gcRecommendationTitle,
+        action: gcRecommendationTitle,
         reason: shouldRecommend ? recommendationReason : "",
         evidence: shouldRecommend ? recommendationReason : "",
         evidenceFrameId: selectedFrame.frameId,

@@ -8,7 +8,15 @@ export type IncidentTag =
   | "smoke spread"
   | "visibility"
   | "entry control"
-  | "deployment";
+  | "deployment"
+  | "medical assistance"
+  | "responder safety"
+  | "physical contact"
+  | "unsafe proximity"
+  | "crew intervention"
+  | "patient movement";
+
+export type IncidentType = "fire" | "medical";
 
 export type Coordinates = {
   lat: number;
@@ -61,6 +69,7 @@ export type IncidentObject = {
 
 export type Incident = {
   id: string;
+  type: IncidentType;
   title: string;
   severity: "watch" | "elevated" | "critical";
   status: "live" | "review" | "concluded";

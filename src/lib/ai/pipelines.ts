@@ -16,8 +16,8 @@ export async function reviewRecommendation(decision: "approved" | "rejected" | "
     reviewer: "Ops Centre Officer",
     reason:
       decision === "approved"
-        ? `Officer accepted ${recommendation.title}: ${recommendation.reason}. Evidence: ${recommendation.evidence}.`
-        : `Officer kept ${recommendation.title} out of the active deployment record. Evidence reviewed: ${recommendation.evidence}.`,
+        ? `Officer marked ${recommendation.title} for Ground Commander consideration: ${recommendation.reason}. Evidence: ${recommendation.evidence}.`
+        : `Officer kept ${recommendation.title} out of the Ground Commander summary. Evidence reviewed: ${recommendation.evidence}.`,
     timestamp: recommendation.sourceTimestamp,
   };
 

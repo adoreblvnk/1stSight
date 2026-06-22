@@ -98,6 +98,28 @@ export const liveAnalysisSchema = z.object({
   }),
 });
 
+export const streamChunkAnalysisSchema = z.object({
+  events: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      evidence: z.string(),
+      severity: z.enum(["low", "medium", "high"]),
+      tags: z.array(z.string()),
+      confidence: z.enum(["confirmed", "probable", "unclear"]),
+      bestEvidenceFrameId: z.string(),
+      supportingFrameIds: z.array(z.string()),
+      frameTimestampWithinChunkSeconds: z.number(),
+      recommendation: z.object({
+        shouldRecommend: z.boolean(),
+        title: z.string(),
+        action: z.string(),
+        reason: z.string(),
+      }),
+    }),
+  ),
+});
+
 export const runtimeEvidenceSearchSchema = z.object({
   query: z.string(),
   intent: z.string(),
@@ -111,4 +133,5 @@ export type SearchResultOutput = z.infer<typeof searchResultSchema>;
 export type ReportPlanOutput = z.infer<typeof reportPlanSchema>;
 export type PostIncidentAnalysisOutput = z.infer<typeof postIncidentAnalysisSchema>;
 export type LiveAnalysisOutput = z.infer<typeof liveAnalysisSchema>;
+export type StreamChunkAnalysisOutput = z.infer<typeof streamChunkAnalysisSchema>;
 export type RuntimeEvidenceSearchOutput = z.infer<typeof runtimeEvidenceSearchSchema>;

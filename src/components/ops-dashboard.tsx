@@ -21,11 +21,12 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Timeline, TimelineContent, TimelineDate, TimelineHeader, TimelineIndicator, TimelineItem, TimelineSeparator, TimelineTitle } from "@/components/reui/timeline";
 import type { DecisionReview, DeploymentMarker, Incident, Responder, ScenarioState } from "@/lib/domain";
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
+import type { StreamIncidentSession } from "@/lib/stream-store";
 import { cn } from "@/lib/utils";
 
 const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident"]);
 
-type DemoMode = "live" | "escalation" | "concluded";
+type LiveMode = "live" | "escalation" | "concluded";
 
 type RuntimeEvidence = {
   frameId: string;
@@ -68,6 +69,13 @@ type LiveAnalysis = Omit<LiveAnalysisOutput, "events"> & {
   recommendations: LiveAnalysisOutput["recommendation"][];
 };
 
+type StreamUiAnalysis = {
+  generatedAt: string;
+  generatedFrom: string;
+  events: LiveEvent[];
+  recommendations: LiveAnalysisOutput["recommendation"][];
+};
+
 const statusTone = {
   "pending-review": "border-warning text-warning",
   approved: "border-success text-success",
@@ -79,8 +87,11 @@ const statusTone = {
 const routeItems = [
   { href: "/", label: "Map" },
   { href: "/live", label: "Live Dashboard" },
+  { href: "/bodycam", label: "Bodycam" },
   { href: "/review", label: "Post-Incident Review" },
 ];
+
+const streamIncidentId = "stage-medical-assistance-stream";
 
 const heroImages = {
   // codex exec '$imagegen generate an operational command centre map hero background for a firefighter bodycam incident dashboard, Singapore urban grid at night, dark inset screen material, restrained emergency amber accents, no text, no logos, save as public/ai-images/ops-map-hero.png'
@@ -286,6 +297,50 @@ function mergeLiveAnalysis(previous: LiveAnalysis | null, next: LiveAnalysisOutp
     ...next,
     events: [...previousEvents, ...nextEvents],
     recommendations: [...previousRecommendations, ...nextRecommendations],
+  };
+}
+
+function streamAnalysis(session: StreamIncidentSession | null): StreamUiAnalysis | null {
+  if (!session) return null;
+
+  const events = session.events.map((event) => ({
+    id: event.id,
+    timestamp: event.timestamp,
+    title: event.title,
+    evidence: event.evidence,
+    severity: event.severity,
+    category: event.tags[0] ?? event.incidentType,
+    source: `Bodycam ${event.bodycamSlotId}`,
+    sourceResponder: event.bodycamDisplayName,
+    reviewState: "system-created" as const,
+    confidence: event.confidence,
+    tags: event.tags,
+    evidenceFrameId: event.bestEvidenceFrame.frameId,
+    evidenceImageUrl: event.bestEvidenceFrame.imageUrl,
+  })) satisfies LiveEvent[];
+
+  const recommendations = session.events.flatMap((event) => {
+    if (!event.recommendation) return [];
+
+    return [{
+      id: `${event.id}-recommendation`,
+      title: event.recommendation.title,
+      action: event.recommendation.action,
+      reason: event.recommendation.reason,
+      evidence: event.evidence,
+      evidenceFrameId: event.bestEvidenceFrame.frameId,
+      evidenceImageUrl: event.bestEvidenceFrame.imageUrl,
+      sourceTimestamp: event.timestamp,
+      reviewState: "system-created" as const,
+      shouldRecommend: true,
+    }];
+  }) satisfies LiveAnalysisOutput["recommendation"][];
+
+  return {
+    generatedAt: session.events[0]?.timestamp ?? session.createdAt,
+    generatedFrom: session.title,
+    events,
+    recommendations,
   };
 }
 
@@ -500,7 +555,154 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMark
   );
 }
 
-function BodycamGrid({ state, incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs }: { state: ScenarioState; incident: Incident; responders: Responder[]; mode: DemoMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>> }) {
+type StreamBodycam = StreamIncidentSession["bodycams"][number];
+
+type StreamWebRtcCandidate = {
+  seq: number;
+  candidate: RTCIceCandidateInit;
+};
+
+// WebRTC API: https://developer.mozilla.org/docs/Web/API/RTCPeerConnection
+const opsRtcConfiguration: RTCConfiguration = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
+
+async function postOpsWebRtcCandidate(bodycamId: string, candidate: RTCIceCandidateInit) {
+  await fetch("/api/stream/webrtc/candidates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bodycamId, source: "ops", candidate }),
+  });
+}
+
+function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBodycam }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const candidateSeqRef = useRef(0);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [connectionState, setConnectionState] = useState("waiting");
+  const bodycamId = bodycam?.id;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.srcObject = remoteStream;
+  }, [remoteStream]);
+
+  useEffect(() => {
+    if (!bodycamId) return;
+
+    const activeBodycamId = bodycamId;
+    let active = true;
+    let offerPoll: number | null = null;
+    let candidatePoll: number | null = null;
+    const peerConnection = new RTCPeerConnection(opsRtcConfiguration);
+    peerConnectionRef.current = peerConnection;
+    candidateSeqRef.current = 0;
+    window.setTimeout(() => {
+      if (active) setConnectionState("connecting");
+    }, 0);
+
+    peerConnection.addEventListener("track", (event) => {
+      if (!active) return;
+      setRemoteStream(event.streams[0] ?? new MediaStream([event.track]));
+    });
+    peerConnection.addEventListener("icecandidate", (event) => {
+      if (event.candidate) void postOpsWebRtcCandidate(activeBodycamId, event.candidate.toJSON());
+    });
+    peerConnection.addEventListener("connectionstatechange", () => {
+      if (!active) return;
+      setConnectionState(peerConnection.connectionState);
+    });
+
+    async function pollBodycamCandidates() {
+      const response = await fetch(`/api/stream/webrtc/candidates?bodycamId=${encodeURIComponent(activeBodycamId)}&source=bodycam&afterSeq=${candidateSeqRef.current}`, { cache: "no-store" });
+      if (!response.ok) return;
+
+      const result = await response.json() as { candidates?: StreamWebRtcCandidate[] };
+      for (const item of result.candidates ?? []) {
+        candidateSeqRef.current = Math.max(candidateSeqRef.current, item.seq);
+        await peerConnection.addIceCandidate(item.candidate).catch(() => null);
+      }
+    }
+
+    async function connectFromOffer() {
+      const response = await fetch(`/api/stream/webrtc/offer?bodycamId=${encodeURIComponent(activeBodycamId)}`, { cache: "no-store" });
+      if (!active || !response.ok) return false;
+
+      const result = await response.json() as { offer?: RTCSessionDescriptionInit | null };
+      if (!result.offer || peerConnection.signalingState === "closed") return false;
+
+      await peerConnection.setRemoteDescription(result.offer);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      await fetch("/api/stream/webrtc/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bodycamId: activeBodycamId, answer }),
+      });
+      setConnectionState("answer sent");
+      return true;
+    }
+
+    offerPoll = window.setInterval(async () => {
+      if (peerConnection.remoteDescription || peerConnection.signalingState === "closed") return;
+      const connected = await connectFromOffer().catch(() => false);
+      if (connected && offerPoll !== null) {
+        window.clearInterval(offerPoll);
+        offerPoll = null;
+      }
+    }, 1000);
+    void connectFromOffer().catch(() => false);
+
+    candidatePoll = window.setInterval(() => {
+      if (peerConnection.remoteDescription && peerConnection.signalingState !== "closed") void pollBodycamCandidates();
+    }, 1000);
+
+    return () => {
+      active = false;
+      if (offerPoll !== null) window.clearInterval(offerPoll);
+      if (candidatePoll !== null) window.clearInterval(candidatePoll);
+      peerConnection.close();
+      peerConnectionRef.current = null;
+      setRemoteStream(null);
+    };
+  }, [bodycamId]);
+
+  return (
+    <div className="min-h-52 bg-screen text-screen-foreground">
+      <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">Bodycam {slot}</p>
+          <p className="text-sm font-medium">{bodycam?.displayName ?? "Awaiting responder"}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{remoteStream ? "webrtc live" : bodycam?.locationStatus ?? "open"}</span>
+          <span className={cn("size-2 border", bodycam ? "live-dot border-success bg-success" : "border-screen-foreground/40")} />
+        </div>
+      </div>
+      {bodycam ? (
+        <div className="relative aspect-video bg-black">
+          <video ref={videoRef} autoPlay playsInline muted className={cn("h-full w-full object-cover", remoteStream ? "block" : "hidden")} />
+          {!remoteStream && bodycam.previewDataUrl ? <Image src={bodycam.previewDataUrl} alt={`${bodycam.displayName} latest bodycam frame`} fill unoptimized className="object-cover" sizes="(min-width: 768px) 50vw, 100vw" /> : null}
+          {!remoteStream && !bodycam.previewDataUrl ? (
+            <div className="grid h-full place-items-center bg-black/60 p-4 text-center font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
+              Waiting for low-latency video
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="grid aspect-video place-items-center bg-black/60 p-4 text-center font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
+          Open bodycam route to connect
+        </div>
+      )}
+      <div className="border-t border-screen-border px-3 py-2 text-xs text-screen-foreground/65">
+        {bodycam?.lastError ?? (remoteStream ? `Low-latency video ${connectionState}` : bodycam?.lastChunkId ? `Last chunk ${bodycam.lastChunkId.slice(0, 18)}` : connectionState === "waiting" ? "No chunk received" : `Low-latency video ${connectionState}`)}
+      </div>
+    </div>
+  );
+}
+
+function BodycamGrid({ state, incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs, streamSession }: { state: ScenarioState; incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null }) {
   const cue = state.liveAnalysisCue;
 
   useEffect(() => {
@@ -513,6 +715,17 @@ function BodycamGrid({ state, incident, responders, mode, playing, activeAudioRe
       else video.pause();
     });
   }, [activeAudioResponderId, cue.responderId, cue.timestampSeconds, mode, playing, responders, videoRefs]);
+
+  if (incident.id === streamIncidentId) {
+    return (
+      <div className="grid gap-px bg-border md:grid-cols-2">
+        {[1, 2, 3, 4].map((slot) => {
+          const bodycam = streamSession?.bodycams.find((item) => item.slotId === slot && item.status === "connected");
+          return <StreamBodycamSlot key={bodycam?.id ?? `open-${slot}`} slot={slot} bodycam={bodycam} />;
+        })}
+      </div>
+    );
+  }
 
   function renderFeed(responder: ScenarioState["responders"][number]) {
     return (
@@ -566,7 +779,7 @@ function BodycamGrid({ state, incident, responders, mode, playing, activeAudioRe
   );
 }
 
-function EventLog({ analysis }: { analysis: LiveAnalysis | null }) {
+function EventLog({ analysis }: { analysis: LiveAnalysis | StreamUiAnalysis | null }) {
   const events = analysis?.events ?? [];
 
   if (events.length === 0) {
@@ -598,7 +811,7 @@ function EventLog({ analysis }: { analysis: LiveAnalysis | null }) {
   );
 }
 
-function RecommendationReview({ analysis }: { analysis: LiveAnalysis | null }) {
+function RecommendationReview({ analysis }: { analysis: LiveAnalysis | StreamUiAnalysis | null }) {
   const recommendations = analysis?.recommendations ?? [];
   const [decisions, setDecisions] = useState<Record<string, DecisionReview>>({});
   const [isReviewPending, startReviewTransition] = useTransition();
@@ -648,10 +861,10 @@ function RecommendationReview({ analysis }: { analysis: LiveAnalysis | null }) {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" className="rounded-sm" onClick={() => review(recommendation, "approved")} disabled={isReviewPending}>
                     <Check data-icon="inline-start" />
-                    Approve
+                    Mark for GC
                   </Button>
                   <Button size="sm" variant="outline" className="rounded-sm" onClick={() => review(recommendation, "rejected")} disabled={isReviewPending}>
-                    Reject
+                    Hold
                   </Button>
                 </div>
                 <DecisionResult decision={decision ?? null} />
@@ -849,7 +1062,7 @@ function DecisionResult({ decision }: { decision: DecisionReview | null }) {
     <AnimatePresence>
       {decision ? (
         <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className={cn("mt-3 border bg-background p-2", decision.decision === "approved" ? "border-success" : "border-destructive")}>
-          <p className={cn("font-mono text-[10px] uppercase tracking-widest", decision.decision === "approved" ? "text-success" : "text-destructive")}>{decision.decision} by Ops Centre</p>
+          <p className={cn("font-mono text-[10px] uppercase tracking-widest", decision.decision === "approved" ? "text-success" : "text-destructive")}>{decision.decision === "approved" ? "marked for GC consideration" : "held from GC summary"}</p>
         </motion.div>
       ) : null}
     </AnimatePresence>
@@ -902,24 +1115,28 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const pathname = usePathname();
   const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const sessionStartMs = useMountedSessionStart();
-  const [mode, setMode] = useState<DemoMode>("live");
+  const [mode, setMode] = useState<LiveMode>("live");
   const [playing, setPlaying] = useState(true);
   const [activeAudioResponderId, setActiveAudioResponderId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<LiveAnalysis | null>(null);
+  const [streamSession, setStreamSession] = useState<StreamIncidentSession | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const liveLoopRef = useRef(false);
   const analyzeInFlightRef = useRef(false);
   const selectedIncident = getIncident(state, selectedIncidentId);
+  const isStreamIncident = selectedIncident.id === streamIncidentId;
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
-  const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
+  const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && (isStreamIncident || incidentResponders.length > 0);
+  const displayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : analysis;
 
   function selectIncident(incidentId: string) {
     setMode("live");
     setPlaying(true);
     setActiveAudioResponderId(null);
     setAnalysis(null);
+    setStreamSession(null);
     setAnalysisError(null);
     videoRefs.current = {};
     liveLoopRef.current = false;
@@ -930,6 +1147,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
   const analyzeChunk = useCallback((nextTimes?: Record<string, number>) => {
     if (!canRunLiveAnalysis) return;
+    if (isStreamIncident) return;
     if (analyzeInFlightRef.current) return;
     analyzeInFlightRef.current = true;
 
@@ -961,10 +1179,31 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         analyzeInFlightRef.current = false;
       }
     });
-  }, [canRunLiveAnalysis, incidentResponders, selectedIncident.id, startTransition]);
+  }, [canRunLiveAnalysis, incidentResponders, isStreamIncident, selectedIncident.id, startTransition]);
 
   useEffect(() => {
-    if (!canRunLiveAnalysis) return;
+    if (!isStreamIncident) return;
+
+    let active = true;
+    async function refreshStreamSession() {
+      const response = await fetch("/api/stream/session", { cache: "no-store" });
+      const result = await response.json().catch(() => ({}));
+      if (!active) return;
+      setStreamSession(result.session ?? null);
+      setAnalysisError(typeof result.session?.lastError === "string" ? result.session.lastError : null);
+    }
+
+    void refreshStreamSession();
+    const interval = window.setInterval(() => void refreshStreamSession(), 2000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [isStreamIncident]);
+
+  useEffect(() => {
+    if (!canRunLiveAnalysis || isStreamIncident) return;
     if (!playing || mode === "concluded") return;
 
     liveLoopRef.current = true;
@@ -978,9 +1217,32 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
       liveLoopRef.current = false;
       window.clearInterval(interval);
     };
-  }, [analyzeChunk, canRunLiveAnalysis, mode, playing]);
+  }, [analyzeChunk, canRunLiveAnalysis, isStreamIncident, mode, playing]);
+
+  function toggleStreamAnalysis() {
+    if (!isStreamIncident) {
+      setPlaying((value) => !value);
+      return;
+    }
+
+    startTransition(async () => {
+      const response = await fetch("/api/stream/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisPaused: !streamSession?.analysisPaused }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setAnalysisError(typeof result.error === "string" ? result.error : "Stream analysis state could not be updated.");
+        return;
+      }
+      setStreamSession(result.session ?? null);
+      setAnalysisError(null);
+    });
+  }
 
   function jumpToEscalation() {
+    if (isStreamIncident) return;
     setMode("escalation");
     const cue = state.liveAnalysisCue;
     const nextTimes = Object.fromEntries(incidentResponders.map((responder) => [responder.id, responder.id === cue.responderId ? cue.timestampSeconds : videoRefs.current[responder.id]?.currentTime ?? 0]));
@@ -1004,20 +1266,20 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Live operations</p>
               <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
-              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : "Continuous analysis active") : "Runtime analysis unavailable"}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{isStreamIncident ? "Monitor connected browser bodycams while uploaded chunks generate structured stream events." : canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{isStreamIncident ? (streamSession?.analysisPaused ? "Stream analysis paused" : "Stream analysis active") : canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : "Continuous analysis active") : "Runtime analysis unavailable"}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 bg-card p-4 lg:justify-end">
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setPlaying((value) => !value)} disabled={!canRunLiveAnalysis}>
-              {playing ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
-              {playing ? "Pause" : "Resume"}
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={toggleStreamAnalysis} disabled={!canRunLiveAnalysis || isPending}>
+              {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
+              {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? "Pause" : "Resume"}
             </Button>
             <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setActiveAudioResponderId(null)} disabled={!canRunLiveAnalysis || activeAudioResponderId === null}>
               <VolumeX data-icon="inline-start" />
               Mute all
             </Button>
-            <Button size="lg" variant="destructive" className="rounded-sm" onClick={jumpToEscalation} disabled={!canRunLiveAnalysis || isPending}>
+            <Button size="lg" variant="destructive" className="rounded-sm" onClick={jumpToEscalation} disabled={!canRunLiveAnalysis || isPending || isStreamIncident}>
               <FastForward data-icon="inline-start" />
               Advance feeds
             </Button>
@@ -1035,7 +1297,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
       <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Live responder feeds" label="Feeds" className="h-full min-h-0 overflow-y-auto">
-          <BodycamGrid state={state} incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} />
+          <BodycamGrid state={state} incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} streamSession={streamSession} />
         </Panel>
 
         <div className="grid max-h-full auto-rows-max content-start gap-4 overflow-y-auto xl:sticky xl:top-20">
@@ -1074,9 +1336,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
             </details>
           </Panel>
           <Panel title="Events" label="Live analysis">
-            <EventLog analysis={analysis} />
+            <EventLog analysis={displayAnalysis} />
           </Panel>
-          <RecommendationReview analysis={analysis} />
+          <RecommendationReview analysis={displayAnalysis} />
           {analysisError ? (
             <div className="border border-destructive bg-command p-3 text-sm text-destructive">{analysisError}</div>
           ) : null}
@@ -1103,7 +1365,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const selectedIncident = getIncident(state, selectedIncidentId);
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
   const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
-  const canExportReport = sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
+  const canExportSlides = sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
 
   function selectIncident(incidentId: string) {
     setAnalysis(null);
@@ -1188,7 +1450,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        setExportError(typeof payload.error === "string" ? payload.error : "Report export failed.");
+        setExportError(typeof payload.error === "string" ? payload.error : "AAR briefing PDF export failed.");
         return;
       }
 
@@ -1223,7 +1485,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
               <Search data-icon="inline-start" />
               {isPending ? "Analyzing" : "Refresh analysis"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportReport}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportSlides}>
               <Download data-icon="inline-start" />
               {isExportPending ? "Exporting" : "Export PDF"}
             </Button>
@@ -1264,15 +1526,15 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
           </div>
         </Panel>
 
-        <Panel title="Generate incident PDF" label="Report" tone="paper">
+        <Panel title="Generate AAR briefing PDF" label="Slides" tone="paper">
           <div className="p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
               {canRunReviewAnalysis ? (analysis ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"}.` : "Analysis starts automatically.") : "Export is disabled until footage is available."}
             </p>
             {analysis ? (
-              <Button size="sm" variant="outline" className="mt-4 rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportReport}>
+              <Button size="sm" variant="outline" className="mt-4 rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportSlides}>
                 <Download data-icon="inline-start" />
-                {isExportPending ? "Exporting" : "Download report"}
+                {isExportPending ? "Exporting" : "Download slides"}
               </Button>
             ) : null}
           </div>

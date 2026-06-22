@@ -26,24 +26,29 @@ Acceptance criteria:
 
 ### Add stream analysis support for evaluators to try
 
-Status: TODO
+Status: DONE
 
-Purpose: let evaluators interact with 1stSight by analyzing their own current footage or a controlled stream-like input instead of only watching preset incident footage.
+Purpose: let evaluators interact with 1stSight through real browser bodycam capture instead of only watching preset incident footage.
 
-Deliverable: an evaluator-facing path where a user can provide a video/stream input and trigger the same runtime analysis pipeline used by the incident workflow.
+Deliverable: `/bodycam` lets named evaluators join the stage medical assistance stream, sends low-latency WebRTC video to Ops Centre, uploads 5-second browser camera chunks, extracts frames every 0.5 seconds, and surfaces analyzed events/recommendations inside the Ops Centre live dashboard.
 
-Scope:
+Scope completed:
 
-- Support a practical first version, such as uploaded video, selected local test feed, or browser-accessible stream URL.
-- Reuse the existing ffmpeg frame extraction and structured AI analysis pipeline where possible.
-- Show clear loading, unavailable, and error states when stream input or AI analysis fails.
-- Keep generated outputs evidence-linked with frame/source/timestamp references.
+- Added first-class fire and medical incident typing so streaming defaults to medical/responder-safety analysis while Punggol remains fire analysis.
+- Added a stage medical assistance stream incident at `91 Ubi Ave 4, Singapore 408827`.
+- Added no-auth bodycam joining with user-entered display names, first-join anchoring, exact/approximate location states, and a 4-bodycam cap.
+- Added browser camera capture, low-latency WebRTC visual streaming to Ops Centre, and 5-second chunk uploads from `/bodycam`.
+- Added `/api/stream/session` and `/api/stream/chunk` for stream session state, pause/resume, ffmpeg frame extraction, and structured AI analysis.
+- Added 0.5-second frame extraction for stream chunks and live fire analysis windows.
+- Added Ops Centre polling for stream bodycam cards, evidence-linked events, recommendations, pause/resume, and GC-consideration wording.
 
 Acceptance criteria:
 
-- A user can provide or select a stream-like source from the UI.
-- The backend extracts frames from that source and sends them through runtime analysis.
-- Results appear as events, evidence cards, or review outputs with source references.
+- Evaluators can join the stream from `/bodycam` with their own display names.
+- The first four bodycams are accepted; a fifth join attempt is rejected clearly.
+- Backend extracts frames every 0.5 seconds from uploaded 5-second chunks and sends them through runtime analysis.
+- Results appear in the live dashboard as WebRTC bodycam video, events, evidence cards, and recommendations with source/bodycam references.
+- Pause/resume blocks and resumes automatic stream analysis.
 - The app does not fabricate analysis if the stream, ffmpeg, or model call fails.
 
 ### Shift model routing to GB10 endpoint + OpenAI
