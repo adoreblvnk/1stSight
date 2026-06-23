@@ -3,6 +3,11 @@ import type { Coordinates, IncidentType } from "@/lib/domain";
 export type StreamLocationStatus = "exact" | "approximate" | "none";
 export type StreamAnalysisStatus = "ready" | "analyzing" | "paused" | "error";
 
+export type StreamLiveRelayFrame = {
+  imageUrl: string;
+  capturedAt: string;
+};
+
 export type StreamBodycam = {
   id: string;
   slotId: number;
@@ -12,6 +17,7 @@ export type StreamBodycam = {
   status: "connected" | "stopped";
   position: Coordinates;
   locationStatus: StreamLocationStatus;
+  liveRelayFrame?: StreamLiveRelayFrame;
   previewDataUrl?: string;
   lastChunkId?: string;
   lastError?: string;
@@ -165,7 +171,7 @@ export function joinStreamBodycam(displayName: string, position?: Coordinates | 
   return { ok: true as const, session, bodycam };
 }
 
-export function updateStreamBodycam(bodycamId: string, update: Partial<Pick<StreamBodycam, "previewDataUrl" | "lastChunkId" | "lastError" | "status">>) {
+export function updateStreamBodycam(bodycamId: string, update: Partial<Pick<StreamBodycam, "liveRelayFrame" | "previewDataUrl" | "lastChunkId" | "lastError" | "status">>) {
   const session = getStreamSession();
   const bodycam = session?.bodycams.find((item) => item.id === bodycamId);
 

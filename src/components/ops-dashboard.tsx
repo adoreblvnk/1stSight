@@ -23,6 +23,7 @@ import type { DecisionReview, DeploymentMarker, Incident, Responder, ScenarioSta
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
 import type { StreamIncidentSession } from "@/lib/stream-store";
 import { cn } from "@/lib/utils";
+import { browserRtcConfiguration } from "@/lib/webrtc";
 
 const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident"]);
 
@@ -562,10 +563,14 @@ type StreamWebRtcCandidate = {
   candidate: RTCIceCandidateInit;
 };
 
-// WebRTC API: https://developer.mozilla.org/docs/Web/API/RTCPeerConnection
-const opsRtcConfiguration: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+type StreamLiveRelayFrame = NonNullable<StreamBodycam["liveRelayFrame"]>;
+
+function isNewerRelayFrame(next: StreamLiveRelayFrame, previous?: StreamLiveRelayFrame) {
+  if (!previous) return true;
+  return Date.parse(next.capturedAt) > Date.parse(previous.capturedAt);
+}
+
+const liveRelayFrameIntervalMs = Math.round(1000 / 30);
 
 async function postOpsWebRtcCandidate(bodycamId: string, candidate: RTCIceCandidateInit) {
   await fetch("/api/stream/webrtc/candidates", {
@@ -579,8 +584,12 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const candidateSeqRef = useRef(0);
+  const relayFrameRef = useRef<StreamLiveRelayFrame | undefined>(bodycam?.liveRelayFrame);
+  const relayStatsRef = useRef({ startedAtMs: 0, count: 0, capturedAt: "" });
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] = useState("waiting");
+  const [directRelayFrame, setDirectRelayFrame] = useState<StreamLiveRelayFrame | undefined>(bodycam?.liveRelayFrame);
+  const [relayFps, setRelayFps] = useState<number | null>(null);
   const bodycamId = bodycam?.id;
 
   useEffect(() => {
@@ -589,13 +598,58 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   }, [remoteStream]);
 
   useEffect(() => {
+    if (!bodycamId || connectionState === "connected") return;
+
+    let active = true;
+    const activeBodycamId = bodycamId;
+    relayStatsRef.current = { startedAtMs: performance.now(), count: 0, capturedAt: relayFrameRef.current?.capturedAt ?? "" };
+
+    function recordRelayFrame(frame: StreamLiveRelayFrame) {
+      if (frame.capturedAt === relayStatsRef.current.capturedAt) return;
+
+      const now = performance.now();
+      const elapsedMs = now - relayStatsRef.current.startedAtMs;
+      const count = relayStatsRef.current.count + 1;
+      relayStatsRef.current = { ...relayStatsRef.current, count, capturedAt: frame.capturedAt };
+
+      if (elapsedMs >= 1000) {
+        setRelayFps(Math.round((count * 1000) / elapsedMs));
+        relayStatsRef.current = { startedAtMs: now, count: 0, capturedAt: frame.capturedAt };
+      }
+    }
+
+    async function refreshRelayFrame() {
+      const response = await fetch(`/api/stream/frame?bodycamId=${encodeURIComponent(activeBodycamId)}`, { cache: "no-store" });
+      if (!active || !response.ok) return;
+
+      const result = await response.json().catch(() => ({})) as { frame?: StreamLiveRelayFrame | null };
+      if (!result.frame) return;
+
+      const frame = result.frame as StreamLiveRelayFrame;
+      if (!isNewerRelayFrame(frame, relayFrameRef.current)) return;
+
+      relayFrameRef.current = frame;
+      recordRelayFrame(frame);
+      setDirectRelayFrame(frame);
+    }
+
+    void refreshRelayFrame();
+    const relayPoll = window.setInterval(() => void refreshRelayFrame(), liveRelayFrameIntervalMs);
+
+    return () => {
+      active = false;
+      window.clearInterval(relayPoll);
+    };
+  }, [bodycamId, connectionState]);
+
+  useEffect(() => {
     if (!bodycamId) return;
 
     const activeBodycamId = bodycamId;
     let active = true;
     let offerPoll: number | null = null;
     let candidatePoll: number | null = null;
-    const peerConnection = new RTCPeerConnection(opsRtcConfiguration);
+    const peerConnection = new RTCPeerConnection(browserRtcConfiguration());
     peerConnectionRef.current = peerConnection;
     candidateSeqRef.current = 0;
     window.setTimeout(() => {
@@ -612,6 +666,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
     peerConnection.addEventListener("connectionstatechange", () => {
       if (!active) return;
       setConnectionState(peerConnection.connectionState);
+      if (["closed", "disconnected", "failed"].includes(peerConnection.connectionState)) setRemoteStream(null);
     });
 
     async function pollBodycamCandidates() {
@@ -668,6 +723,13 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
     };
   }, [bodycamId]);
 
+  const hasWebRtcVideo = Boolean(remoteStream && connectionState === "connected");
+  const liveRelayFrame = directRelayFrame ?? bodycam?.liveRelayFrame;
+  const analyzedEvidenceFrame = bodycam?.previewDataUrl;
+  const relayCapturedAtMs = liveRelayFrame ? Date.parse(liveRelayFrame.capturedAt) : Number.NaN;
+  const relayFpsLabel = relayFps === null ? "measuring fps" : `${relayFps} fps actual`;
+  const relayLabel = Number.isFinite(relayCapturedAtMs) ? `Live feed relay ${new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(relayCapturedAtMs))} · ${relayFpsLabel}` : `Live feed relay · ${relayFpsLabel}`;
+
   return (
     <div className="min-h-52 bg-screen text-screen-foreground">
       <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
@@ -676,19 +738,22 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
           <p className="text-sm font-medium">{bodycam?.displayName ?? "Awaiting responder"}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{remoteStream ? "webrtc live" : bodycam?.locationStatus ?? "open"}</span>
+          <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{hasWebRtcVideo ? "webrtc live" : liveRelayFrame ? "feed relay" : analyzedEvidenceFrame ? "analysis fallback" : bodycam?.locationStatus ?? "open"}</span>
           <span className={cn("size-2 border", bodycam ? "live-dot border-success bg-success" : "border-screen-foreground/40")} />
         </div>
       </div>
       {bodycam ? (
         <div className="relative aspect-video bg-black">
-          <video ref={videoRef} autoPlay playsInline muted className={cn("h-full w-full object-cover", remoteStream ? "block" : "hidden")} />
-          {!remoteStream && bodycam.previewDataUrl ? <Image src={bodycam.previewDataUrl} alt={`${bodycam.displayName} latest bodycam frame`} fill unoptimized className="object-cover" sizes="(min-width: 768px) 50vw, 100vw" /> : null}
-          {!remoteStream && !bodycam.previewDataUrl ? (
+          <video ref={videoRef} autoPlay playsInline muted className={cn("h-full w-full object-cover", hasWebRtcVideo ? "block" : "hidden")} />
+          {!hasWebRtcVideo && liveRelayFrame ? <Image src={liveRelayFrame.imageUrl} alt={`${bodycam.displayName} live feed relay frame`} fill unoptimized className="object-cover" sizes="(min-width: 768px) 50vw, 100vw" /> : null}
+          {!hasWebRtcVideo && !liveRelayFrame && analyzedEvidenceFrame ? <Image src={analyzedEvidenceFrame} alt={`${bodycam.displayName} latest analyzed evidence frame`} fill unoptimized className="object-cover opacity-80" sizes="(min-width: 768px) 50vw, 100vw" /> : null}
+          {!hasWebRtcVideo && !liveRelayFrame && !analyzedEvidenceFrame ? (
             <div className="grid h-full place-items-center bg-black/60 p-4 text-center font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
-              Waiting for low-latency video
+              Waiting for feed to connect
             </div>
           ) : null}
+          {!hasWebRtcVideo && liveRelayFrame ? <div className="absolute bottom-2 left-2 border border-screen-border bg-black/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/75">{relayLabel}</div> : null}
+          {!hasWebRtcVideo && !liveRelayFrame && analyzedEvidenceFrame ? <div className="absolute bottom-2 left-2 border border-warning/70 bg-black/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-warning">Latest analysis fallback</div> : null}
         </div>
       ) : (
         <div className="grid aspect-video place-items-center bg-black/60 p-4 text-center font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
@@ -696,7 +761,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
         </div>
       )}
       <div className="border-t border-screen-border px-3 py-2 text-xs text-screen-foreground/65">
-        {bodycam?.lastError ?? (remoteStream ? `Low-latency video ${connectionState}` : bodycam?.lastChunkId ? `Last chunk ${bodycam.lastChunkId.slice(0, 18)}` : connectionState === "waiting" ? "No chunk received" : `Low-latency video ${connectionState}`)}
+        {hasWebRtcVideo ? `Low-latency video ${connectionState}` : liveRelayFrame ? relayLabel : analyzedEvidenceFrame ? `Showing latest analyzed chunk frame from ${bodycam.lastChunkId?.slice(0, 18) ?? "latest chunk"}` : connectionState === "waiting" ? "Waiting for feed to connect" : `Low-latency video ${connectionState}; waiting for feed relay`}
       </div>
     </div>
   );

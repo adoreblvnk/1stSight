@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { browserRtcConfiguration, webRtcVideoMaxBitrateBitsPerSecond } from "@/lib/webrtc";
 
 type Coordinates = { lat: number; lng: number };
 
@@ -50,10 +51,9 @@ function recorderMimeType() {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
 
-// WebRTC API: https://developer.mozilla.org/docs/Web/API/RTCPeerConnection
-const rtcConfiguration: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+const liveRelayFrameIntervalMs = Math.round(1000 / 30);
+const liveRelayFrameWidth = 360;
+const liveRelayJpegQuality = 0.28;
 
 async function postWebRtcCandidate(bodycamId: string, source: "bodycam" | "ops", candidate: RTCIceCandidateInit) {
   await fetch("/api/stream/webrtc/candidates", {
@@ -61,6 +61,14 @@ async function postWebRtcCandidate(bodycamId: string, source: "bodycam" | "ops",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bodycamId, source, candidate }),
   });
+}
+
+async function capWebRtcVideoBitrate(sender: RTCRtpSender) {
+  const parameters = sender.getParameters();
+  parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+  parameters.encodings = parameters.encodings.map((encoding) => ({ ...encoding, maxBitrate: webRtcVideoMaxBitrateBitsPerSecond() }));
+  // WebRTC RTCRtpSender.setParameters API: https://developer.mozilla.org/docs/Web/API/RTCRtpSender/setParameters
+  await sender.setParameters(parameters).catch(() => null);
 }
 
 export function BodycamCapture() {
@@ -72,6 +80,8 @@ export function BodycamCapture() {
   const webrtcAnswerPollRef = useRef<number | null>(null);
   const webrtcCandidatePollRef = useRef<number | null>(null);
   const webrtcCandidateSeqRef = useRef(0);
+  const liveRelayIntervalRef = useRef<number | null>(null);
+  const liveRelayInFlightRef = useRef(false);
   const bodycamIdRef = useRef<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [session, setSession] = useState<StreamSession | null>(null);
@@ -92,6 +102,7 @@ export function BodycamCapture() {
     return () => {
       recordingActiveRef.current = false;
       cleanupWebRtc();
+      stopLiveRelay();
       if (recorderRef.current?.state !== "inactive") recorderRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
@@ -105,6 +116,51 @@ export function BodycamCapture() {
     webrtcCandidateSeqRef.current = 0;
     webrtcConnectionRef.current?.close();
     webrtcConnectionRef.current = null;
+  }
+
+  function stopLiveRelay() {
+    if (liveRelayIntervalRef.current !== null) window.clearInterval(liveRelayIntervalRef.current);
+    liveRelayIntervalRef.current = null;
+    liveRelayInFlightRef.current = false;
+  }
+
+  async function sendLiveRelayFrame(bodycamId: string) {
+    if (liveRelayInFlightRef.current) return;
+
+    const video = videoRef.current;
+    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    liveRelayInFlightRef.current = true;
+    try {
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(1, liveRelayFrameWidth / video.videoWidth);
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      // Canvas drawImage API: https://developer.mozilla.org/docs/Web/API/CanvasRenderingContext2D/drawImage
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // HTMLCanvasElement toDataURL API: https://developer.mozilla.org/docs/Web/API/HTMLCanvasElement/toDataURL
+      const imageUrl = canvas.toDataURL("image/jpeg", liveRelayJpegQuality);
+
+      await fetch("/api/stream/frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bodycamId, imageUrl, capturedAt: new Date().toISOString() }),
+      });
+    } finally {
+      liveRelayInFlightRef.current = false;
+    }
+  }
+
+  function startLiveRelay(bodycamId: string) {
+    stopLiveRelay();
+    setVisualState("Live feed relay active; low-latency video connecting");
+    void sendLiveRelayFrame(bodycamId).catch(() => null);
+    liveRelayIntervalRef.current = window.setInterval(() => {
+      void sendLiveRelayFrame(bodycamId).catch(() => null);
+    }, liveRelayFrameIntervalMs);
   }
 
   async function pollOpsCandidates(bodycamId: string, peerConnection: RTCPeerConnection) {
@@ -122,16 +178,33 @@ export function BodycamCapture() {
     cleanupWebRtc();
     setVisualState("Preparing low-latency video");
 
-    const peerConnection = new RTCPeerConnection(rtcConfiguration);
+    const peerConnection = new RTCPeerConnection(browserRtcConfiguration());
     webrtcConnectionRef.current = peerConnection;
 
-    mediaStream.getTracks().forEach((track) => peerConnection.addTrack(track, mediaStream));
+    const videoSenders: RTCRtpSender[] = [];
+    mediaStream.getTracks().forEach((track) => {
+      const sender = peerConnection.addTrack(track, mediaStream);
+      if (track.kind === "video") videoSenders.push(sender);
+    });
+    await Promise.all(videoSenders.map((sender) => capWebRtcVideoBitrate(sender)));
     peerConnection.addEventListener("icecandidate", (event) => {
       if (event.candidate) void postWebRtcCandidate(bodycamId, "bodycam", event.candidate.toJSON());
     });
     peerConnection.addEventListener("connectionstatechange", () => {
       const state = peerConnection.connectionState;
-      setVisualState(state === "connected" ? "Low-latency video connected" : `Low-latency video ${state}`);
+      if (state === "connected") {
+        stopLiveRelay();
+        setVisualState("Low-latency video connected");
+        return;
+      }
+
+      if (["closed", "disconnected", "failed"].includes(state) && recordingActiveRef.current) {
+        startLiveRelay(bodycamId);
+        setVisualState(`Live feed relay active; low-latency video ${state}`);
+        return;
+      }
+
+      setVisualState(`Live feed relay active; low-latency video ${state}`);
     });
 
     const offer = await peerConnection.createOffer();
@@ -182,6 +255,13 @@ export function BodycamCapture() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (result.paused) {
+          setSession(result.session ?? null);
+          setUploadState("Analysis paused by Ops Centre");
+          setError(null);
+          return;
+        }
+
         setError(typeof result.error === "string" ? result.error : "Chunk analysis failed.");
         setSession(result.session ?? null);
         setUploadState("Upload or analysis unavailable");
@@ -247,7 +327,7 @@ export function BodycamCapture() {
         const [position, mediaStream] = await Promise.all([
           getPosition(),
           // Media Capture and Streams API: https://developer.mozilla.org/docs/Web/API/MediaDevices/getUserMedia
-          navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true }),
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", frameRate: { ideal: 30, max: 30 } }, audio: true }),
         ]);
 
         setLocationState(position ? "Exact geolocation attached" : "Location unavailable; server will use incident proximity fallback");
@@ -273,8 +353,9 @@ export function BodycamCapture() {
         bodycamIdRef.current = result.bodycam.id;
         setSession(result.session);
         setBodycam(result.bodycam);
+        startLiveRelay(result.bodycam.id);
         void startWebRtcBroadcast(mediaStream, result.bodycam.id).catch((webrtcError) => {
-          setVisualState("Low-latency video unavailable; chunk analysis still active");
+          setVisualState("Live feed relay active; low-latency video unavailable");
           console.warn("WebRTC bodycam broadcast unavailable", webrtcError);
         });
         startRecorder(mediaStream);
@@ -289,6 +370,7 @@ export function BodycamCapture() {
   async function stopBodycam() {
     recordingActiveRef.current = false;
     cleanupWebRtc();
+    stopLiveRelay();
     setVisualState("Low-latency video stopped");
     if (recorderRef.current?.state !== "inactive") recorderRef.current?.stop();
     recorderRef.current = null;
