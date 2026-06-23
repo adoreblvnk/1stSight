@@ -67,6 +67,7 @@ const runtimeAnalysisSchema = z.object({
 
 const bodySchema = z.object({
   analysis: runtimeAnalysisSchema,
+  milestoneIds: z.array(z.string()).optional(),
 });
 
 const colors = {
@@ -192,6 +193,16 @@ function validateIncidentEvidence(analysis: RuntimeAnalysis) {
 
 function sourceReferences(evidence: RuntimeEvidence[]) {
   return evidence.map(sourceReference).join("; ");
+}
+
+function briefingMilestones(incidentId: string, milestoneIds?: string[]) {
+  const incident = getIncidentById(incidentId);
+  const selectableMilestones = incident?.milestones.filter((item) => item.status !== "unavailable") ?? [];
+
+  if (!milestoneIds?.length) return selectableMilestones;
+
+  const selectedIds = new Set(milestoneIds);
+  return selectableMilestones.filter((item) => selectedIds.has(item.id));
 }
 
 function frameRefs(recommendation: RuntimeRecommendation, evidence: RuntimeEvidence[]) {
@@ -453,9 +464,9 @@ function FollowUpSlide({ analysis, milestones }: { analysis: RuntimeAnalysis; mi
   );
 }
 
-function AarBriefingDocument({ analysis }: { analysis: RuntimeAnalysis }) {
+function AarBriefingDocument({ analysis, milestoneIds }: { analysis: RuntimeAnalysis; milestoneIds?: string[] }) {
   const incident = getIncidentById(analysis.incidentId);
-  const milestones = incident?.milestones ?? [];
+  const milestones = briefingMilestones(analysis.incidentId, milestoneIds);
   const title = `1stSight AAR briefing slides: ${incident?.title ?? analysis.incidentTitle} / ${incident?.id ?? analysis.incidentId}`;
 
   return React.createElement(
@@ -510,9 +521,9 @@ async function arrayBufferFromPptxOutput(output: string | ArrayBuffer | Blob | U
   return copy;
 }
 
-async function renderPptxBuffer(analysis: RuntimeAnalysis) {
+async function renderPptxBuffer(analysis: RuntimeAnalysis, milestoneIds?: string[]) {
   const incident = getIncidentById(analysis.incidentId);
-  const milestones = incident?.milestones ?? [];
+  const milestones = briefingMilestones(analysis.incidentId, milestoneIds);
   const pendingCount = milestones.filter((item) => item.status === "pending").length;
   const footageCount = milestones.filter((item) => item.sourceType === "footage" && item.status === "confirmed").length;
   const pendingMilestones = milestones.filter((item) => item.status === "pending").slice(0, 5);
@@ -544,14 +555,14 @@ async function renderPptxBuffer(analysis: RuntimeAnalysis) {
   addPptxHeader(timeline, "Milestone timeline", "02 / 05");
   timeline.addText("Timestamp provenance before AAR discussion", { x: 0.35, y: 0.72, w: 11.8, h: 0.42, fontFace: "Aptos Display", fontSize: 22, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
   timeline.addText("System/dispatch events are not inferred from BWC. Missing formal data is marked pending officer input.", { x: 0.35, y: 1.18, w: 11.8, h: 0.28, fontFace: "Aptos", fontSize: 9.2, color: pptxColor(colors.muted), fit: "shrink" });
-  milestones.slice(0, 12).forEach((item, index) => {
+  milestones.slice(0, 16).forEach((item, index) => {
     const col = index % 4;
     const row = Math.floor(index / 4);
     const x = 0.35 + col * 3.18;
-    const y = 1.78 + row * 1.45;
-    timeline.addText(`${item.label} · ${item.status}`.toUpperCase(), { x, y, w: 2.85, h: 0.18, fontFace: "Aptos", fontSize: 6.4, bold: true, color: item.status === "pending" ? pptxColor(colors.amber) : pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+    const y = 1.65 + row * 1.22;
+    timeline.addText(`${item.label} · ${item.status}`.toUpperCase(), { x, y, w: 2.85, h: 0.18, fontFace: "Aptos", fontSize: 6.1, bold: true, color: item.status === "pending" ? pptxColor(colors.amber) : pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
     timeline.addText(item.displayTime, { x, y: y + 0.24, w: 2.85, h: 0.28, fontFace: "Aptos", fontSize: 13, bold: true, color: pptxColor(colors.ink), margin: 0.03, fit: "shrink" });
-    timeline.addText(`${milestoneSourceLabel(item)}${item.notes ? `. ${truncate(item.notes, 82)}` : ""}`, { x, y: y + 0.58, w: 2.85, h: 0.52, fontFace: "Aptos", fontSize: 6.6, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+    timeline.addText(`${milestoneSourceLabel(item)}${item.notes ? `. ${truncate(item.notes, 60)}` : ""}`, { x, y: y + 0.58, w: 2.85, h: 0.4, fontFace: "Aptos", fontSize: 5.9, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
   });
   addPptxFooter(timeline);
 
@@ -625,7 +636,7 @@ export async function POST(request: NextRequest) {
   const format = request.nextUrl.searchParams.get("format") === "pptx" ? "pptx" : "pdf";
 
   if (format === "pptx") {
-    const pptxBody = await renderPptxBuffer(analysis);
+    const pptxBody = await renderPptxBuffer(analysis, parsed.data.milestoneIds);
 
     return new Response(pptxBody, {
       headers: {
@@ -635,7 +646,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const document = React.createElement(AarBriefingDocument, { analysis }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+  const document = React.createElement(AarBriefingDocument, { analysis, milestoneIds: parsed.data.milestoneIds }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
   const buffer = await renderToBuffer(document);
   const pdfBody = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
 

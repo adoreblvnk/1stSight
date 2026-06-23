@@ -279,7 +279,29 @@ function shortBoxLabel(label: string) {
 }
 
 function topEvidence(evidence: RuntimeEvidence[]) {
-  return evidence.slice(0, 3);
+  const buckets = [
+    /fire escalation|smoke spread|fire response/i,
+    /post-fire|welfare|sweep/i,
+    /physical contact|impact|recovery|crew intervention|unsafe proximity/i,
+  ];
+  const selected: RuntimeEvidence[] = [];
+
+  buckets.forEach((bucket) => {
+    const item = evidence.find((candidate) => !selected.some((selectedItem) => selectedItem.frameId === candidate.frameId) && bucket.test(`${candidate.name} ${candidate.description} ${candidate.tags.join(" ")}`));
+
+    if (item) selected.push(item);
+  });
+
+  evidence.forEach((item) => {
+    if (selected.length >= 3) return;
+    if (!selected.some((selectedItem) => selectedItem.frameId === item.frameId)) selected.push(item);
+  });
+
+  return selected;
+}
+
+function briefingEvidence(evidence: RuntimeEvidence[], selectedFrameIds: Set<string>) {
+  return evidence.filter((item) => selectedFrameIds.has(item.frameId));
 }
 
 function cleanOperationalText(text: string) {
@@ -1726,6 +1748,8 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [activeEvidence, setActiveEvidence] = useState<RuntimeEvidence[]>([]);
+  const [selectedBriefingEvidenceIds, setSelectedBriefingEvidenceIds] = useState<Set<string>>(new Set());
+  const [selectedBriefingMilestoneIds, setSelectedBriefingMilestoneIds] = useState<Set<IncidentMilestone["id"]>>(new Set());
   const [decisionReviews, setDecisionReviews] = useState<DecisionReview[]>([]);
   const [hasEvidenceFilter, setHasEvidenceFilter] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -1734,15 +1758,19 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const sessionStartMs = useMountedSessionStart();
   const selectedIncident = getIncident(state, selectedIncidentId);
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
+  const selectableMilestones = useMemo(() => selectedIncident.milestones.filter((milestone) => milestone.status !== "unavailable"), [selectedIncident.milestones]);
+  const selectedExportEvidence = analysis ? briefingEvidence(analysis.evidence, selectedBriefingEvidenceIds) : [];
   const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
   const canGenerateAarSlides = aarBriefingIncidentIds.has(selectedIncident.id);
-  const canExportSlides = canGenerateAarSlides && sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
+  const canExportSlides = canGenerateAarSlides && sessionStartMs !== null && Boolean(analysis) && selectedExportEvidence.length > 0 && selectedBriefingMilestoneIds.size > 0 && !isExportPending;
 
   function selectIncident(incidentId: string) {
     setAnalysis(null);
     setAnalysisError(null);
     setExportError(null);
     setActiveEvidence([]);
+    setSelectedBriefingEvidenceIds(new Set());
+    setSelectedBriefingMilestoneIds(new Set());
     setDecisionReviews([]);
     setHasEvidenceFilter(false);
     analysisStartedRef.current = false;
@@ -1773,9 +1801,11 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       };
       setAnalysis(normalizedAnalysis);
       setActiveEvidence([...normalizedAnalysis.evidence].sort((a, b) => a.order - b.order));
+      setSelectedBriefingEvidenceIds(new Set(normalizedAnalysis.evidence.map((item: RuntimeEvidence) => item.frameId)));
+      setSelectedBriefingMilestoneIds(new Set(selectedIncident.milestones.filter((milestone) => milestone.status !== "unavailable").map((milestone) => milestone.id)));
       setHasEvidenceFilter(false);
     });
-  }, [canRunReviewAnalysis, incidentResponders, selectedIncident.id, startTransition]);
+  }, [canRunReviewAnalysis, incidentResponders, selectedIncident.id, selectedIncident.milestones, startTransition]);
 
   useEffect(() => {
     let active = true;
@@ -1804,11 +1834,12 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }, [canRunReviewAnalysis, runAnalysis]);
 
   function exportReport(format: "pdf" | "pptx") {
-    if (!canGenerateAarSlides || !analysis || activeEvidence.length === 0 || sessionStartMs === null) return;
+    if (!canGenerateAarSlides || !analysis || selectedExportEvidence.length === 0 || selectedBriefingMilestoneIds.size === 0 || sessionStartMs === null) return;
 
     startExportTransition(async () => {
       setExportError(null);
-      const exportEvidence = topEvidence(activeEvidence);
+      const exportEvidence = topEvidence(selectedExportEvidence);
+      const exportEvidenceFrameIds = new Set(exportEvidence.map((item) => item.frameId));
       const exportAnalysis = {
         ...analysis,
         decisionReviews,
@@ -1830,14 +1861,14 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
           .map((recommendation) => ({
             ...recommendation,
             order: recommendation.order,
-            evidenceFrameIds: recommendation.evidenceFrameIds.filter((frameId) => exportEvidence.some((item) => item.frameId === frameId)),
+            evidenceFrameIds: recommendation.evidenceFrameIds.filter((frameId) => exportEvidenceFrameIds.has(frameId)),
           }))
           .filter((recommendation) => recommendation.evidenceFrameIds.length > 0),
       };
       const response = await fetch(format === "pptx" ? "/api/report/export?format=pptx" : "/api/report/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysis: exportAnalysis }),
+        body: JSON.stringify({ analysis: exportAnalysis, milestoneIds: [...selectedBriefingMilestoneIds] }),
       });
 
       if (!response.ok) {
@@ -1858,6 +1889,36 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
     });
   }
 
+  function setAllBriefingEvidence(checked: boolean) {
+    setSelectedBriefingEvidenceIds(checked && analysis ? new Set(analysis.evidence.map((item) => item.frameId)) : new Set());
+  }
+
+  function toggleBriefingEvidence(frameId: string) {
+    setSelectedBriefingEvidenceIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(frameId)) next.delete(frameId);
+      else next.add(frameId);
+
+      return next;
+    });
+  }
+
+  function setAllBriefingMilestones(checked: boolean) {
+    setSelectedBriefingMilestoneIds(checked ? new Set(selectableMilestones.map((milestone) => milestone.id)) : new Set());
+  }
+
+  function toggleBriefingMilestone(milestoneId: IncidentMilestone["id"]) {
+    setSelectedBriefingMilestoneIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(milestoneId)) next.delete(milestoneId);
+      else next.add(milestoneId);
+
+      return next;
+    });
+  }
+
   return (
     <AppShell state={state} activeState="post-incident review" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="review">
       <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
@@ -1869,7 +1930,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
               <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence is extracted automatically from the current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
-              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered" : ""}` : "Queued for analysis") : "Runtime analysis unavailable"}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered for review" : ""} / ${selectedExportEvidence.length} selected for briefing` : "Queued for analysis") : "Runtime analysis unavailable"}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 bg-card p-4 lg:justify-end">
@@ -1920,20 +1981,75 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
                 ? "AAR slide export is available for incidents with reviewable bodycam evidence."
                 : canRunReviewAnalysis
                   ? analysis
-                    ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"} with full incident timeline provenance. PPTX is editable; PDF is available as a locked copy.`
+                    ? `Briefing slides use the full selected incident sequence by default. Search only filters this review view; export scope changes only when the officer excludes evidence or milestones below.`
                     : "Analysis starts automatically."
                   : "Export is disabled until footage is available."}
             </p>
             {analysis ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pptx")} disabled={!canRunReviewAnalysis || !canExportSlides}>
-                  <Download data-icon="inline-start" />
-                  {isExportPending ? "Exporting" : "Download PPTX"}
-                </Button>
-                <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pdf")} disabled={!canRunReviewAnalysis || !canExportSlides}>
-                  <Download data-icon="inline-start" />
-                  {isExportPending ? "Exporting" : "Download PDF"}
-                </Button>
+              <div className="mt-4 grid gap-4">
+                <div className="border border-border">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/50 p-2">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Evidence selected for briefing</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" className="h-8 rounded-sm px-2" onClick={() => setAllBriefingEvidence(true)}>Include all</Button>
+                      <Button size="sm" variant="ghost" className="h-8 rounded-sm px-2" onClick={() => setAllBriefingEvidence(false)}>Exclude all</Button>
+                    </div>
+                  </div>
+                  <div className="max-h-56 divide-y divide-border overflow-y-auto">
+                    {analysis.evidence.map((item) => {
+                      const selected = selectedBriefingEvidenceIds.has(item.frameId);
+
+                      return (
+                        <button key={item.frameId} type="button" onClick={() => toggleBriefingEvidence(item.frameId)} className="grid w-full grid-cols-[1.25rem_4rem_1fr] gap-2 p-2 text-left text-sm hover:bg-muted/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent">
+                          <span className={cn("mt-0.5 grid size-4 place-items-center border", selected ? "border-accent bg-accent text-accent-foreground" : "border-border text-transparent")}><Check className="size-3" /></span>
+                          <span className="font-mono text-xs text-muted-foreground">{item.timestampLabel}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{item.name}</span>
+                            <span className="block truncate text-xs text-muted-foreground">{item.sourceResponder} / {incidentTags(item.tags).join(" / ")}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border border-border">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/50 p-2">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Milestones selected for briefing</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" className="h-8 rounded-sm px-2" onClick={() => setAllBriefingMilestones(true)}>Include all</Button>
+                      <Button size="sm" variant="ghost" className="h-8 rounded-sm px-2" onClick={() => setAllBriefingMilestones(false)}>Exclude all</Button>
+                    </div>
+                  </div>
+                  <div className="max-h-56 divide-y divide-border overflow-y-auto">
+                    {selectableMilestones.map((milestone) => {
+                      const selected = selectedBriefingMilestoneIds.has(milestone.id);
+
+                      return (
+                        <button key={milestone.id} type="button" onClick={() => toggleBriefingMilestone(milestone.id)} className="grid w-full grid-cols-[1.25rem_4.5rem_1fr] gap-2 p-2 text-left text-sm hover:bg-muted/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent">
+                          <span className={cn("mt-0.5 grid size-4 place-items-center border", selected ? "border-accent bg-accent text-accent-foreground" : "border-border text-transparent")}><Check className="size-3" /></span>
+                          <span className="font-mono text-xs text-muted-foreground">{milestone.displayTime}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{milestone.label}</span>
+                            <span className="block truncate text-xs text-muted-foreground">{milestone.sourceType} / {milestone.status}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{selectedExportEvidence.length} evidence / {selectedBriefingMilestoneIds.size} milestones selected for officer-reviewed output</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pptx")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+                    <Download data-icon="inline-start" />
+                    {isExportPending ? "Exporting" : "Download PPTX"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pdf")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+                    <Download data-icon="inline-start" />
+                    {isExportPending ? "Exporting" : "Download PDF"}
+                  </Button>
+                </div>
               </div>
             ) : null}
           </div>
