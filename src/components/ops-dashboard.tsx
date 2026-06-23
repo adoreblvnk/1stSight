@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AdvancedMarker, APIProvider, Map } from "@vis.gl/react-google-maps";
 // Motion React: https://motion.dev/docs/react
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Activity, Check, Download, FastForward, MapPinned, Pause, Play, Search, Square, VolumeX } from "lucide-react";
+import { Activity, Check, Download, MapPinned, Pause, Play, Search, Square, VolumeX } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import { browserRtcConfiguration } from "@/lib/webrtc";
 
 const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident"]);
 
-type LiveMode = "live" | "escalation" | "concluded";
+type LiveMode = "live" | "escalation" | "post-fire" | "concluded";
 
 type RuntimeEvidence = {
   frameId: string;
@@ -142,6 +142,14 @@ function getIncident(state: ScenarioState, incidentId: string) {
 function getIncidentResponders(state: ScenarioState, incident: Incident) {
   const responderIds = new Set(incident.responderIds);
   return state.responders.filter((responder) => responderIds.has(responder.id));
+}
+
+function isPostFirePhase(incidentId: string, mode: LiveMode) {
+  return incidentId === punggolIncidentId && mode === "post-fire";
+}
+
+function liveFeedSource(responder: Responder, postFirePhase: boolean) {
+  return postFirePhase && responder.reviewVideoSrcs?.[0] ? responder.reviewVideoSrcs[0] : responder.videoSrc;
 }
 
 function OperationalBadge({ children, tone }: { children: ReactNode; tone?: keyof typeof statusTone }) {
@@ -836,7 +844,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
 }
 
 function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
-  const isPunggolPostFirePhase = incident.id === punggolIncidentId && mode === "concluded";
+  const isPunggolPostFirePhase = isPostFirePhase(incident.id, mode);
 
   useEffect(() => {
     responders.forEach((responder) => {
@@ -879,7 +887,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
       );
     }
 
-    const videoSrc = isPunggolPostFirePhase && responder.reviewVideoSrcs?.[0] ? responder.reviewVideoSrcs[0] : responder.videoSrc;
+    const videoSrc = liveFeedSource(responder, isPunggolPostFirePhase);
 
     return (
       <button key={responder.id} type="button" onClick={() => onAudioChange(responder.id)} className="min-w-0 bg-screen text-left text-screen-foreground transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
@@ -894,6 +902,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
           </div>
         </div>
         <video
+          key={videoSrc}
           ref={(node) => {
             videoRefs.current[responder.id] = node;
           }}
@@ -1489,7 +1498,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const selectedIncident = getIncident(state, selectedIncidentId);
   const isStreamIncident = selectedIncident.id === streamIncidentId;
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
-  const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && (isStreamIncident || incidentResponders.length > 0);
+  const postFirePhase = isPostFirePhase(selectedIncident.id, mode);
+  const analysisResponders = useMemo(() => postFirePhase ? incidentResponders.filter((responder) => responder.reviewVideoSrcs?.length) : incidentResponders, [incidentResponders, postFirePhase]);
+  const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && (isStreamIncident || analysisResponders.length > 0);
   const displayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : analysis;
   const liveAnalysisIntervalMs = analysis?.events.length ? steadyLiveAnalysisIntervalMs : startupLiveAnalysisIntervalMs;
   const liveCue = selectedIncident.id === aarBriefingIncidentId ? { responderId: "med-woodlands-a", timestampSeconds: 45.5 } : state.liveAnalysisCue;
@@ -1521,12 +1532,12 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     startTransition(async () => {
       try {
         setAnalysisError(null);
-        const feeds = incidentResponders.map((responder) => {
+        const feeds = analysisResponders.map((responder) => {
           const video = videoRefs.current[responder.id];
 
           return {
             responderId: responder.id,
-            videoSrc: responder.videoSrc,
+            videoSrc: liveFeedSource(responder, postFirePhase),
             currentTime: nextTimes?.[responder.id] ?? video?.currentTime ?? 0,
           };
         });
@@ -1549,7 +1560,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         if (queuedTimes) window.setTimeout(() => analyzeChunk(queuedTimes), 0);
       }
     });
-  }, [canRunLiveAnalysis, incidentResponders, isStreamIncident, selectedIncident.id, startTransition]);
+  }, [analysisResponders, canRunLiveAnalysis, isStreamIncident, postFirePhase, selectedIncident.id, startTransition]);
 
   useEffect(() => {
     if (!isStreamIncident) return;
@@ -1611,18 +1622,11 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     });
   }
 
-  function jumpToEscalation() {
+  function continuePostFireSweep() {
     if (isStreamIncident) return;
-    setMode("escalation");
-    const nextTimes = Object.fromEntries(incidentResponders.map((responder) => [responder.id, responder.id === liveCue.responderId ? liveCue.timestampSeconds : videoRefs.current[responder.id]?.currentTime ?? 0]));
-    const target = videoRefs.current[liveCue.responderId];
-    if (target) target.currentTime = liveCue.timestampSeconds;
-    analyzeChunk(nextTimes);
-  }
-
-  function concludeIncident() {
-    setMode("concluded");
-    setPlaying(false);
+    setMode("post-fire");
+    setPlaying(true);
+    setActiveAudioResponderId("ff-a");
   }
 
   return (
@@ -1648,17 +1652,13 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <VolumeX data-icon="inline-start" />
               Mute all
             </Button>
-            <Button size="lg" variant="destructive" className="rounded-sm" onClick={jumpToEscalation} disabled={!canRunLiveAnalysis || isPending || isStreamIncident}>
-              <FastForward data-icon="inline-start" />
-              Advance feeds
-            </Button>
             <Button size="lg" variant="outline" className="rounded-sm" render={<Link href={incidentHref("/review", selectedIncidentId)} />} nativeButton={false}>
               <Search data-icon="inline-start" />
               Open incident review
             </Button>
-            <Button size="lg" variant="destructive" className="rounded-sm" onClick={concludeIncident} disabled={!canRunLiveAnalysis}>
+            <Button size="lg" variant="destructive" className="rounded-sm" onClick={continuePostFireSweep} disabled={!canRunLiveAnalysis || isStreamIncident || selectedIncident.id !== punggolIncidentId || postFirePhase}>
               <Square data-icon="inline-start" />
-              Conclude incident
+              Continue welfare sweep
             </Button>
           </div>
         </div>
@@ -1705,7 +1705,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
             </details>
           </Panel>
           <Panel title="Events" label="Live analysis">
-            <EventLog analysis={displayAnalysis} isAnalyzing={isPending} responders={isStreamIncident ? undefined : incidentResponders} />
+            <EventLog analysis={displayAnalysis} isAnalyzing={isPending} responders={isStreamIncident ? undefined : analysisResponders} />
           </Panel>
           <RecommendationReview analysis={displayAnalysis} incidentId={selectedIncidentId} />
           {analysisError ? (

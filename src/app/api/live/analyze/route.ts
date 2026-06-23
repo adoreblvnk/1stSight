@@ -198,11 +198,12 @@ export async function POST(request: Request) {
   }
 
   const responderById = new Map(incidentResponders.map((responder) => [responder.id, responder]));
-  const allowedSources = new Set(incidentResponders.map((responder) => responder.videoSrc));
+  const allowedSourcesByResponder = new Map(incidentResponders.map((responder) => [responder.id, new Set([responder.videoSrc, ...(responder.reviewVideoSrcs ?? [])])]));
   const feeds = body.feeds.flatMap((feed) => {
     const responder = responderById.get(feed.responderId);
+    const allowedSources = allowedSourcesByResponder.get(feed.responderId);
 
-    if (!responder || responder.videoSrc !== feed.videoSrc || !allowedSources.has(feed.videoSrc)) return [];
+    if (!responder || !allowedSources?.has(feed.videoSrc)) return [];
 
     return [{ ...feed, responder }];
   });
@@ -356,7 +357,7 @@ export async function POST(request: Request) {
         ...seededEvents,
       ],
       recommendation,
-      generatedFrom: seededFrames.length > 0 ? `request-time ffmpeg extraction for ${incident.title} with surfaced presentation cue` : `request-time ffmpeg extraction for ${incident.title}`,
+      generatedFrom: `request-time ffmpeg extraction for ${incident.title}`,
       chunkStartSeconds,
       chunkDurationSeconds,
     });
