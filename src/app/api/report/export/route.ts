@@ -1,5 +1,8 @@
 import React from "react";
 import { NextRequest } from "next/server";
+// npm install pptxgenjs
+// PptxGenJS Quick Start: https://github.com/gitbrent/pptxgenjs/blob/master/README.md
+import PptxGenJS from "pptxgenjs";
 // React PDF Node API: https://react-pdf.org/node
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { z } from "zod";
@@ -126,6 +129,7 @@ type RuntimeAnalysis = z.infer<typeof runtimeAnalysisSchema>;
 type RuntimeEvidence = z.infer<typeof runtimeEvidenceSchema>;
 type RuntimeRecommendation = z.infer<typeof runtimeRecommendationSchema>;
 type RuntimeDecisionReview = z.infer<typeof runtimeDecisionReviewSchema>;
+type PptxSlide = ReturnType<InstanceType<typeof PptxGenJS>["addSlide"]>;
 
 const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical assistance", "responder safety", "physical contact", "unsafe proximity", "crew intervention", "patient movement", "medical", "civil", "hazard", "incident"]);
 
@@ -464,6 +468,142 @@ function AarBriefingDocument({ analysis }: { analysis: RuntimeAnalysis }) {
   );
 }
 
+function pptxColor(color: string) {
+  return color.replace(/^#/, "");
+}
+
+function addPptxHeader(slide: PptxSlide, section: string, page: string, dark = false) {
+  const textColor = dark ? "CFD2D8" : pptxColor(colors.muted);
+
+  slide.addText(section.toUpperCase(), { x: 0.35, y: 0.22, w: 6.2, h: 0.22, fontFace: "Aptos", fontSize: 7, bold: true, color: textColor, breakLine: false, fit: "shrink" });
+  slide.addText(page, { x: 11.2, y: 0.22, w: 1.7, h: 0.22, fontFace: "Aptos", fontSize: 7, bold: true, color: textColor, align: "right", breakLine: false, fit: "shrink" });
+}
+
+function addPptxFooter(slide: PptxSlide, dark = false) {
+  slide.addText("1stSight AAR briefing slides for officer review. Formal incident records not supplied to this workflow are marked pending officer input.", { x: 0.35, y: 7.1, w: 12.6, h: 0.2, fontFace: "Aptos", fontSize: 6.8, color: dark ? "CFD2D8" : pptxColor(colors.muted), margin: 0, fit: "shrink" });
+}
+
+function addPptxMetric(slide: PptxSlide, label: string, value: string, note: string, x: number, y: number, w: number) {
+  slide.addText(label.toUpperCase(), { x, y, w, h: 0.18, fontFace: "Aptos", fontSize: 6.8, bold: true, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+  slide.addText(value, { x, y: y + 0.24, w, h: 0.34, fontFace: "Aptos", fontSize: 11, bold: true, color: pptxColor(colors.ink), margin: 0.03, fit: "shrink" });
+  slide.addText(note, { x, y: y + 0.64, w, h: 0.36, fontFace: "Aptos", fontSize: 6.8, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+}
+
+function addPptxFinding(slide: PptxSlide, title: string, body: string, x: number, y: number, w: number, h = 0.78) {
+  slide.addText(title, { x, y, w, h: 0.2, fontFace: "Aptos", fontSize: 8.5, bold: true, color: pptxColor(colors.ink), margin: 0.03, fit: "shrink" });
+  slide.addText(body, { x, y: y + 0.25, w, h: h - 0.25, fontFace: "Aptos", fontSize: 7.2, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+}
+
+async function arrayBufferFromPptxOutput(output: string | ArrayBuffer | Blob | Uint8Array): Promise<ArrayBuffer> {
+  if (output instanceof ArrayBuffer) return output;
+  if (output instanceof Uint8Array) {
+    const copy = new ArrayBuffer(output.byteLength);
+    new Uint8Array(copy).set(output);
+    return copy;
+  }
+  if (output instanceof Blob) return output.arrayBuffer();
+
+  const buffer = Buffer.from(output, "binary");
+  const copy = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(copy).set(buffer);
+  return copy;
+}
+
+async function renderPptxBuffer(analysis: RuntimeAnalysis) {
+  const incident = getIncidentById(analysis.incidentId);
+  const milestones = incident?.milestones ?? [];
+  const pendingCount = milestones.filter((item) => item.status === "pending").length;
+  const footageCount = milestones.filter((item) => item.sourceType === "footage" && item.status === "confirmed").length;
+  const pendingMilestones = milestones.filter((item) => item.status === "pending").slice(0, 5);
+  const decisionReviews = analysis.decisionReviews ?? [];
+
+  // PptxGenJS Presentation API: https://github.com/gitbrent/pptxgenjs/blob/master/README.md
+  const pptx = new PptxGenJS();
+  pptx.author = "1stSight";
+  pptx.company = "1stSight";
+  pptx.subject = "AAR briefing slides";
+  pptx.title = `1stSight AAR briefing slides: ${incident?.title ?? analysis.incidentTitle}`;
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.theme = { headFontFace: "Aptos Display", bodyFontFace: "Aptos" };
+
+  const overview = pptx.addSlide();
+  overview.background = { color: pptxColor(colors.paper) };
+  addPptxHeader(overview, "Incident overview", "01 / 05");
+  overview.addText("Woodlands medical assistance responder-safety AAR", { x: 0.35, y: 0.72, w: 11.6, h: 0.5, fontFace: "Aptos Display", fontSize: 24, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
+  overview.addText(incident?.summary ?? analysis.summary, { x: 0.35, y: 1.25, w: 11.8, h: 0.46, fontFace: "Aptos", fontSize: 10, color: pptxColor(colors.muted), fit: "shrink" });
+  addPptxMetric(overview, "Location", truncate(incident?.location ?? analysis.incidentTitle, 42), "Supplied caller context", 0.35, 2.0, 3.85);
+  addPptxMetric(overview, "Runtime evidence", `${analysis.evidence.length} selected BWC frame${analysis.evidence.length === 1 ? "" : "s"}`, generatedFromLabel(analysis.generatedFrom), 4.55, 2.0, 3.85);
+  addPptxMetric(overview, "Milestone provenance", `${footageCount} footage / ${pendingCount} pending`, "System events stay pending when records are not supplied", 8.75, 2.0, 3.85);
+  addPptxFinding(overview, "Briefing scope", "Concise post-incident learning slides. Formal dispatch, assessment, conveyance, and handover fields stay pending until officers supply those records.", 0.35, 3.55, 5.85, 1.15);
+  addPptxFinding(overview, "Evidence boundary", `Later slides reference selected BWC frames and milestone sources. Source frames: ${sourceReferences(analysis.evidence)}.`, 6.65, 3.55, 5.95, 1.15);
+  addPptxFooter(overview);
+
+  const timeline = pptx.addSlide();
+  timeline.background = { color: pptxColor(colors.paper) };
+  addPptxHeader(timeline, "Milestone timeline", "02 / 05");
+  timeline.addText("Timestamp provenance before AAR discussion", { x: 0.35, y: 0.72, w: 11.8, h: 0.42, fontFace: "Aptos Display", fontSize: 22, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
+  timeline.addText("System/dispatch events are not inferred from BWC. Missing formal data is marked pending officer input.", { x: 0.35, y: 1.18, w: 11.8, h: 0.28, fontFace: "Aptos", fontSize: 9.2, color: pptxColor(colors.muted), fit: "shrink" });
+  milestones.slice(0, 12).forEach((item, index) => {
+    const col = index % 4;
+    const row = Math.floor(index / 4);
+    const x = 0.35 + col * 3.18;
+    const y = 1.78 + row * 1.45;
+    timeline.addText(`${item.label} · ${item.status}`.toUpperCase(), { x, y, w: 2.85, h: 0.18, fontFace: "Aptos", fontSize: 6.4, bold: true, color: item.status === "pending" ? pptxColor(colors.amber) : pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+    timeline.addText(item.displayTime, { x, y: y + 0.24, w: 2.85, h: 0.28, fontFace: "Aptos", fontSize: 13, bold: true, color: pptxColor(colors.ink), margin: 0.03, fit: "shrink" });
+    timeline.addText(`${milestoneSourceLabel(item)}${item.notes ? `. ${truncate(item.notes, 82)}` : ""}`, { x, y: y + 0.58, w: 2.85, h: 0.52, fontFace: "Aptos", fontSize: 6.6, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+  });
+  addPptxFooter(timeline);
+
+  const evidence = pptx.addSlide();
+  evidence.background = { color: pptxColor(colors.graphite) };
+  addPptxHeader(evidence, "Selected evidence frames", "03 / 05", true);
+  evidence.addText("Visual evidence selected for briefing", { x: 0.35, y: 0.72, w: 11.8, h: 0.42, fontFace: "Aptos Display", fontSize: 22, bold: true, color: pptxColor(colors.white), fit: "shrink" });
+  evidence.addText("Each frame keeps its bodycam/source ID and timestamp reference.", { x: 0.35, y: 1.18, w: 11.8, h: 0.26, fontFace: "Aptos", fontSize: 9.2, color: "D8DBE2", fit: "shrink" });
+  analysis.evidence.slice(0, 3).forEach((item, index) => {
+    const x = 0.35 + index * 4.22;
+    // PptxGenJS Images API: https://gitbrent.github.io/PptxGenJS/docs/api-images/
+    evidence.addImage({ data: item.imageUrl, x, y: 1.72, w: 3.75, h: 2.15, sizing: { type: "contain", w: 3.75, h: 2.15 } });
+    evidence.addText(item.name, { x, y: 4.08, w: 3.75, h: 0.34, fontFace: "Aptos", fontSize: 10.5, bold: true, color: pptxColor(colors.white), margin: 0.03, fit: "shrink" });
+    evidence.addText(item.description, { x, y: 4.48, w: 3.75, h: 0.58, fontFace: "Aptos", fontSize: 7.2, color: "D8DBE2", margin: 0.03, fit: "shrink" });
+    evidence.addText(`${sourceReference(item)}\nTags: ${item.tags.join(" / ")}`, { x, y: 5.18, w: 3.75, h: 0.48, fontFace: "Aptos", fontSize: 6.4, color: "F0B45D", margin: 0.03, fit: "shrink" });
+  });
+  addPptxFooter(evidence, true);
+
+  const findings = pptx.addSlide();
+  findings.background = { color: pptxColor(colors.paper) };
+  addPptxHeader(findings, "AAR findings", "04 / 05");
+  findings.addText("What the review should focus on", { x: 0.35, y: 0.72, w: 11.8, h: 0.42, fontFace: "Aptos Display", fontSize: 22, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
+  [
+    { label: "Main challenges", items: evidenceChallenges(analysis.evidence) },
+    { label: "Areas done well", items: doneWell(analysis.evidence) },
+    { label: "Areas for improvement", items: improvements(milestones) },
+  ].forEach((column, columnIndex) => {
+    const x = 0.35 + columnIndex * 4.22;
+    findings.addText(column.label.toUpperCase(), { x, y: 1.42, w: 3.75, h: 0.18, fontFace: "Aptos", fontSize: 6.8, bold: true, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+    column.items.slice(0, 2).forEach((item, itemIndex) => addPptxFinding(findings, item.title, item.body, x, 1.85 + itemIndex * 1.45, 3.75, 1.1));
+  });
+  addPptxFooter(findings);
+
+  const followUp = pptx.addSlide();
+  followUp.background = { color: pptxColor(colors.paper) };
+  addPptxHeader(followUp, "Officer-reviewed follow-up", "05 / 05");
+  followUp.addText("Follow-up items before final use", { x: 0.35, y: 0.72, w: 11.8, h: 0.42, fontFace: "Aptos Display", fontSize: 22, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
+  followUp.addText("Officer-reviewed decisions".toUpperCase(), { x: 0.35, y: 1.45, w: 5.8, h: 0.18, fontFace: "Aptos", fontSize: 6.8, bold: true, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+  const decisionItems = decisionReviews.length ? decisionReviews.map((item) => ({ title: decisionLabel(item.decision), body: `${item.reason} Source timestamp: ${item.timestamp}` })) : [{ title: "No officer-reviewed live decision recorded", body: "Add approval, hold, or edited decision records before final briefing circulation." }];
+  decisionItems.slice(0, 2).forEach((item, index) => addPptxFinding(followUp, item.title, item.body, 0.35, 1.82 + index * 1.05, 5.8, 0.82));
+  followUp.addText("Recommendations / considerations".toUpperCase(), { x: 0.35, y: 4.08, w: 5.8, h: 0.18, fontFace: "Aptos", fontSize: 6.8, bold: true, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+  const recommendationItems = analysis.recommendations.length ? analysis.recommendations.map((item) => ({ title: item.title, body: `${item.reason} Evidence: ${frameRefs(item, analysis.evidence).join("; ")}` })) : [{ title: "No model recommendation exported", body: `Officer review should use selected frames directly. Evidence: ${sourceReferences(analysis.evidence)}.` }];
+  recommendationItems.slice(0, 2).forEach((item, index) => addPptxFinding(followUp, item.title, item.body, 0.35, 4.45 + index * 1.05, 5.8, 0.82));
+  followUp.addText("Pending officer/system data".toUpperCase(), { x: 6.75, y: 1.45, w: 5.8, h: 0.18, fontFace: "Aptos", fontSize: 6.8, bold: true, color: pptxColor(colors.muted), margin: 0.03, fit: "shrink" });
+  pendingMilestones.forEach((item, index) => addPptxFinding(followUp, item.label, `${item.displayTime}. Source: ${milestoneSourceLabel(item)}.`, 6.75, 1.82 + index * 0.82, 5.8, 0.62));
+  addPptxFinding(followUp, "Review state", "Officer input pending. Add reviewed follow-up and formal records before final briefing circulation.", 6.75, 6.05, 5.8, 0.68);
+  addPptxFooter(followUp);
+
+  // PptxGenJS Export API: https://github.com/gitbrent/pptxgenjs/blob/master/README.md
+  const output = await pptx.write({ outputType: "nodebuffer" });
+  return arrayBufferFromPptxOutput(output);
+}
+
 export async function POST(request: NextRequest) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
 
@@ -479,6 +619,19 @@ export async function POST(request: NextRequest) {
     analysis = { ...analysis, decisionReviews };
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "AAR briefing slide PDF export is unavailable for this incident." }, { status: 400 });
+  }
+
+  const format = request.nextUrl.searchParams.get("format") === "pptx" ? "pptx" : "pdf";
+
+  if (format === "pptx") {
+    const pptxBody = await renderPptxBuffer(analysis);
+
+    return new Response(pptxBody, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "Content-Disposition": 'attachment; filename="1stsight-woodlands-aar-briefing-slides.pptx"',
+      },
+    });
   }
 
   const document = React.createElement(AarBriefingDocument, { analysis }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;

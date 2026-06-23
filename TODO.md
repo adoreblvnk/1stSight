@@ -8,13 +8,13 @@ Status: TODO
 
 Purpose: make the response journey visible before the live incident dashboard opens.
 
-Deliverable: the map should show the Basic Task Force / firetruck marker moving from Punggol Fire Station toward the Punggol residential fire location, with a clear moment where the officer can enter the live incident dashboard.
+Deliverable: the map shows the Basic Task Force / firetruck marker moving from Punggol Fire Station toward the Punggol residential fire location, with a clear handoff into the live incident dashboard.
 
 Scope:
 
 - Show motion on the existing map page rather than creating a separate page.
-- Keep the marker movement presenter-controllable or deterministic so it is reliable during presentation.
-- Preserve the current Singapore map, Punggol Fire Station marker, incident marker, and incident selector.
+- Keep the movement presenter-controllable or deterministic for a reliable demo.
+- Preserve the current Singapore map, Punggol Fire Station marker, Punggol incident marker, and incident selector.
 - Add only enough animation/state to communicate dispatch-to-arrival progression.
 
 Acceptance criteria:
@@ -24,55 +24,93 @@ Acceptance criteria:
 - The flow works without requiring external route APIs beyond the existing map setup.
 - The presentation can be reset or replayed without refreshing the whole app if practical.
 
-### Add stream analysis support for evaluators to try
-
-Status: DONE
-
-Purpose: let evaluators interact with 1stSight through real browser bodycam capture instead of only watching preset incident footage.
-
-Deliverable: `/bodycam` lets named evaluators join the stage medical assistance stream, sends low-latency WebRTC video to Ops Centre, uploads 5-second browser camera chunks, extracts frames every 0.5 seconds, and surfaces analyzed events/recommendations inside the Ops Centre live dashboard.
-
-Scope completed:
-
-- Added first-class fire and medical incident typing so streaming defaults to medical/responder-safety analysis while Punggol remains fire analysis.
-- Added a stage medical assistance stream incident at `91 Ubi Ave 4, Singapore 408827`.
-- Added no-auth bodycam joining with user-entered display names, first-join anchoring, exact/approximate location states, and a 4-bodycam cap.
-- Added browser camera capture, low-latency WebRTC visual streaming to Ops Centre, and 5-second chunk uploads from `/bodycam`.
-- Added `/api/stream/session` and `/api/stream/chunk` for stream session state, pause/resume, ffmpeg frame extraction, and structured AI analysis.
-- Added 0.5-second frame extraction for stream chunks and live fire analysis windows.
-- Added Ops Centre polling for stream bodycam cards, evidence-linked events, recommendations, pause/resume, and GC-consideration wording.
-
-Acceptance criteria:
-
-- Evaluators can join the stream from `/bodycam` with their own display names.
-- The first four bodycams are accepted; a fifth join attempt is rejected clearly.
-- Backend extracts frames every 0.5 seconds from uploaded 5-second chunks and sends them through runtime analysis.
-- Results appear in the live dashboard as WebRTC bodycam video, events, evidence cards, and recommendations with source/bodycam references.
-- Pause/resume blocks and resumes automatic stream analysis.
-- The app does not fabricate analysis if the stream, ffmpeg, or model call fails.
-
-### Shift model routing to GB10 endpoint + OpenAI
+### Consolidate the demo into one Punggol scenario
 
 Status: TODO
 
-Purpose: move away from the current Codex subscription development path and align the running app with the intended model architecture.
+Purpose: reduce narrative/context drift by using Punggol as the single scenario across live operations, medical/welfare check, responder safety, recommendations, and AAR briefing slides.
 
-Deliverable: production-shaped model routing where GB10 handles local/OpenAI-compatible text reasoning and OpenAI handles cloud vision or higher-accuracy multimodal analysis.
+Deliverable: the app and presentation use one Punggol incident flow: residential fire response, post-fire welfare/medical check, drunk aggressive bystander assault, evidence-linked timeline, officer-reviewed recommendation, and AAR briefing slide output.
 
 Scope:
 
-- Configure GB10 through OpenAI-compatible environment variables.
-- Configure OpenAI through server-side `OPENAI_API_KEY` only.
-- Keep Codex subscription fallback limited to local development if it remains useful.
-- Preserve Zod-validated structured outputs across all providers.
-- Avoid exposing model secrets through browser-visible environment variables.
+- Update scenario data so Punggol covers both fire response and the post-fire medical/welfare responder-safety event.
+- Remove stale main-demo references that present a second separate scenario as the primary AAR story.
+- Keep the initial Punggol caller/fire context separate from footage-derived responder-safety evidence.
+- Ensure every claimed event has a source feed, timestamp, selected frame, or officer-provided provenance.
 
 Acceptance criteria:
 
-- Local/deployed model routing can select GB10 for text use cases.
-- Vision-heavy analysis can use OpenAI when configured.
-- Missing credentials produce clear unavailable/error states instead of fake results.
-- `.env.example` documents required variable names without real secrets.
+- Main presenter flow can run end-to-end from Punggol map dispatch to live dashboard to review/AAR output.
+- Punggol timeline includes fire events and the post-fire responder-safety event without mixing unsupported facts into caller context.
+- Recommendations are worded for officer / Ground Commander consideration, not automatic command.
+- Search, export, and dashboard copy all align to the single Punggol story.
+
+### Add Punggol drunk bystander assault evidence
+
+Status: TODO
+
+Purpose: make the post-fire responder-safety moment concrete and evidence-backed.
+
+Deliverable: Punggol includes the recorded drunk aggressive bystander sequence after the fire sweep, with verbal aggression, physical shove/assault, responder restraint, and police-support recommendation captured as timestamped evidence.
+
+Scope:
+
+- Add the post-fire sweep, welfare check, verbal aggression, physical shove, and de-escalation events to the Punggol timeline.
+- Tag the event as responder safety / medical-welfare follow-up evidence, not as initial caller context.
+- Add source references for both POV/bodycam clips and important timestamps.
+- Surface the police-support recommendation as reviewable guidance for the officer/GC.
+
+Acceptance criteria:
+
+- Evidence cards identify the bystander-assault moments with source, timestamp, and short description.
+- The live/review UI can show the event without claiming AI independently commanded police deployment.
+- AAR briefing slides can cite the event from the Punggol evidence timeline.
+
+### Compile and upload Punggol demo footage
+
+Status: TODO
+
+Purpose: make the final single-scenario demo runnable from real uploaded media instead of loose chat/video references.
+
+Deliverable: final Punggol bodycam/POV clips are stored in the app media path and referenced by scenario data.
+
+Scope:
+
+- Compile the fire-response POV/bodycam clips and drunk-bystander POV/bodycam clips.
+- Upload final assets under the app video folder.
+- Name files by incident, source/bodycam, and sequence/timestamp.
+- Update scenario references to point at the final files.
+- Verify the clips play in-browser and can be processed for frame extraction.
+
+Acceptance criteria:
+
+- All referenced Punggol video files exist under `public/videos/...`.
+- Browser playback works from the app.
+- Frame/timestamp references in evidence cards match the final clips.
+- Missing footage produces a clear unavailable state rather than fabricated analysis.
+
+### Correct AI pipeline and pitch wording
+
+Status: TODO
+
+Purpose: keep the hackathon story focused and avoid stale model/provider claims.
+
+Deliverable: docs, slides, and demo copy describe the AI path as vision-to-text evidence extraction followed by GPT-5.4 mini structuring.
+
+Scope:
+
+- Use the core feature framing: bodycam vision-to-text timeline generation.
+- Describe the pipeline as vision-to-text model → GPT-5.4 mini.
+- Say GPT-5.4 mini structures evidence into timeline, reviewable recommendations, summaries, and AAR briefing slide content.
+- Remove or de-emphasize model-routing/provider details that are not part of the main demo.
+- Avoid generic “report generation”; use “AAR briefing slide generation”.
+
+Acceptance criteria:
+
+- Main pitch uses one high-value AI feature instead of a long list of AI features.
+- AI claims are grounded in evidence extraction, structured timeline generation, recommendations, and AAR briefing slides.
+- Human-in-the-loop wording is present wherever recommendations appear.
 
 ### Host the app on OpenShift
 
@@ -98,72 +136,6 @@ Acceptance criteria:
 - Runtime API routes work or fail with clear configuration errors.
 - Final deployment steps are documented enough to repeat.
 
-### Generate AAR briefing slide PDF
-
-Status: DONE
-
-Purpose: align the output with SCDF officer feedback: concise, visual AAR briefing slides in PDF format.
-
-Deliverable: generated PDF pages that look and read like presentation slides for the Woodlands medical / responder-safety scenario.
-
-Scope:
-
-- Create slide layouts for incident overview, milestone timeline, selected evidence frames, recommendation/AAR findings, and officer-reviewed follow-up.
-- Use slide-style pages instead of dense report pages.
-- Keep wording short, operational, and visual-first.
-- Include selected evidence frames, BWC/source IDs, timestamps, short descriptions, key milestones, main challenges, areas done well, and areas for improvement.
-- Preserve source references for every selected frame.
-- Mark unavailable formal data as pending officer input instead of fabricating it.
-- Do not call the output an official SCDF Fire Report or Ambulance Report.
-
-Acceptance criteria:
-
-- PDF reads like briefing slides, not a long written report.
-- Generated PDF can be shown directly in a presentation.
-- Visual evidence is prominent.
-- Every evidence claim links back to source footage, timestamp, or officer-provided data.
-- Woodlands scenario can generate the slide PDF in the main presentation flow.
-- Punggol scenario does not generate a fire report or slide PDF in the main flow.
-
-### Track critical incident milestones with timestamps
-
-Status: DONE
-
-Purpose: show important operational milestones in the incident timeline and AAR briefing slides with correct timestamp provenance.
-
-Deliverable: milestone timeline support that can display timestamps from footage, dispatch/ACES-style records, or officer-entered data.
-
-Milestones to support:
-
-- Call received
-- Dispatch
-- Acknowledge
-- Move out
-- Arrive at scene
-- At patient side
-- After patient assessment
-- Moving out to hospital
-- Arrive hospital
-- First jet out
-- BA entry
-- Damping down
-- Investigation / cause search
-- Hand over
-
-Scope:
-
-- Distinguish footage-derived timestamps from dispatch/system timestamps and officer-entered timestamps.
-- Allow milestones to be pending or unavailable when the source is not present.
-- Use these milestones in both the incident timeline and AAR briefing slides where relevant.
-- Avoid implying bodycam vision can detect dispatch-system events such as call received or dispatch unless supplied by external data.
-
-Acceptance criteria:
-
-- Each milestone can show a timestamp, source type, and status.
-- Missing milestones are clearly marked pending/unavailable.
-- Slide PDF can include a concise milestone timeline.
-- Fire and medical/responder-safety workflows can share the same milestone model.
-
 ## Non-technical
 
 ### Create final slides
@@ -172,12 +144,12 @@ Status: TODO
 
 Purpose: produce the main presentation deck for SCDF/Dell mentors and judges.
 
-Deliverable: a polished final slide deck covering problem, 1stSight workflow, evidence-first AI approach, architecture, two incident scenarios, impact, limitations, and next steps.
+Deliverable: a polished final slide deck covering problem, Punggol end-to-end workflow, evidence-first AI approach, architecture, impact, limitations, and next steps.
 
 Scope:
 
 - Lead with operational value rather than model/provider details.
-- Use the two-scenario story: Punggol live fire operations and Woodlands responder-safety AAR briefing slide preparation.
+- Use the single Punggol story across fire response, welfare/medical check, responder safety, and AAR briefing slides.
 - Include screenshots or clean visuals from the final app.
 - Keep AI claims grounded in what the app actually performs.
 
@@ -186,28 +158,28 @@ Acceptance criteria:
 - Deck supports a 10-minute presentation.
 - Slides align with the final app state and presenter flow.
 - Screenshots match the current UI.
-- AAR slide PDF boundaries are clear.
+- AAR briefing slide boundaries are clear.
 
-### Finalize script / presentation flow
+### Rehearse final presentation flow
 
 Status: TODO
 
-Purpose: make the live presentation reliable, timed, and easy to rehearse.
+Purpose: make the live presentation reliable, timed, and easy to run.
 
-Deliverable: a presenter script and run-of-show that maps each spoken section to a specific app screen or slide.
+Deliverable: a run-of-show that maps each spoken section to a specific slide, app screen, or demo action.
 
 Scope:
 
-- Use the 10-minute flow from project context as the starting point.
-- Specify what to say for caller context, live fire analysis, recommendation review, Woodlands review, AAR briefing slide export, and closing value.
+- Use the Punggol-only flow from map dispatch to live dashboard to review/AAR output.
+- Specify transitions between slides, app screens, evidence timeline, recommendation review, and AAR export.
 - Include fallback lines if AI analysis or hosted deployment fails during presentation.
 - Keep transitions short and operational.
 
 Acceptance criteria:
 
-- Script fits within 10 minutes with buffer.
+- Flow fits within 10 minutes with buffer.
 - Presenter knows exactly when to switch slides, app screens, and analysis actions.
-- No later Woodlands case facts are introduced as caller context.
+- Caller context, footage-derived evidence, and post-incident review points stay separate.
 - Human-in-the-loop and evidence-first boundaries are stated clearly.
 
 ### Create A1 poster
@@ -220,7 +192,7 @@ Deliverable: an A1 poster that explains 1stSight at a glance with a strong visua
 
 Scope:
 
-- Include problem, solution, workflow, architecture, scenario screenshots, and impact.
+- Include problem, solution, workflow, architecture, Punggol scenario screenshots, and impact.
 - Use the final visual language from the app and slides.
 - Make the poster readable at distance, with minimal dense text.
 - Emphasize evidence-linked live awareness and faster AAR briefing slide preparation.
@@ -232,43 +204,20 @@ Acceptance criteria:
 - Visuals match final product positioning.
 - Boundaries around official reports and human review are clear.
 
-### Film SCDF responder-safety video
-
-Status: TODO
-
-Purpose: create or finalize the responder-safety footage needed for the Woodlands post-incident review scenario.
-
-Deliverable: a usable bodycam-style video for the Woodlands medical assistance / responder-safety workflow.
-
-Scope:
-
-- Film a controlled, safe, staged responder-safety scene suitable for analysis.
-- Keep the scenario visually consistent with a public walkway near a residential estate.
-- Capture enough visible moments for unsafe proximity, obstruction, crew intervention, or physical-contact review if those moments are part of the staged scene.
-- Avoid including sensitive personal data, real patient details, or identifiable bystanders without consent.
-- Rename and store the final footage under the app media path when ready.
-
-Acceptance criteria:
-
-- Video is clear enough for frame extraction and evidence selection.
-- Footage supports the Woodlands AAR story without mixing with Punggol.
-- Final file plays in browser and can be processed by ffmpeg.
-- Public-facing references use responder-safety / medical assistance wording, not raw source-case wording.
-
 ### Optional: film and edit full product walkthrough
 
 Status: OPTIONAL TODO
 
 Purpose: create a backup or supplementary walkthrough if live presentation time, network, or deployment conditions are unreliable.
 
-Deliverable: an edited product walkthrough showing the final 1stSight flow from map to live analysis to post-incident AAR briefing slide export.
+Deliverable: an edited product walkthrough showing the final Punggol 1stSight flow from map to live analysis to post-incident AAR briefing slide export.
 
 Scope:
 
 - Record the final app in a clean browser window.
-- Show the Punggol firetruck movement, live fire dashboard, runtime analysis, recommendation review, Woodlands review, responder-safety search, and AAR briefing slide PDF export.
+- Show Punggol firetruck movement, live dashboard, runtime analysis, recommendation review, evidence timeline, and AAR briefing slide PDF export.
 - Add light editing only where it improves pacing or hides waiting time.
-- Keep the walkthrough aligned with the final script and slides.
+- Keep the walkthrough aligned with the final slides.
 
 Acceptance criteria:
 

@@ -23,6 +23,7 @@ import type { DecisionReview, DeploymentMarker, Incident, IncidentMilestone, Res
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
 import { mergeLiveAnalysis, type LiveAnalysis, type LiveEvent } from "@/lib/live-analysis-state";
 import type { StreamIncidentSession } from "@/lib/stream-store";
+import { liveRelayFrameIntervalMs } from "@/lib/stream-relay-config";
 import { cn } from "@/lib/utils";
 import { browserRtcConfiguration } from "@/lib/webrtc";
 
@@ -550,8 +551,6 @@ function isNewerRelayFrame(next: StreamLiveRelayFrame, previous?: StreamLiveRela
   if (!previous) return true;
   return Date.parse(next.capturedAt) > Date.parse(previous.capturedAt);
 }
-
-const liveRelayFrameIntervalMs = Math.round(1000 / 30);
 
 async function postOpsWebRtcCandidate(bodycamId: string, candidate: RTCIceCandidateInit) {
   await fetch("/api/stream/webrtc/candidates", {
@@ -1631,7 +1630,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
     runAnalysis();
   }, [canRunReviewAnalysis, runAnalysis]);
 
-  function exportReport() {
+  function exportReport(format: "pdf" | "pptx") {
     if (!canGenerateAarSlides || !analysis || activeEvidence.length === 0 || sessionStartMs === null) return;
 
     startExportTransition(async () => {
@@ -1662,7 +1661,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
           }))
           .filter((recommendation) => recommendation.evidenceFrameIds.length > 0),
       };
-      const response = await fetch("/api/report/export", {
+      const response = await fetch(format === "pptx" ? "/api/report/export?format=pptx" : "/api/report/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analysis: exportAnalysis }),
@@ -1670,7 +1669,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        setExportError(typeof payload.error === "string" ? payload.error : "AAR briefing PDF export failed.");
+        setExportError(typeof payload.error === "string" ? payload.error : `AAR briefing ${format.toUpperCase()} export failed.`);
         return;
       }
 
@@ -1678,7 +1677,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "1stsight-woodlands-aar-briefing-slides.pdf";
+      link.download = `1stsight-woodlands-aar-briefing-slides.${format}`;
       document.body.append(link);
       link.click();
       link.remove();
@@ -1705,9 +1704,13 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
               <Search data-icon="inline-start" />
               {isPending ? "Analyzing" : "Refresh analysis"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportSlides}>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => exportReport("pptx")} disabled={!canRunReviewAnalysis || !canExportSlides}>
               <Download data-icon="inline-start" />
-              {isExportPending ? "Exporting" : "Export AAR slides"}
+              {isExportPending ? "Exporting" : "Download PPTX"}
+            </Button>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => exportReport("pdf")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+              <Download data-icon="inline-start" />
+              {isExportPending ? "Exporting" : "Download PDF"}
             </Button>
           </div>
         </div>
@@ -1737,22 +1740,28 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
             }} />
           </Panel>
 
-        <Panel title="Generate AAR briefing PDF" label="Slides" tone="paper">
+        <Panel title="Generate AAR briefing slides" label="Slides" tone="paper">
           <div className="p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
               {!canGenerateAarSlides
-                ? "AAR slide PDF export is available for the Woodlands responder-safety review only."
+                ? "AAR slide export is available for the Woodlands responder-safety review only."
                 : canRunReviewAnalysis
                   ? analysis
-                    ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"} with timeline provenance.`
+                    ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"} with timeline provenance. PPTX is editable; PDF is available as a locked copy.`
                     : "Analysis starts automatically."
                   : "Export is disabled until footage is available."}
             </p>
             {analysis ? (
-              <Button size="sm" variant="outline" className="mt-4 rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportSlides}>
-                <Download data-icon="inline-start" />
-                {isExportPending ? "Exporting" : "Download slides"}
-              </Button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pptx")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+                  <Download data-icon="inline-start" />
+                  {isExportPending ? "Exporting" : "Download PPTX"}
+                </Button>
+                <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pdf")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+                  <Download data-icon="inline-start" />
+                  {isExportPending ? "Exporting" : "Download PDF"}
+                </Button>
+              </div>
             ) : null}
           </div>
         </Panel>

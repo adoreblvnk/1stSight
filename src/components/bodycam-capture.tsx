@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { liveRelayFrameIntervalMs, liveRelayFrameWidth, liveRelayJpegQuality } from "@/lib/stream-relay-config";
 import { browserRtcConfiguration, webRtcVideoMaxBitrateBitsPerSecond } from "@/lib/webrtc";
 
 type Coordinates = { lat: number; lng: number };
@@ -47,13 +48,45 @@ function getPosition() {
 }
 
 function recorderMimeType() {
-  const candidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+  const candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4;codecs=h264", "video/mp4"];
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
 
-const liveRelayFrameIntervalMs = Math.round(1000 / 30);
-const liveRelayFrameWidth = 360;
-const liveRelayJpegQuality = 0.28;
+function videoElementHasFrame(video: HTMLVideoElement | null) {
+  return Boolean(video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0);
+}
+
+function waitForVideoElementFrame(video: HTMLVideoElement, timeoutMs = 8000) {
+  if (videoElementHasFrame(video)) return Promise.resolve(true);
+
+  return new Promise<boolean>((resolve) => {
+    let done = false;
+    const finish = (ready: boolean) => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timeout);
+      video.removeEventListener("loadedmetadata", checkReady);
+      video.removeEventListener("loadeddata", checkReady);
+      video.removeEventListener("canplay", checkReady);
+      resolve(ready);
+    };
+    const checkReady = () => {
+      if (videoElementHasFrame(video)) finish(true);
+    };
+    const timeout = window.setTimeout(() => finish(videoElementHasFrame(video)), timeoutMs);
+
+    video.addEventListener("loadedmetadata", checkReady);
+    video.addEventListener("loadeddata", checkReady);
+    video.addEventListener("canplay", checkReady);
+    checkReady();
+  });
+}
+
+function chunkExtension(blob: Blob) {
+  if (blob.type.includes("mp4")) return "mp4";
+  if (blob.type.includes("webm")) return "webm";
+  return "webm";
+}
 
 async function postWebRtcCandidate(bodycamId: string, source: "bodycam" | "ops", candidate: RTCIceCandidateInit) {
   await fetch("/api/stream/webrtc/candidates", {
@@ -234,12 +267,6 @@ export function BodycamCapture() {
     }, 1000);
   }
 
-  function chunkExtension(blob: Blob) {
-    if (blob.type.includes("mp4")) return "mp4";
-    if (blob.type.includes("webm")) return "webm";
-    return "webm";
-  }
-
   async function uploadChunk(blob: Blob, chunkStartedAt: string) {
     const bodycamId = bodycamIdRef.current;
     if (!bodycamId || blob.size === 0) return;
@@ -269,7 +296,7 @@ export function BodycamCapture() {
       }
 
       setSession(result.session);
-      setUploadState(result.events?.length ? "Chunk analyzed with evidence" : "Chunk analyzed, no event detected");
+      setUploadState(typeof result.warning === "string" ? result.warning : result.events?.length ? "Chunk analyzed with evidence" : "Chunk analyzed, no event detected");
       setError(null);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Chunk upload failed.");
@@ -278,11 +305,19 @@ export function BodycamCapture() {
   }
 
   function startChunkRecorder(mediaStream: MediaStream) {
-    if (!recordingActiveRef.current || mediaStream.getVideoTracks().every((track) => track.readyState === "ended")) return;
+    const videoTracks = mediaStream.getVideoTracks().filter((track) => track.readyState === "live");
+    if (!recordingActiveRef.current || videoTracks.length === 0) return;
 
+    if (!videoElementHasFrame(videoRef.current)) {
+      setUploadState("Waiting for camera video frames");
+      window.setTimeout(() => startChunkRecorder(mediaStream), 500);
+      return;
+    }
+
+    const recordingStream = new MediaStream(videoTracks);
     const mimeType = recorderMimeType();
     // MediaRecorder API: https://developer.mozilla.org/docs/Web/API/MediaRecorder
-    const recorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
+    const recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
     const blobParts: Blob[] = [];
     const chunkStartedAt = new Date().toISOString();
     recorderRef.current = recorder;
@@ -294,7 +329,7 @@ export function BodycamCapture() {
       if (!recordingActiveRef.current) return;
 
       const chunk = new Blob(blobParts, { type: recorder.mimeType || mimeType || "video/webm" });
-      void uploadChunk(chunk, chunkStartedAt);
+      if (chunk.size > 0) void uploadChunk(chunk, chunkStartedAt);
       window.setTimeout(() => startChunkRecorder(mediaStream), 0);
     });
     recorder.addEventListener("error", () => {
@@ -332,8 +367,14 @@ export function BodycamCapture() {
 
         setLocationState(position ? "Exact geolocation attached" : "Location unavailable; server will use incident proximity fallback");
         streamRef.current = mediaStream;
-        if (videoRef.current) videoRef.current.srcObject = mediaStream;
-        setCameraState("Camera live");
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          setCameraState("Waiting for camera video frame");
+          const videoReady = await waitForVideoElementFrame(videoRef.current);
+          setCameraState(videoReady ? "Camera live" : "Camera live; video frame delayed");
+        } else {
+          setCameraState("Camera live");
+        }
 
         const response = await fetch("/api/stream/session", {
           method: "POST",

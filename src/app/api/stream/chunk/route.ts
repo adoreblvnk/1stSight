@@ -6,6 +6,7 @@ import { execa } from "execa";
 import { z } from "zod";
 import { generateStructuredStrict } from "@/lib/ai/model";
 import { streamChunkAnalysisSchema } from "@/lib/ai/schemas";
+import { hasVideoStream, noVideoStreamChunkMessage, parseFfprobeJson } from "@/lib/stream-chunk-probe";
 import { appendStreamEvents, getStreamSession, setStreamError, updateStreamBodycam, type StreamEvent } from "@/lib/stream-store";
 
 export const runtime = "nodejs";
@@ -112,6 +113,16 @@ export async function POST(request: Request) {
   try {
     await mkdir(cacheDir, { recursive: true });
     await writeFile(videoPath, Buffer.from(await chunk.arrayBuffer()));
+    // ffprobe CLI: https://ffmpeg.org/ffprobe.html
+    const probe = parseFfprobeJson((await execa("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", videoPath])).stdout);
+
+    if (!hasVideoStream(probe)) {
+      const result = updateStreamBodycam(bodycam.id, { lastChunkId: chunkId, lastError: noVideoStreamChunkMessage });
+      const nextSession = result?.session ?? session;
+      nextSession.lastError = undefined;
+      return NextResponse.json({ session: nextSession, chunkId, events: [], warning: noVideoStreamChunkMessage }, { status: 202 });
+    }
+
     // ffmpeg CLI: https://ffmpeg.org/ffmpeg.html
     await execa("ffmpeg", ["-y", "-v", "error", "-i", videoPath, "-vf", `fps=1/${frameIntervalSeconds},scale=768:-1`, framePattern]);
 
