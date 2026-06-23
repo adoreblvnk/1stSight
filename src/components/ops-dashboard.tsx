@@ -22,6 +22,8 @@ import { Timeline, TimelineContent, TimelineDate, TimelineHeader, TimelineIndica
 import type { DecisionReview, DeploymentMarker, Incident, IncidentMilestone, Responder, ScenarioState } from "@/lib/domain";
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
 import { mergeLiveAnalysis, type LiveAnalysis, type LiveEvent } from "@/lib/live-analysis-state";
+// opencode run "$(cat /tmp/1stsight-opencode-map-feature.md)"
+import { dispatchVehicleLabel, dispatchVehicleStatus, nearestFireStation } from "@/lib/fire-stations";
 import type { StreamIncidentSession } from "@/lib/stream-store";
 import { liveRelayFrameIntervalMs } from "@/lib/stream-relay-config";
 import { cn } from "@/lib/utils";
@@ -70,6 +72,15 @@ type StreamUiAnalysis = {
   generatedFrom: string;
   events: LiveEvent[];
   recommendations: LiveAnalysisOutput["recommendation"][];
+};
+
+// opencode run "$(cat /tmp/1stsight-opencode-map-feature.md)"
+type DispatchPreview = {
+  incidentId: string;
+  station: ReturnType<typeof nearestFireStation>;
+  vehicleMarker: DeploymentMarker;
+  progress: number;
+  status: "idle" | "moving" | "arrived";
 };
 
 const statusTone = {
@@ -136,6 +147,54 @@ function OperationalBadge({ children, tone }: { children: ReactNode; tone?: keyo
     <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", tone && statusTone[tone])}>
       {children}
     </Badge>
+  );
+}
+
+// opencode run "$(cat /tmp/1stsight-opencode-map-feature.md)"
+function interpolatePosition(origin: DeploymentMarker["position"], target: DeploymentMarker["position"], progress: number) {
+  return {
+    lat: origin.lat + (target.lat - origin.lat) * progress,
+    lng: origin.lng + (target.lng - origin.lng) * progress,
+  };
+}
+
+function incidentMarkerLabel(incident: Incident | null) {
+  if (!incident) return "Incident";
+  return incident.type === "medical" ? "Medical incident" : "Fire incident";
+}
+
+function markerCategory(marker: DeploymentMarker, state: ScenarioState) {
+  if (marker.kind === "unit") return marker.label.toLowerCase().includes("ambulance") ? "Ambulance" : "Firetruck";
+  if (marker.kind === "incident") return incidentMarkerLabel(marker.incidentId ? getIncident(state, marker.incidentId) : null);
+  if (marker.kind === "station") return "Fire station";
+  return marker.kind;
+}
+
+function MapMarkerGlyph({ marker, selected, state }: { marker: DeploymentMarker; selected: boolean; state: ScenarioState }) {
+  const linkedIncident = marker.incidentId ? getIncident(state, marker.incidentId) : null;
+  const isAmbulance = marker.kind === "unit" && marker.label.toLowerCase().includes("ambulance");
+  const markerPinClassName = cn(
+    "absolute left-1/2 top-1/2 size-8 -translate-x-1/2 -translate-y-2/3 rotate-45 rounded-[50%_50%_50%_8px] border bg-screen shadow-[0_0_0_2px_color-mix(in_oklch,var(--color-screen),transparent_45%)] transition-colors",
+    marker.kind === "station" && "border-info bg-info/15",
+    marker.kind === "incident" && linkedIncident?.type === "medical" && "border-success bg-success/20",
+    marker.kind === "incident" && linkedIncident?.type === "fire" && "border-warning bg-warning/20",
+    marker.kind === "unit" && isAmbulance && "border-success bg-success",
+    marker.kind === "unit" && !isAmbulance && "border-warning bg-warning",
+  );
+  const markerLabelClassName = cn(
+    "relative z-10 -mt-1 font-mono text-[10px] font-semibold uppercase leading-none",
+    marker.kind === "station" && "text-info",
+    marker.kind === "incident" && linkedIncident?.type === "medical" && "text-success",
+    marker.kind === "incident" && linkedIncident?.type === "fire" && "text-warning",
+    marker.kind === "unit" && "text-background",
+  );
+  const glyph = marker.kind === "station" ? "FS" : marker.kind === "incident" ? linkedIncident?.type === "medical" ? "MI" : "FI" : isAmbulance ? "AM" : "FT";
+
+  return (
+    <span className={cn("relative grid size-11 place-items-center", selected && "rounded-full outline outline-2 outline-accent outline-offset-1")} aria-hidden="true">
+      <span className={markerPinClassName} />
+      <span className={markerLabelClassName}>{glyph}</span>
+    </span>
   );
 }
 
@@ -436,9 +495,10 @@ function IncidentSidebar({ state, selectedIncidentId, onIncidentChange }: { stat
   );
 }
 
-function MarkerDetail({ marker, state, selectedIncidentId }: { marker: DeploymentMarker; state: ScenarioState; selectedIncidentId: string }) {
+function MarkerDetail({ marker, state, selectedIncidentId, dispatchPreview, onEnterDashboard }: { marker: DeploymentMarker; state: ScenarioState; selectedIncidentId: string; dispatchPreview: DispatchPreview | null; onEnterDashboard: (incidentId: string) => void }) {
   const linkedResponder = state.responders.find((responder) => responder.position.lat === marker.position.lat && responder.position.lng === marker.position.lng);
   const linkedIncident = marker.incidentId ? getIncident(state, marker.incidentId) : marker.kind === "incident" ? getIncident(state, selectedIncidentId) : null;
+  const canEnterLinkedIncident = linkedIncident ? dispatchPreview?.incidentId === linkedIncident.id && dispatchPreview.status === "arrived" : false;
 
   return (
     <motion.aside initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className={cn(paperScope, "absolute bottom-4 right-4 top-auto z-10 w-[min(420px,calc(100%-2rem))] border border-border bg-paper p-4 text-paper-foreground lg:bottom-6 lg:right-6")}>
@@ -467,8 +527,8 @@ function MarkerDetail({ marker, state, selectedIncidentId }: { marker: Deploymen
             <p className="mt-1 font-mono text-xs text-muted-foreground">{linkedIncident.location}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{linkedIncident.summary}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" className="rounded-sm" render={<Link href={incidentHref("/live", linkedIncident.id)} />} nativeButton={false}>Open live</Button>
-              <Button size="sm" variant="outline" className="rounded-sm" render={<Link href={incidentHref("/review", linkedIncident.id)} />} nativeButton={false}>Open review</Button>
+              <Button size="sm" className="rounded-sm" onClick={() => onEnterDashboard(linkedIncident.id)} disabled={!canEnterLinkedIncident}>{linkedIncident.status === "review" ? "Open review" : "Open live"}</Button>
+              <OperationalBadge tone={canEnterLinkedIncident ? "approved" : "pending-review"}>{canEnterLinkedIncident ? "arrived" : "dispatch preview required"}</OperationalBadge>
             </div>
           </div>
         ) : null}
@@ -477,11 +537,12 @@ function MarkerDetail({ marker, state, selectedIncidentId }: { marker: Deploymen
   );
 }
 
-function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMarker }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; onSelectMarker: (marker: DeploymentMarker) => void }) {
+function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPreview, onSelectMarker, onEnterDashboard }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; dispatchPreview: DispatchPreview | null; onSelectMarker: (marker: DeploymentMarker) => void; onEnterDashboard: (incidentId: string) => void }) {
   const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string; googleMapsMapId: string } | null>(null);
   const apiKey = mapsConfig?.googleMapsApiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "1STSIGHT_MAP_ID";
   const center = state.deploymentMarkers.find((marker) => marker.incidentId === selectedIncidentId)?.position ?? state.deploymentMarkers[0].position;
+  const visibleMarkers = dispatchPreview ? [...state.deploymentMarkers, dispatchPreview.vehicleMarker] : state.deploymentMarkers;
 
   useEffect(() => {
     let mounted = true;
@@ -507,18 +568,37 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMark
       <div className="relative h-full min-h-0 overflow-hidden bg-screen p-4 text-screen-foreground">
         <div className="absolute inset-0 deployment-grid opacity-30" />
         <div className="relative flex h-full min-h-0 flex-col justify-between overflow-auto border border-screen-border bg-screen/90 p-4">
-          <div className="font-mono text-xs uppercase tracking-widest text-screen-foreground/60">Map fallback, select a marker for details</div>
+          <div className="font-mono text-xs uppercase tracking-widest text-screen-foreground/60">Map fallback, select an incident marker to preview dispatch</div>
+          {dispatchPreview ? (
+            <div className="border border-accent bg-accent/10 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">Dispatch movement</p>
+                  <p className="text-sm font-medium">{dispatchPreview.station.name} to {getIncident(state, dispatchPreview.incidentId).location}</p>
+                </div>
+                <OperationalBadge tone={dispatchPreview.status === "arrived" ? "approved" : "pending-review"}>{Math.round(dispatchPreview.progress * 100)}%</OperationalBadge>
+              </div>
+              <div className="mt-3 h-2 border border-screen-border bg-black/35">
+                <div className="h-full bg-accent" style={{ width: `${Math.round(dispatchPreview.progress * 100)}%` }} />
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
-            {state.deploymentMarkers.map((marker) => (
+            {visibleMarkers.map((marker) => (
               <button key={marker.id} type="button" onClick={() => onSelectMarker(marker)} className={cn("border border-screen-border bg-black/35 p-3 text-left transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50", marker.incidentId === selectedIncidentId && "border-accent")}>
-                <p className="font-mono text-xs text-screen-foreground/55">{marker.kind}</p>
-                <p className="text-sm font-medium">{marker.label}</p>
-                <p className="font-mono text-xs text-screen-foreground/55">{marker.position.lat.toFixed(4)}, {marker.position.lng.toFixed(4)}</p>
-                <OperationalBadge>{marker.status}</OperationalBadge>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-xs text-screen-foreground/55">{markerCategory(marker, state)}</p>
+                    <p className="text-sm font-medium">{marker.label}</p>
+                  </div>
+                  <MapMarkerGlyph marker={marker} selected={selectedMarker?.id === marker.id} state={state} />
+                </div>
+                <p className="mt-2 font-mono text-xs text-screen-foreground/55">{marker.position.lat.toFixed(4)}, {marker.position.lng.toFixed(4)}</p>
+                <div className="mt-2"><OperationalBadge>{marker.status}</OperationalBadge></div>
               </button>
             ))}
           </div>
-          <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} selectedIncidentId={selectedIncidentId} /> : null}</AnimatePresence>
+          <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} selectedIncidentId={selectedIncidentId} dispatchPreview={dispatchPreview} onEnterDashboard={onEnterDashboard} /> : null}</AnimatePresence>
         </div>
       </div>
     );
@@ -528,12 +608,14 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMark
     <div className="relative min-h-0 flex-1 border-b border-border">
       <APIProvider apiKey={apiKey}>
         <Map className="h-full min-h-0" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK" mapId={mapId}>
-          {state.deploymentMarkers.map((marker) => (
-            <AdvancedMarker key={marker.id} position={marker.position} title={`${marker.label}: ${marker.status}`} onClick={() => onSelectMarker(marker)} />
+          {visibleMarkers.map((marker) => (
+            <AdvancedMarker key={marker.id} position={marker.position} title={`${markerCategory(marker, state)}: ${marker.label}, ${marker.status}`} onClick={() => onSelectMarker(marker)}>
+              <MapMarkerGlyph marker={marker} selected={selectedMarker?.id === marker.id} state={state} />
+            </AdvancedMarker>
           ))}
         </Map>
       </APIProvider>
-      <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} selectedIncidentId={selectedIncidentId} /> : null}</AnimatePresence>
+      <AnimatePresence>{selectedMarker ? <MarkerDetail marker={selectedMarker} state={state} selectedIncidentId={selectedIncidentId} dispatchPreview={dispatchPreview} onEnterDashboard={onEnterDashboard} /> : null}</AnimatePresence>
     </div>
   );
 }
@@ -1262,14 +1344,72 @@ export function MapDashboard({ initialState, initialIncidentId }: { initialState
   const pathname = usePathname();
   const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const [selectedMarker, setSelectedMarker] = useState<DeploymentMarker | null>(null);
+  const [dispatchPreview, setDispatchPreview] = useState<DispatchPreview | null>(null);
   const selectedIncident = getIncident(state, selectedIncidentId);
   const dashboardTarget = selectedIncident.status === "review" ? "/review" : "/live";
-  const dashboardLabel = selectedIncident.status === "review" ? "Enter review dashboard" : "Enter live dashboard";
+  const canEnterDashboard = dispatchPreview?.incidentId === selectedIncidentId && dispatchPreview.status === "arrived";
+  const dashboardLabel = canEnterDashboard ? selectedIncident.status === "review" ? "Enter review dashboard" : "Enter live dashboard" : dispatchPreview?.incidentId === selectedIncidentId && dispatchPreview.status === "moving" ? "Dispatch movement in progress" : "Select incident marker";
+  const latestDispatchRef = useRef(0);
+  function routeToDashboard() {
+    if (!canEnterDashboard) return;
+    router.push(incidentHref(dashboardTarget, selectedIncidentId));
+  }
+
+  function enterIncidentDashboard(incidentId: string) {
+    const incident = getIncident(state, incidentId);
+    if (dispatchPreview?.incidentId !== incident.id || dispatchPreview.status !== "arrived") return;
+
+    router.push(incidentHref(incident.status === "review" ? "/review" : "/live", incident.id));
+  }
+
+  function startDispatchPreview(incidentId: string) {
+    const incident = getIncident(state, incidentId);
+    const station = nearestFireStation(incident.position);
+    const dispatchId = latestDispatchRef.current + 1;
+    latestDispatchRef.current = dispatchId;
+    const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const durationMs = prefersReducedMotion ? 250 : 2600;
+    const startedAt = performance.now();
+
+    function setProgress(progress: number) {
+      const status = progress >= 1 ? "arrived" : progress > 0 ? "moving" : "idle";
+      const position = interpolatePosition(station.position, incident.position, progress);
+      setDispatchPreview({
+        incidentId,
+        station,
+        progress,
+        status,
+        vehicleMarker: {
+          id: `dispatch-${incident.id}`,
+          incidentId: incident.id,
+          label: dispatchVehicleLabel(incident),
+          kind: "unit",
+          position,
+          status: dispatchVehicleStatus(incident, progress),
+        },
+      });
+    }
+
+    setProgress(0);
+
+    function frame(now: number) {
+      if (latestDispatchRef.current !== dispatchId) return;
+
+      const rawProgress = Math.min(1, (now - startedAt) / durationMs);
+      const easedProgress = 1 - Math.pow(1 - rawProgress, 3);
+      setProgress(easedProgress);
+
+      if (rawProgress < 1) window.requestAnimationFrame(frame);
+    }
+
+    window.requestAnimationFrame(frame);
+  }
 
   function selectIncident(incidentId: string) {
     setSelectedIncidentId(incidentId);
     setSelectedMarker(state.deploymentMarkers.find((marker) => marker.incidentId === incidentId) ?? null);
     router.replace(incidentHref(pathname, incidentId), { scroll: false });
+    startDispatchPreview(incidentId);
   }
 
   return (
@@ -1282,14 +1422,20 @@ export function MapDashboard({ initialState, initialIncidentId }: { initialState
             <h2 className="text-sm font-semibold">{selectedIncident.title}</h2>
             <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
           </div>
-          <Button size="lg" className="relative rounded-sm" render={<Link href={incidentHref(dashboardTarget, selectedIncidentId)} />} nativeButton={false}>
+          <Button
+            size="lg"
+            className={cn("relative rounded-sm", !canEnterDashboard && "pointer-events-none !border-disabled-border !bg-disabled !text-disabled-foreground opacity-50")}
+            onClick={routeToDashboard}
+            aria-disabled={!canEnterDashboard}
+            data-disabled={!canEnterDashboard ? "" : undefined}
+          >
             <MapPinned data-icon="inline-start" />
             {dashboardLabel}
           </Button>
         </div>
-        <DeploymentMap state={state} selectedIncidentId={selectedIncidentId} selectedMarker={selectedMarker} onSelectMarker={(marker) => {
+        <DeploymentMap state={state} selectedIncidentId={selectedIncidentId} selectedMarker={selectedMarker} dispatchPreview={dispatchPreview} onEnterDashboard={enterIncidentDashboard} onSelectMarker={(marker) => {
           setSelectedMarker(marker);
-          if (marker.incidentId) selectIncident(marker.incidentId);
+          if (marker.kind === "incident" && marker.incidentId) selectIncident(marker.incidentId);
         }} />
       </section>
     </AppShell>

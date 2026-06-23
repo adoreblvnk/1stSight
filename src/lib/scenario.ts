@@ -1,4 +1,6 @@
 import type { IncidentMilestone, ScenarioState } from "@/lib/domain";
+// opencode run "$(cat /tmp/1stsight-opencode-map-feature.md)"
+import { fireStationDeploymentMarkers } from "@/lib/fire-stations";
 
 export const DEFAULT_INCIDENT_ID = "punggol-residential-fire";
 export const WOODLANDS_AAR_INCIDENT_ID = "woodlands-medical-responder-safety";
@@ -41,7 +43,7 @@ function unavailableMilestone(id: IncidentMilestone["id"], notes: string): Incid
 
 const punggolFireMilestones: IncidentMilestone[] = [
   milestone("call-received", { timestamp: "13:56:10", displayTime: "13:56", sourceType: "dispatch-system", sourceLabel: "Caller intake log", status: "confirmed", notes: "Caller reports small unit fire; no injuries reported." }),
-  milestone("dispatch", { timestamp: "13:57:24", displayTime: "13:57", sourceType: "dispatch-system", sourceLabel: "Dispatch console", status: "confirmed", notes: "Basic Task Force assigned in live Ops Centre flow." }),
+  milestone("dispatch", { timestamp: "13:57:24", displayTime: "13:57", sourceType: "dispatch-system", sourceLabel: "Dispatch console", status: "confirmed", notes: "SCDF response unit assigned in live Ops Centre flow." }),
   milestone("acknowledge", { timestamp: "13:58:02", displayTime: "13:58", sourceType: "dispatch-system", sourceLabel: "Unit status log", status: "confirmed" }),
   milestone("move-out", { timestamp: "13:59:16", displayTime: "13:59", sourceType: "dispatch-system", sourceLabel: "Unit status log", status: "confirmed" }),
   milestone("arrive-at-scene", { timestamp: "14:01:48", displayTime: "14:01", sourceType: "dispatch-system", sourceLabel: "Unit status log", status: "confirmed" }),
@@ -251,8 +253,7 @@ export const scenarioState: ScenarioState = {
   recommendations: [],
   decisions: [],
   deploymentMarkers: [
-    { id: "station", label: "Punggol Fire Station", kind: "station", position: { lat: 1.4023, lng: 103.8972 }, status: "origin" },
-    { id: "btf", label: "Basic Task Force", kind: "unit", position: { lat: 1.4103, lng: 103.9051 }, status: "approaching" },
+    ...fireStationDeploymentMarkers,
     { id: "punggol-residential", incidentId: DEFAULT_INCIDENT_ID, label: "Punggol residential", kind: "incident", position: { lat: 1.415, lng: 103.9105 }, status: "live incident" },
     { id: "jurong-yard", incidentId: "jurong-chemical-leak", label: "Jurong logistics yard", kind: "incident", position: { lat: 1.3099, lng: 103.7239 }, status: "awaiting footage" },
     { id: "tampines-concourse", incidentId: "tampines-mall-medical-assist", label: "Tampines retail concourse", kind: "incident", position: { lat: 1.3535, lng: 103.9451 }, status: "review pending" },

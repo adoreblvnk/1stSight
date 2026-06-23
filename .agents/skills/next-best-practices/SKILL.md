@@ -125,6 +125,11 @@ See [hydration-error.md](./hydration-error.md) for:
 - Debugging with error overlay
 - Fixes for each cause
 
+See [hydration-attribute-drift.md](./references/hydration-attribute-drift.md) for:
+- Native attribute mismatches in wrapped component primitives, such as `disabled={true}` vs `disabled={null}`
+- SSR-stable gated CTA patterns with `aria-disabled`, `data-disabled`, guarded handlers, and disabled styling
+- Cleaning stale `.next/dev/types/*` before treating generated type errors as source failures
+
 ## Suspense Boundaries
 
 See [suspense-boundaries.md](./suspense-boundaries.md) for:

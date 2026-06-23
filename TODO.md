@@ -2,93 +2,140 @@
 
 ## Technical
 
-### Add visual presentation of firetruck map marker movement
-
-Status: TODO
-
-Purpose: make the response journey visible before the live incident dashboard opens.
-
-Deliverable: the map shows the Basic Task Force / firetruck marker moving from Punggol Fire Station toward the Punggol residential fire location, with a clear handoff into the live incident dashboard.
-
-Scope:
-
-- Show motion on the existing map page rather than creating a separate page.
-- Keep the movement presenter-controllable or deterministic for a reliable demo.
-- Preserve the current Singapore map, Punggol Fire Station marker, Punggol incident marker, and incident selector.
-- Add only enough animation/state to communicate dispatch-to-arrival progression.
-
-Acceptance criteria:
-
-- The marker visibly moves along a route or staged path toward the incident.
-- The arrival state enables or highlights entry into the live dashboard.
-- The flow works without requiring external route APIs beyond the existing map setup.
-- The presentation can be reset or replayed without refreshing the whole app if practical.
-
 ### Consolidate the demo into one Punggol scenario
 
 Status: TODO
 
-Purpose: reduce narrative/context drift by using Punggol as the single scenario across live operations, medical/welfare check, responder safety, recommendations, and AAR briefing slides.
+Purpose: reduce narrative/context drift by using Punggol as the single stage scenario across live operations, post-fire welfare check, responder safety, recommendations, and AAR briefing slides while keeping Woodlands as a booth/secondary demo only.
 
-Deliverable: the app and presentation use one Punggol incident flow: residential fire response, post-fire welfare/medical check, drunk aggressive bystander assault, evidence-linked timeline, officer-reviewed recommendation, and AAR briefing slide output.
+Deliverable: the app and presentation use one continuous Punggol incident flow: residential fire response, post-fire welfare check, physical-contact responder-safety event, evidence-linked timeline, officer-reviewed guidance, and AAR briefing slide output from the full incident timeline.
 
 Scope:
 
-- Update scenario data so Punggol covers both fire response and the post-fire medical/welfare responder-safety event.
-- Remove stale main-demo references that present a second separate scenario as the primary AAR story.
+- Update scenario data so Punggol covers fire response and the post-fire welfare / responder-safety event.
+- Keep Woodlands medical assistance available as a booth or secondary demo, but remove stale references that present it as the primary on-stage AAR story.
 - Keep the initial Punggol caller/fire context separate from footage-derived responder-safety evidence.
+- Assign Wei Jie to Bodycam A and Hafiz to Bodycam B; keep Bodycam C for the fire-response phase only.
+- Show Bodycam C as intentionally absent / not attached during the post-fire welfare phase, not as a broken feed.
+- Generate AAR briefing slides from the full Punggol timeline first, then allow the officer to choose what is presented.
 - Ensure every claimed event has a source feed, timestamp, selected frame, or officer-provided provenance.
 
 Acceptance criteria:
 
-- Main presenter flow can run end-to-end from Punggol map dispatch to live dashboard to review/AAR output.
+- Main presenter flow can run end-to-end from Punggol map dispatch to live dashboard to post-fire review/AAR output.
 - Punggol timeline includes fire events and the post-fire responder-safety event without mixing unsupported facts into caller context.
 - Recommendations are worded for officer / Ground Commander consideration, not automatic command.
-- Search, export, and dashboard copy all align to the single Punggol story.
+- Search, export, and dashboard copy all align to the single Punggol stage story.
+- Woodlands is discoverable for booth use but does not interrupt the main stage flow.
 
-### Add Punggol drunk bystander assault evidence
+### Add Punggol post-fire responder-safety evidence
 
 Status: TODO
 
 Purpose: make the post-fire responder-safety moment concrete and evidence-backed.
 
-Deliverable: Punggol includes the recorded drunk aggressive bystander sequence after the fire sweep, with verbal aggression, physical shove/assault, responder restraint, and police-support recommendation captured as timestamped evidence.
+Deliverable: Punggol includes the recorded drunk aggressive bystander sequence after the fire sweep, with welfare check, verbal aggression, physical contact / shove, responder restraint, and on-site police-support guidance captured as timestamped evidence.
 
 Scope:
 
 - Add the post-fire sweep, welfare check, verbal aggression, physical shove, and de-escalation events to the Punggol timeline.
 - Tag the event as responder safety / medical-welfare follow-up evidence, not as initial caller context.
-- Add source references for both POV/bodycam clips and important timestamps.
-- Surface the police-support recommendation as reviewable guidance for the officer/GC.
+- Add source references for both Wei Jie and Hafiz POV/bodycam clips and important timestamps.
+- Use Wei Jie's POV as the clearest 00:37 visible shove/contact evidence and Hafiz's POV as the supporting impact/recovery perspective.
+- Surface on-site police-support notification / confirmation as reviewable guidance for the officer/GC, not autonomous external dispatch.
 
 Acceptance criteria:
 
-- Evidence cards identify the bystander-assault moments with source, timestamp, and short description.
-- The live/review UI can show the event without claiming AI independently commanded police deployment.
+- Evidence cards identify the physical-contact / responder-safety moments with source, timestamp, and short description.
+- The live/review UI can show the event without claiming AI independently concluded a legal assault or commanded police deployment.
 - AAR briefing slides can cite the event from the Punggol evidence timeline.
 
-### Compile and upload Punggol demo footage
+### Sequence Punggol feeds across fire and post-fire phases
 
 Status: TODO
 
-Purpose: make the final single-scenario demo runnable from real uploaded media instead of loose chat/video references.
+Purpose: make the Punggol footage feel like one continuous incident rather than separate video demos.
 
-Deliverable: final Punggol bodycam/POV clips are stored in the app media path and referenced by scenario data.
+Deliverable: the live dashboard plays the fire-response bodycam feeds first, then continues Wei Jie / Hafiz into the post-fire welfare-check POV clips while Bodycam C becomes intentionally unavailable for that phase.
 
 Scope:
 
-- Compile the fire-response POV/bodycam clips and drunk-bystander POV/bodycam clips.
-- Upload final assets under the app video folder.
-- Name files by incident, source/bodycam, and sequence/timestamp.
-- Update scenario references to point at the final files.
-- Verify the clips play in-browser and can be processed for frame extraction.
+- Map Bodycam A to Wei Jie and Bodycam B to Hafiz across both phases.
+- Keep Bodycam C visible during fire response and absent during the welfare sweep with explicit copy such as `Bodycam C not attached to post-fire sweep`.
+- Append or phase-switch Wei Jie POV and Hafiz POV immediately after the existing A/B fire clips.
+- Keep evidence timestamps clear so 00:37 in the post-fire POV clips is not confused with the earlier fire-response timeline.
+- Avoid visible presenter controls such as `Advance feeds` on the stage-facing dashboard.
 
 Acceptance criteria:
 
-- All referenced Punggol video files exist under `public/videos/...`.
-- Browser playback works from the app.
-- Frame/timestamp references in evidence cards match the final clips.
-- Missing footage produces a clear unavailable state rather than fabricated analysis.
+- Presenter can move from fire response into welfare check without switching incidents.
+- A and B retain stable identities across both phases.
+- C absence is explained as available-footage coverage, not a failed stream.
+- The post-fire physical-contact event creates timeline evidence from both POVs.
+
+### Implement full-incident AAR selection workflow
+
+Status: TODO
+
+Purpose: reflect mentor guidance that AAR should encompass the whole case first, then let the officer choose what is presented.
+
+Deliverable: AAR briefing slide generation starts from the full Punggol incident timeline, including fire response, welfare check, responder-safety event, recommendations, and officer decisions, with selectable evidence/milestones for the final slide deck.
+
+Scope:
+
+- Generate or assemble AAR material from the full selected incident timeline, not only the active search/filter results.
+- Keep search useful for finding abuse/responder-safety evidence without narrowing the exported incident scope by default.
+- Add officer selection controls or review state for which evidence/milestones appear in the final AAR briefing slides.
+- Make unavailable formal data fields explicit instead of fabricating fire, medical, police, or casualty details.
+- Ensure AAR copy says briefing slides / officer-reviewed output, not official report.
+
+Acceptance criteria:
+
+- Searching `physical contact` or `police support` still preserves fire-response and welfare-check context for AAR generation.
+- Officer can include or exclude selected evidence/milestones before export.
+- Exported slides show the full Punggol sequence unless the officer intentionally narrows the presentation.
+- Slides keep caller context, footage-derived evidence, and officer decisions separate.
+
+### Wire Punggol post-fire POV footage
+
+Status: TODO
+
+Purpose: use the uploaded Wei Jie and Hafiz POV clips in the Punggol stage flow.
+
+Deliverable: the Punggol dashboard/review flow plays the post-fire POV clips after the fire-response feeds and can extract evidence around `00:37`.
+
+Scope:
+
+- Reference `/videos/fire/punggol-post-fire-wei-jie-pov.mp4` and `/videos/fire/punggol-post-fire-hafiz-pov.mp4` from the Punggol scenario/dashboard data.
+- Sequence the clips after Wei Jie / Hafiz fire-response feeds while marking Bodycam C as not attached to the welfare sweep.
+- Verify browser playback and frame extraction around `00:37`.
+
+Acceptance criteria:
+
+- App uses both post-fire clips in the Punggol flow.
+- Evidence cards cite both POVs with correct timestamps.
+- Missing clips show a clear unavailable state.
+
+### Harden stage-facing live dashboard controls
+
+Status: TODO
+
+Purpose: avoid making the live dashboard look like staged playback or pre-analyzed footage during judging.
+
+Deliverable: the stage-facing dashboard hides or renames controls that imply recorded playback control, while preserving reliable presenter control behind a debug or operator-only mode if needed.
+
+Scope:
+
+- Remove visible `Pause`, `Resume`, and `Advance feeds` controls from the judge-facing live dashboard.
+- Move presenter-only controls behind a query flag, debug panel, keyboard shortcut, or non-stage route if still needed.
+- Replace playback-like labels with operational status labels such as `Analyzing current feed window`, `Evidence window`, or `Current source frame`.
+- Remove UI/API-visible wording such as deterministic demo analysis, presentation cue, seeded analysis, or analysis fallback from stage outputs.
+
+Acceptance criteria:
+
+- Judges see live-analysis language, source feed IDs, timestamps, and evidence windows rather than playback controls.
+- Presenter can still run a reliable demo without exposing stage mechanics.
+- Failure states say analysis unavailable instead of substituting hidden fabricated evidence.
 
 ### Correct AI pipeline and pitch wording
 
@@ -149,16 +196,17 @@ Deliverable: a polished final slide deck covering problem, Punggol end-to-end wo
 Scope:
 
 - Lead with operational value rather than model/provider details.
-- Use the single Punggol story across fire response, welfare/medical check, responder safety, and AAR briefing slides.
+- Use the single Punggol story across fire response, post-fire welfare check, responder safety, and AAR briefing slides.
+- Mention Woodlands only as a booth/secondary demo if needed, not as the main stage AAR story.
 - Include screenshots or clean visuals from the final app.
 - Keep AI claims grounded in what the app actually performs.
 
 Acceptance criteria:
 
-- Deck supports a 10-minute presentation.
+- Deck supports the stage presentation with time for Q&A.
 - Slides align with the final app state and presenter flow.
 - Screenshots match the current UI.
-- AAR briefing slide boundaries are clear.
+- AAR briefing slide boundaries are clear: full-incident timeline first, officer chooses what appears, not an official report.
 
 ### Rehearse final presentation flow
 
@@ -170,14 +218,15 @@ Deliverable: a run-of-show that maps each spoken section to a specific slide, ap
 
 Scope:
 
-- Use the Punggol-only flow from map dispatch to live dashboard to review/AAR output.
+- Use the Punggol-only stage flow from map dispatch to fire-response live dashboard to post-fire welfare/responder-safety review to AAR output.
 - Specify transitions between slides, app screens, evidence timeline, recommendation review, and AAR export.
 - Include fallback lines if AI analysis or hosted deployment fails during presentation.
 - Keep transitions short and operational.
+- Keep Woodlands and Ubi as booth follow-up demos, not stage transitions.
 
 Acceptance criteria:
 
-- Flow fits within 10 minutes with buffer.
+- Flow fits within the stage presentation slot with buffer.
 - Presenter knows exactly when to switch slides, app screens, and analysis actions.
 - Caller context, footage-derived evidence, and post-incident review points stay separate.
 - Human-in-the-loop and evidence-first boundaries are stated clearly.
@@ -195,7 +244,7 @@ Scope:
 - Include problem, solution, workflow, architecture, Punggol scenario screenshots, and impact.
 - Use the final visual language from the app and slides.
 - Make the poster readable at distance, with minimal dense text.
-- Emphasize evidence-linked live awareness and faster AAR briefing slide preparation.
+- Emphasize evidence-linked live awareness, responder-safety evidence, and faster full-incident AAR briefing slide preparation.
 
 Acceptance criteria:
 
@@ -210,12 +259,12 @@ Status: OPTIONAL TODO
 
 Purpose: create a backup or supplementary walkthrough if live presentation time, network, or deployment conditions are unreliable.
 
-Deliverable: an edited product walkthrough showing the final Punggol 1stSight flow from map to live analysis to post-incident AAR briefing slide export.
+Deliverable: an edited product walkthrough showing the final Punggol 1stSight flow from map to live fire analysis to post-fire responder-safety review to AAR briefing slide export.
 
 Scope:
 
 - Record the final app in a clean browser window.
-- Show Punggol firetruck movement, live dashboard, runtime analysis, recommendation review, evidence timeline, and AAR briefing slide PDF export.
+- Show Punggol firetruck movement, live dashboard, runtime fire analysis, post-fire welfare check, 00:37 responder-safety evidence, recommendation review, full incident evidence timeline, and AAR briefing slide PDF export.
 - Add light editing only where it improves pacing or hides waiting time.
 - Keep the walkthrough aligned with the final slides.
 
