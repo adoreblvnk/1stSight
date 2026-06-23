@@ -30,7 +30,7 @@ Acceptance criteria:
 
 ### Add Punggol post-fire responder-safety evidence
 
-Status: TODO
+Status: DONE
 
 Purpose: make the post-fire responder-safety moment concrete and evidence-backed.
 
@@ -52,7 +52,7 @@ Acceptance criteria:
 
 ### Sequence Punggol feeds across fire and post-fire phases
 
-Status: TODO
+Status: DONE
 
 Purpose: make the Punggol footage feel like one continuous incident rather than separate video demos.
 
@@ -75,7 +75,7 @@ Acceptance criteria:
 
 ### Implement full-incident AAR selection workflow
 
-Status: TODO
+Status: DONE
 
 Purpose: reflect mentor guidance that AAR should encompass the whole case first, then let the officer choose what is presented.
 
@@ -98,7 +98,7 @@ Acceptance criteria:
 
 ### Wire Punggol post-fire POV footage
 
-Status: TODO
+Status: DONE
 
 Purpose: use the uploaded Wei Jie and Hafiz POV clips in the Punggol stage flow.
 
@@ -118,7 +118,7 @@ Acceptance criteria:
 
 ### Harden stage-facing live dashboard controls
 
-Status: TODO
+Status: DONE
 
 Purpose: avoid making the live dashboard look like staged playback or pre-analyzed footage during judging.
 
