@@ -24,6 +24,7 @@ const bodySchema = z.object({
       currentTime: z.number(),
     }),
   ).min(1),
+  operatorEvidenceSupport: z.boolean().optional(),
 });
 
 function formatTimestamp(seconds: number) {
@@ -284,9 +285,10 @@ export async function POST(request: Request) {
 
     const supportedEvents = analysis.events.filter((event) => isSupportedLiveEvent(event.title, event.evidence));
     const visibleThroughSecondsByResponder = Object.fromEntries(feeds.map((feed) => [feed.responder.id, Math.max(0, feed.currentTime)]));
-    const seededFrames = isDemoFireIncident(incident)
+    const operatorEvidenceSupport = body.operatorEvidenceSupport === true;
+    const seededFrames = operatorEvidenceSupport && isDemoFireIncident(incident)
       ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsByResponder)
-      : isDemoWoodlandsIncident(incident)
+      : operatorEvidenceSupport && isDemoWoodlandsIncident(incident)
       ? await buildWoodlandsDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsByResponder)
       : [];
     const seededEvents = seededFrames
@@ -312,7 +314,7 @@ export async function POST(request: Request) {
       ? supportsMedicalOpsRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence)
       : modelRecommendationAllowed;
     const modelEnhancedTaskForce = supportsEnhancedTaskForce(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
-    const shouldUseSeededRecommendation = isDemoFireIncident(incident) && seededFrames.length > 0 && !modelEnhancedTaskForce;
+    const shouldUseSeededRecommendation = operatorEvidenceSupport && isDemoFireIncident(incident) && seededFrames.length > 0 && !modelEnhancedTaskForce;
     const shouldRecommend = !shouldUseSeededRecommendation && analysis.recommendation.shouldRecommend && supportedEvents.length > 0 && (conservativeRecommendationAllowed || (incident.type !== "medical" && fallbackRecommendationTitle.length > 0));
     const fallbackIsEnhancedTaskForce = /enhanced task force/i.test(fallbackRecommendationTitle);
     const recommendationTitle = shouldRecommend && fallbackIsEnhancedTaskForce

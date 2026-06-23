@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MutableRefObject, type ReactNode } from "react";
 // Next.js Link API: https://nextjs.org/docs/app/api-reference/components/link
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 // Google Maps React API: https://visgl.github.io/react-google-maps/docs/get-started
 import { AdvancedMarker, APIProvider, Map } from "@vis.gl/react-google-maps";
 // Motion React: https://motion.dev/docs/react
@@ -827,6 +827,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   const relayCapturedAtMs = liveRelayFrame ? Date.parse(liveRelayFrame.capturedAt) : Number.NaN;
   const relayFpsLabel = relayFps === null ? "measuring fps" : `${relayFps} fps actual`;
   const relayLabel = Number.isFinite(relayCapturedAtMs) ? `Live feed relay ${new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(relayCapturedAtMs))} · ${relayFpsLabel}` : `Live feed relay · ${relayFpsLabel}`;
+  const sourceFrameLabel = `Current source frame · ${bodycam?.displayName ?? `Bodycam ${slot}`}`;
 
   return (
     <div className="min-h-52 bg-screen text-screen-foreground">
@@ -836,7 +837,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
           <p className="text-sm font-medium">{bodycam?.displayName ?? "Awaiting responder"}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{hasWebRtcVideo ? "webrtc live" : liveRelayFrame ? "feed relay" : analyzedEvidenceFrame ? "analysis fallback" : bodycam?.locationStatus ?? "open"}</span>
+          <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{hasWebRtcVideo ? "live source feed" : liveRelayFrame ? "source feed relay" : analyzedEvidenceFrame ? "current source frame" : bodycam?.locationStatus ?? "open"}</span>
           <span className={cn("size-2 border", bodycam ? "live-dot border-success bg-success" : "border-screen-foreground/40")} />
         </div>
       </div>
@@ -851,7 +852,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
             </div>
           ) : null}
           {!hasWebRtcVideo && liveRelayFrame ? <div className="absolute bottom-2 left-2 border border-screen-border bg-black/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/75">{relayLabel}</div> : null}
-          {!hasWebRtcVideo && !liveRelayFrame && analyzedEvidenceFrame ? <div className="absolute bottom-2 left-2 border border-warning/70 bg-black/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-warning">Latest analysis fallback</div> : null}
+          {!hasWebRtcVideo && !liveRelayFrame && analyzedEvidenceFrame ? <div className="absolute bottom-2 left-2 border border-warning/70 bg-black/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-warning">{sourceFrameLabel}</div> : null}
         </div>
       ) : (
         <div className="grid aspect-video place-items-center bg-black/60 p-4 text-center font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
@@ -859,7 +860,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
         </div>
       )}
       <div className="border-t border-screen-border px-3 py-2 text-xs text-screen-foreground/65">
-        {hasWebRtcVideo ? `Low-latency video ${connectionState}` : liveRelayFrame ? relayLabel : analyzedEvidenceFrame ? `Showing latest analyzed chunk frame from ${bodycam.lastChunkId?.slice(0, 18) ?? "latest chunk"}` : connectionState === "waiting" ? "Waiting for feed to connect" : `Low-latency video ${connectionState}; waiting for feed relay`}
+        {hasWebRtcVideo ? `Current source feed ${connectionState}` : liveRelayFrame ? relayLabel : analyzedEvidenceFrame ? "Evidence window using the latest source frame" : connectionState === "waiting" ? "Waiting for feed to connect" : `Current source feed ${connectionState}; waiting for feed relay`}
       </div>
     </div>
   );
@@ -1504,6 +1505,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const [state] = useState(initialState);
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [selectedIncidentId, setSelectedIncidentId] = useState(initialIncidentId);
   const sessionStartMs = useMountedSessionStart();
   const [mode, setMode] = useState<LiveMode>("live");
@@ -1526,6 +1528,18 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const displayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : analysis;
   const liveAnalysisIntervalMs = analysis?.events.length ? steadyLiveAnalysisIntervalMs : startupLiveAnalysisIntervalMs;
   const liveCue = selectedIncident.id === aarBriefingIncidentId ? { responderId: "med-woodlands-a", timestampSeconds: 45.5 } : state.liveAnalysisCue;
+  const operatorControlsVisible = searchParams.get("operator") === "1" || searchParams.get("debug") === "1";
+  const analysisStatusLabel = isStreamIncident
+    ? streamSession?.analysisPaused
+      ? "Analysis unavailable"
+      : "Analyzing current feed window"
+    : canRunLiveAnalysis
+    ? isPending
+      ? "Analyzing current feed window"
+      : analysis?.events.length
+      ? "Evidence window active"
+      : "Scanning current feed window"
+    : "Analysis unavailable";
 
   function selectIncident(incidentId: string) {
     setMode("live");
@@ -1567,7 +1581,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         const response = await fetch("/api/live/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ incidentId: selectedIncident.id, feeds }),
+          body: JSON.stringify({ incidentId: selectedIncident.id, feeds, operatorEvidenceSupport: operatorControlsVisible }),
         });
         const result = await response.json();
         if (!response.ok) {
@@ -1582,7 +1596,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         if (queuedTimes) window.setTimeout(() => analyzeChunk(queuedTimes), 0);
       }
     });
-  }, [analysisResponders, canRunLiveAnalysis, isStreamIncident, postFirePhase, selectedIncident.id, startTransition]);
+  }, [analysisResponders, canRunLiveAnalysis, isStreamIncident, operatorControlsVisible, postFirePhase, selectedIncident.id, startTransition]);
 
   useEffect(() => {
     if (!isStreamIncident) return;
@@ -1661,15 +1675,17 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Live operations</p>
               <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{isStreamIncident ? "Monitor connected browser bodycams while uploaded chunks generate structured stream events." : canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
-              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{isStreamIncident ? (streamSession?.analysisPaused ? "Stream analysis paused" : "Stream analysis active") : canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : analysis?.events.length ? "Continuous analysis active" : "Scanning current feeds") : "Runtime analysis unavailable"}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{isStreamIncident ? "Monitor connected browser bodycams while current feed windows generate structured stream events." : canRunLiveAnalysis ? "Monitor source feeds while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{analysisStatusLabel}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 bg-card p-4 lg:justify-end">
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={toggleStreamAnalysis} disabled={!canRunLiveAnalysis || isPending}>
-              {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
-              {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? "Pause" : "Resume"}
-            </Button>
+            {operatorControlsVisible ? (
+              <Button size="lg" variant="outline" className="rounded-sm" onClick={toggleStreamAnalysis} disabled={!canRunLiveAnalysis || isPending}>
+                {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
+                {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? "Pause" : "Resume"}
+              </Button>
+            ) : null}
             <Button size="lg" variant="outline" className="rounded-sm" onClick={() => setActiveAudioResponderId(null)} disabled={!canRunLiveAnalysis || activeAudioResponderId === null}>
               <VolumeX data-icon="inline-start" />
               Mute all
@@ -1678,13 +1694,21 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <Search data-icon="inline-start" />
               Open incident review
             </Button>
-            <Button size="lg" variant="destructive" className="rounded-sm" onClick={continuePostFireSweep} disabled={!canRunLiveAnalysis || isStreamIncident || selectedIncident.id !== punggolIncidentId || postFirePhase}>
-              <Square data-icon="inline-start" />
-              Continue welfare sweep
-            </Button>
+            {operatorControlsVisible ? (
+              <Button size="lg" variant="destructive" className="rounded-sm" onClick={continuePostFireSweep} disabled={!canRunLiveAnalysis || isStreamIncident || selectedIncident.id !== punggolIncidentId || postFirePhase}>
+                <Square data-icon="inline-start" />
+                Continue welfare sweep
+              </Button>
+            ) : null}
           </div>
         </div>
       </section>
+
+      {operatorControlsVisible ? (
+        <section className={cn(commandScope, "shrink-0 border border-border bg-command px-4 py-2 text-command-foreground")}>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Operator controls visible</p>
+        </section>
+      ) : null}
 
       <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Live responder feeds" label="Feeds" className="h-full min-h-0 overflow-y-auto">
@@ -1930,7 +1954,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
               <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence is extracted automatically from the current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
-              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current feeds" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered for review" : ""} / ${selectedExportEvidence.length} selected for briefing` : "Queued for analysis") : "Runtime analysis unavailable"}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current evidence window" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered for review" : ""} / ${selectedExportEvidence.length} selected for briefing` : "Queued for analysis") : "Analysis unavailable"}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 bg-card p-4 lg:justify-end">
