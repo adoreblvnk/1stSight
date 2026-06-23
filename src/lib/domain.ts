@@ -18,6 +18,38 @@ export type IncidentTag =
 
 export type IncidentType = "fire" | "medical";
 
+export type IncidentMilestoneId =
+  | "call-received"
+  | "dispatch"
+  | "acknowledge"
+  | "move-out"
+  | "arrive-at-scene"
+  | "at-patient-side"
+  | "after-patient-assessment"
+  | "moving-out-to-hospital"
+  | "arrive-hospital"
+  | "first-jet-out"
+  | "ba-entry"
+  | "damping-down"
+  | "investigation-cause-search"
+  | "hand-over";
+
+export type IncidentMilestoneSourceType = "dispatch-system" | "footage" | "officer-entered";
+
+export type IncidentMilestoneStatus = "pending" | "unavailable" | "confirmed";
+
+export type IncidentMilestone = {
+  id: IncidentMilestoneId;
+  label: string;
+  timestamp?: string;
+  displayTime: string;
+  sourceType: IncidentMilestoneSourceType;
+  sourceLabel: string;
+  status: IncidentMilestoneStatus;
+  notes?: string;
+  evidenceRef?: string;
+};
+
 export type Coordinates = {
   lat: number;
   lng: number;
@@ -81,6 +113,7 @@ export type Incident = {
   objectIds: string[];
   evidenceIds: string[];
   responderIds: string[];
+  milestones: IncidentMilestone[];
   supportsRuntimeAnalysis: boolean;
   unavailableReason?: string;
 };
@@ -110,6 +143,7 @@ export type Recommendation = {
 export type DecisionReview = {
   id: string;
   recommendationId: string;
+  incidentId?: string;
   reviewer: string;
   decision: "approved" | "rejected" | "edited";
   reason: string;

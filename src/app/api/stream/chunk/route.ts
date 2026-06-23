@@ -29,6 +29,15 @@ function timestampLabel(startedAt: string, offsetSeconds: number) {
   return timestamp.toISOString();
 }
 
+function serializableFrame(frame: { frameId: string; imageUrl: string; timestampSeconds: number; timestampWithinChunkSeconds: number }) {
+  return {
+    frameId: frame.frameId,
+    imageUrl: frame.imageUrl,
+    timestampSeconds: frame.timestampSeconds,
+    timestampWithinChunkSeconds: frame.timestampWithinChunkSeconds,
+  };
+}
+
 function incidentPrompt(incidentType: "fire" | "medical") {
   if (incidentType === "fire") {
     return "Prioritize smoke, flame growth, sudden fire burst, visibility loss, blocked access, unsafe entry, entry-control issues, and resource escalation cues. For a large fire burst or rapid fire growth, use high severity and, only when evidence supports it, recommend: Flag Enhanced Task Force consideration for Ground Commander. Do not say Ops Centre approves, deploys, or orders reinforcement.";
@@ -92,8 +101,7 @@ export async function POST(request: Request) {
   }
 
   if (session.analysisPaused) {
-    updateStreamBodycam(bodycam.id, { lastError: "Automatic analysis is paused by Ops Centre." });
-    return NextResponse.json({ error: "Automatic analysis is paused by Ops Centre.", session }, { status: 409 });
+    return NextResponse.json({ error: "Automatic analysis is paused by Ops Centre.", paused: true, session }, { status: 409 });
   }
 
   const chunkId = `chunk-${Date.now()}-${randomUUID()}`;
@@ -176,8 +184,11 @@ export async function POST(request: Request) {
         tags: event.tags,
         confidence: event.confidence,
         locationStatus: bodycam.locationStatus,
-        bestEvidenceFrame: bestFrame,
-        supportingFrames: event.supportingFrameIds.flatMap((frameId) => frameById.get(frameId) ?? []),
+        bestEvidenceFrame: serializableFrame(bestFrame),
+        supportingFrames: event.supportingFrameIds.flatMap((frameId) => {
+          const frame = frameById.get(frameId);
+          return frame ? [serializableFrame(frame)] : [];
+        }),
         recommendation: normalizedRecommendation(event, session.incidentType),
       }];
     });

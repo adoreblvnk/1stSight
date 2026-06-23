@@ -20,7 +20,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "1stSight Command Dashboard",
-  description: "SCDF Ops Centre prototype for bodycam evidence, recommendations, and review reports.",
+  description: "SCDF Ops Centre pilot workflow for bodycam evidence, recommendations, AAR briefing slides, and evidence review.",
 };
 
 export default function RootLayout({

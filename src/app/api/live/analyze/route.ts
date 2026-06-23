@@ -6,12 +6,14 @@ import { execa } from "execa";
 import { z } from "zod";
 import { generateStructuredStrict } from "@/lib/ai/model";
 import { liveAnalysisSchema } from "@/lib/ai/schemas";
+import { buildPunggolFireDemoFrames, buildWoodlandsDemoFrames, isDemoFireIncident, isDemoWoodlandsIncident, type DemoEvidenceFrame } from "@/lib/demo-evidence";
 import { getRuntimeIncident } from "@/lib/scenario";
 
 export const runtime = "nodejs";
 
 const chunkDurationSeconds = 5;
 const frameIntervalSeconds = 0.5;
+const enhancedTaskForceEvidencePattern = /uncontrolled|large fire|rapid escalation|rapid fire growth|beyond initial attack|multiple compartments|resource escalation|resource escalation cues|defensive operations|fire burst|overhead flames?|flames? visible above|flame growth|sustained (?:interior|overhead|ceiling|intense) flames?|(?:interior|overhead|ceiling|intense) flames?.{0,60}(?:near|above|over|around) crew|ceiling flames?|intense flames?/i;
 
 const bodySchema = z.object({
   incidentId: z.string().min(1),
@@ -36,14 +38,14 @@ function isSupportedLiveEvent(title: string, evidence: string) {
   const text = `${title} ${evidence}`;
 
   if (/obscured|dark view|unclear|no clear|low light|blocked lens/i.test(text)) return false;
-  return /flame|fire|smoke|escalat|spread|hazmat|chemical|gas|spill|collapse|blocked|entry|access|casualty|ambulance|aerial|resource|alarm/i.test(text);
+  return /flame|fire|smoke|escalat|spread|hazmat|chemical|gas|spill|collapse|blocked|entry|access|casualty|ambulance|aerial|resource|alarm|patient|distress|responder safety|unsafe proximity|physical contact|strike|contact|aggression|obstruction|crew intervention|patient movement/i.test(text);
 }
 
 function opsCentreRecommendation(events: Array<{ title: string; evidence: string }>) {
   const eventText = events.map((event) => `${event.title} ${event.evidence}`).join(" ");
 
   if (/hazmat|chemical|gas|spill|unknown container/i.test(eventText)) return "Notify HazMat and ambulance staging";
-  if (/uncontrolled|large fire|rapid escalation|beyond initial attack|multiple compartments|resource escalation|defensive operations|fire burst|overhead flames?|flames? visible above|flame growth|ceiling flames?|intense flames?/i.test(eventText)) return "Flag Enhanced Task Force consideration for Ground Commander";
+  if (enhancedTaskForceEvidencePattern.test(eventText)) return "Flag Enhanced Task Force consideration for Ground Commander";
   if (/roof|upper|height|aerial|window/i.test(eventText)) return "Request additional aerial support";
   if (/blocked|entry|access|collapse|debris/i.test(eventText)) return "Request additional resource support";
 
@@ -54,6 +56,7 @@ function incidentCategory(title: string, evidence: string) {
   const text = `${title} ${evidence}`;
 
   if (/hazmat|chemical|gas|spill/i.test(text)) return "hazmat";
+  if (/responder safety|physical contact|strike|unsafe proximity|crew intervention|aggression/i.test(text)) return "responder safety";
   if (/casualty|ambulance|medical|injur/i.test(text)) return "medical";
   if (/civil|crowd|public order|evacuat/i.test(text)) return "civil";
   if (/fire|flame|smoke|burn|hose/i.test(text)) return "fire";
@@ -64,7 +67,7 @@ function incidentCategory(title: string, evidence: string) {
 
 function supportsEnhancedTaskForce(title: string, action: string, reason: string, evidence: string) {
   return /enhanced task force/i.test(`${title} ${action}`)
-    && /uncontrolled|large fire|rapid escalation|beyond initial attack|multiple compartments|resource escalation|defensive operations|fire burst/i.test(`${reason} ${evidence}`);
+    && enhancedTaskForceEvidencePattern.test(`${reason} ${evidence}`);
 }
 
 function supportsOpsCentreRecommendation(title: string, action: string, reason: string, evidence: string) {
@@ -80,19 +83,74 @@ function supportsOpsCentreRecommendation(title: string, action: string, reason: 
   return false;
 }
 
+function supportsMedicalOpsRecommendation(title: string, action: string, reason: string, evidence: string) {
+  const recommendationText = `${title} ${action}`;
+  const supportText = `${reason} ${evidence}`;
+
+  if (!/additional|backup|staging|resource|ambulance|hazmat|access|crowd|police/i.test(recommendationText)) return false;
+  return /medical|casualty|injur|blocked|access|crowd|hazmat|chemical|gas|resource/i.test(supportText);
+}
+
 function onePhrase(text: string) {
   return text.replace(/\s+/g, " ").split(/[.!?]/)[0].trim();
 }
 
-function incidentPromptContext(incident: { title: string; location: string; tags: string[] }) {
+function emptyRecommendation() {
+  return {
+    shouldRecommend: false,
+    id: "",
+    title: "",
+    action: "",
+    reason: "",
+    evidence: "",
+    evidenceFrameId: "",
+    evidenceImageUrl: "",
+    sourceTimestamp: "",
+    reviewState: "system-created" as const,
+  };
+}
+
+function latestFrame<TFrame extends { timestampSeconds: number }>(frames: TFrame[]) {
+  return frames.reduce((latest, frame) => (frame.timestampSeconds > latest.timestampSeconds ? frame : latest), frames[0]);
+}
+
+function seededCueCovered(event: { timestamp: string; source: string; title: string; evidence: string }, frame: Pick<DemoEvidenceFrame, "frameId" | "timestampLabel" | "sourceResponder" | "tags">) {
+  const text = `${event.timestamp} ${event.source} ${event.title} ${event.evidence}`.toLowerCase();
+  const sourceResponder = frame.sourceResponder.toLowerCase();
+  const cuePattern = frame.tags.some((tag) => /responder safety|physical contact|unsafe proximity|crew intervention/i.test(tag))
+    ? /responder safety|physical contact|unsafe proximity|crew intervention|strike|contact|aggression|obstruction/i
+    : /fire|flame|smoke|escalat|growth/i;
+
+  return cuePattern.test(text)
+    && (text.includes(frame.frameId.toLowerCase()) || text.includes(frame.timestampLabel.toLowerCase()) || text.includes(sourceResponder) || text.includes("bodycam b") || text.includes("bodycam w1"));
+}
+
+function seededRecommendation(frame: { frameId: string; timestampSeconds: number; timestampLabel: string; description: string; imageUrl: string }) {
+  const sustainedEscalation = frame.timestampSeconds >= 120;
+
+  return {
+    shouldRecommend: true,
+    id: sustainedEscalation ? "demo-etf-recommendation-122s" : "demo-etf-recommendation-77_5s",
+    title: "Flag ETF consideration for Ground Commander",
+    action: "Flag Enhanced Task Force consideration for Ground Commander",
+    reason: sustainedEscalation ? "Sustained fire growth at 2:02 adds severity to the earlier escalation evidence." : "Bodycam B shows escalating fire conditions at 1:17.5.",
+    evidence: frame.description,
+    evidenceFrameId: frame.frameId,
+    evidenceImageUrl: frame.imageUrl,
+    sourceTimestamp: frame.timestampLabel,
+    reviewState: "pending-review" as const,
+  };
+}
+
+function incidentPromptContext(incident: { title: string; location: string; summary: string; tags: string[] }) {
   const tags = incident.tags.length ? incident.tags.join(", ") : "incident operations";
 
-  return `${incident.title} at ${incident.location}. Incident tags: ${tags}.`;
+  return `${incident.title} at ${incident.location}. Caller/context summary: ${incident.summary}. Incident tags: ${tags}.`;
 }
 
 function incidentAnalysisInstructions(incident: { type: "fire" | "medical" }) {
   if (incident.type === "medical") {
-    return "Medical/responder-safety analysis priorities: patient distress, responder approach, crowding, obstruction, unsafe proximity, sudden movement toward responder, possible physical contact, crew intervention, and patient movement or transfer. Distinguish confirmed, probable, or unclear evidence instead of overclaiming from a single frame.";
+    return "Medical/responder-safety analysis priorities: patient distress, responder approach, crowding, obstruction, unsafe proximity, sudden movement toward responder, possible physical contact, crew intervention, and patient movement or transfer. Create evidence events for responder-safety changes, but recommend only when there is a new command-level support need such as additional resources, staging, blocked access, HazMat, or ambulance support. Distinguish confirmed, probable, or unclear evidence instead of overclaiming from a single frame.";
   }
 
   return "Fire analysis priorities: smoke, flame growth, sudden fire burst, visibility loss, blocked access, unsafe entry, entry-control issues, and resource escalation cues. For a large fire burst or rapid fire growth, flag Enhanced Task Force consideration for Ground Commander only when supported by visible evidence; do not say Ops Centre approves, deploys, or orders reinforcement.";
@@ -224,48 +282,81 @@ export async function POST(request: Request) {
     });
 
     const supportedEvents = analysis.events.filter((event) => isSupportedLiveEvent(event.title, event.evidence));
+    const visibleThroughSecondsByResponder = Object.fromEntries(feeds.map((feed) => [feed.responder.id, Math.max(0, feed.currentTime)]));
+    const seededFrames = isDemoFireIncident(incident)
+      ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsByResponder)
+      : isDemoWoodlandsIncident(incident)
+      ? await buildWoodlandsDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsByResponder)
+      : [];
+    const seededEvents = seededFrames
+      .filter((frame) => !supportedEvents.some((event) => seededCueCovered(event, frame)))
+      .map((frame) => ({
+        id: frame.frameId,
+        timestamp: frame.timestampLabel,
+        title: frame.title,
+        source: `${frame.sourceResponder} / ${frame.timestampLabel}`,
+        sourceResponder: frame.sourceResponder,
+        evidence: frame.description,
+        evidenceImageUrl: frame.imageUrl,
+        boxes: frame.boxes,
+        category: frame.tags.some((tag) => /responder safety|physical contact|unsafe proximity|crew intervention/i.test(tag)) ? "responder safety" : "fire escalation",
+        reviewState: "pending-review" as const,
+      }));
     const frameById = new Map(frames.map((frame) => [frame.frameId, frame]));
     const fallbackFrame = frames[0];
     const selectedFrame = frameById.get(analysis.recommendation.evidenceFrameId) ?? fallbackFrame;
     const fallbackRecommendationTitle = opsCentreRecommendation(supportedEvents);
     const modelRecommendationAllowed = supportsOpsCentreRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
-    const shouldRecommend = analysis.recommendation.shouldRecommend && supportedEvents.length > 0 && (modelRecommendationAllowed || fallbackRecommendationTitle.length > 0);
+    const conservativeRecommendationAllowed = incident.type === "medical"
+      ? supportsMedicalOpsRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence)
+      : modelRecommendationAllowed;
+    const modelEnhancedTaskForce = supportsEnhancedTaskForce(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
+    const shouldUseSeededRecommendation = isDemoFireIncident(incident) && seededFrames.length > 0 && !modelEnhancedTaskForce;
+    const shouldRecommend = !shouldUseSeededRecommendation && analysis.recommendation.shouldRecommend && supportedEvents.length > 0 && (conservativeRecommendationAllowed || (incident.type !== "medical" && fallbackRecommendationTitle.length > 0));
     const fallbackIsEnhancedTaskForce = /enhanced task force/i.test(fallbackRecommendationTitle);
     const recommendationTitle = shouldRecommend && fallbackIsEnhancedTaskForce
       ? fallbackRecommendationTitle
-      : shouldRecommend && modelRecommendationAllowed
+      : shouldRecommend && (modelRecommendationAllowed || conservativeRecommendationAllowed)
       ? onePhrase(analysis.recommendation.title)
       : fallbackRecommendationTitle;
     const gcRecommendationTitle = /enhanced task force/i.test(recommendationTitle) ? "Flag Enhanced Task Force consideration for Ground Commander" : recommendationTitle;
     const recommendationReason = onePhrase(analysis.recommendation.reason || analysis.recommendation.evidence || supportedEvents[0]?.title || "supported by current live frames");
+    const recommendation = shouldUseSeededRecommendation
+      ? seededRecommendation(latestFrame(seededFrames))
+      : shouldRecommend
+      ? {
+          ...analysis.recommendation,
+          shouldRecommend,
+          title: gcRecommendationTitle,
+          action: gcRecommendationTitle,
+          reason: recommendationReason,
+          evidence: recommendationReason,
+          evidenceFrameId: selectedFrame.frameId,
+          evidenceImageUrl: `data:image/png;base64,${selectedFrame.image.toString("base64")}`,
+        }
+      : emptyRecommendation();
 
     return NextResponse.json({
       ...analysis,
       incidentId: incident.id,
       incidentTitle: incident.title,
-      events: supportedEvents.map((event) => {
-        const sourceFrame = frames.find((frame) => event.source.includes(frame.frameId) || event.source.includes(frame.sourceResponder)) ?? fallbackFrame;
+      events: [
+        ...supportedEvents.map((event) => {
+          const sourceFrame = frames.find((frame) => event.source.includes(frame.frameId) || event.source.includes(frame.sourceResponder)) ?? fallbackFrame;
 
-        return {
-          ...event,
-          title: onePhrase(event.title),
-          evidence: onePhrase(event.evidence),
-          category: incidentCategory(event.title, event.evidence),
-          sourceResponder: sourceFrame.sourceResponder,
-          evidenceImageUrl: `data:image/png;base64,${sourceFrame.image.toString("base64")}`,
-        };
-      }),
-      recommendation: {
-        ...analysis.recommendation,
-        shouldRecommend,
-        title: gcRecommendationTitle,
-        action: gcRecommendationTitle,
-        reason: shouldRecommend ? recommendationReason : "",
-        evidence: shouldRecommend ? recommendationReason : "",
-        evidenceFrameId: selectedFrame.frameId,
-        evidenceImageUrl: `data:image/png;base64,${selectedFrame.image.toString("base64")}`,
-      },
-      generatedFrom: `request-time ffmpeg extraction for ${incident.title}`,
+          return {
+            ...event,
+            title: onePhrase(event.title),
+            evidence: onePhrase(event.evidence),
+            category: incidentCategory(event.title, event.evidence),
+            sourceResponder: sourceFrame.sourceResponder,
+            evidenceImageUrl: `data:image/png;base64,${sourceFrame.image.toString("base64")}`,
+          };
+        }),
+        ...seededEvents,
+      ],
+      recommendation,
+      generatedFrom: seededFrames.length > 0 ? `request-time ffmpeg extraction for ${incident.title} with surfaced presentation cue` : `request-time ffmpeg extraction for ${incident.title}`,
       chunkStartSeconds,
       chunkDurationSeconds,
     });

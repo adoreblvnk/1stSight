@@ -6,6 +6,7 @@ import { execa } from "execa";
 import { z } from "zod";
 import { generateStructuredStrict } from "@/lib/ai/model";
 import { postIncidentAnalysisSchema } from "@/lib/ai/schemas";
+import { buildPunggolFireDemoFrames, buildWoodlandsDemoFrames, isDemoFireIncident, isDemoWoodlandsIncident, type DemoEvidenceFrame } from "@/lib/demo-evidence";
 import { getRuntimeIncident } from "@/lib/scenario";
 
 export const runtime = "nodejs";
@@ -76,10 +77,10 @@ function isSupportedRecommendation(recommendation: { title: string; reason: stri
   return /raise alarm|alarm level|hazmat|ambulance|staging|aerial|resource support|additional resource|blocked access|collapse/i.test(text);
 }
 
-function incidentPromptContext(incident: { title: string; location: string; tags: string[] }) {
+function incidentPromptContext(incident: { title: string; location: string; summary: string; tags: string[] }) {
   const tags = incident.tags.length ? incident.tags.join(", ") : "incident operations";
 
-  return `${incident.title} at ${incident.location}. Incident tags: ${tags}.`;
+  return `${incident.title} at ${incident.location}. Caller/context summary: ${incident.summary}. Incident tags: ${tags}.`;
 }
 
 function incidentAnalysisInstructions(incident: { type: "fire" | "medical" }) {
@@ -88,6 +89,25 @@ function incidentAnalysisInstructions(incident: { type: "fire" | "medical" }) {
   }
 
   return "Fire priorities: smoke, flame growth, sudden fire burst, visibility loss, blocked access, unsafe entry, entry-control issues, and resource escalation cues. Enhanced Task Force language must be framed as Ground Commander consideration, not Ops Centre approval or a direct deployment order.";
+}
+
+function demoEvidenceItem(frame: DemoEvidenceFrame, index: number) {
+  return {
+    frameId: frame.frameId,
+    sourceVideo: frame.sourceVideo,
+    responderId: frame.responderId,
+    sourceResponder: frame.sourceResponder,
+    frameTimestampSeconds: frame.timestampSeconds,
+    timestampLabel: frame.timestampLabel,
+    rank: index + 1,
+    order: index + 1,
+    name: frame.title,
+    description: frame.description,
+    confidence: 0.98,
+    tags: frame.tags,
+    boxes: frame.boxes,
+    imageUrl: frame.imageUrl,
+  };
 }
 
 export async function POST(request: Request) {
@@ -119,6 +139,41 @@ export async function POST(request: Request) {
   await mkdir(cacheDir, { recursive: true });
 
   try {
+    if (isDemoFireIncident(incident) || isDemoWoodlandsIncident(incident)) {
+      const frames = isDemoFireIncident(incident)
+        ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders)
+        : await buildWoodlandsDemoFrames(cacheDir, incidentResponders);
+      const evidence = frames.map(demoEvidenceItem);
+      const recommendation = isDemoFireIncident(incident)
+        ? [{
+            id: "demo-fire-etf-review-recommendation",
+            rank: 1,
+            order: 1,
+            title: "Flag Enhanced Task Force consideration for Ground Commander",
+            reason: "Fire escalation at 1:17.5 on Bodycam B supports command review for ETF escalation.",
+            evidenceFrameIds: [frames[0].frameId],
+          }]
+        : [{
+            id: "demo-woodlands-responder-safety-review",
+            rank: 1,
+            order: 1,
+            title: "Review responder-safety controls and scene positioning",
+            reason: "The AAR should include the 0:22.5 physical strike and the 0:45.5 second abuse/contact-risk moment.",
+            evidenceFrameIds: frames.map((frame) => frame.frameId),
+          }];
+
+      return NextResponse.json({
+        incidentId: incident.id,
+        incidentTitle: incident.title,
+        summary: isDemoFireIncident(incident)
+          ? "Deterministic demo analysis selected the two Bodycam B fire-escalation moments requested for the Punggol incident timeline."
+          : "Deterministic demo analysis selected the two Woodlands responder-safety abuse/contact moments requested for AAR export.",
+        generatedFrom: "Current BWC evidence selection",
+        evidence,
+        recommendations: recommendation,
+      });
+    }
+
     const nestedFrames = await Promise.all(
       responders.map(async (responder) => {
         const videoPath = path.join(process.cwd(), "public", responder.videoSrc.replace(/^\//, ""));

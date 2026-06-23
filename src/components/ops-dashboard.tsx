@@ -19,8 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // REUI Timeline: https://github.com/keenthemes/reui/blob/main/registry-reui/bases/base/components/timeline/c-timeline-2.tsx
 import { Timeline, TimelineContent, TimelineDate, TimelineHeader, TimelineIndicator, TimelineItem, TimelineSeparator, TimelineTitle } from "@/components/reui/timeline";
-import type { DecisionReview, DeploymentMarker, Incident, Responder, ScenarioState } from "@/lib/domain";
+import type { DecisionReview, DeploymentMarker, Incident, IncidentMilestone, Responder, ScenarioState } from "@/lib/domain";
 import type { LiveAnalysisOutput, RuntimeEvidenceSearchOutput } from "@/lib/ai/schemas";
+import { mergeLiveAnalysis, type LiveAnalysis, type LiveEvent } from "@/lib/live-analysis-state";
 import type { StreamIncidentSession } from "@/lib/stream-store";
 import { cn } from "@/lib/utils";
 import { browserRtcConfiguration } from "@/lib/webrtc";
@@ -60,14 +61,7 @@ type RuntimeAnalysis = {
   generatedFrom: string;
   evidence: RuntimeEvidence[];
   recommendations: RuntimeRecommendation[];
-};
-
-type LiveEvent = LiveAnalysisOutput["events"][number] & { category?: string; evidenceImageUrl?: string; sourceResponder?: string };
-
-type LiveAnalysis = Omit<LiveAnalysisOutput, "events"> & {
-  generatedFrom: string;
-  events: LiveEvent[];
-  recommendations: LiveAnalysisOutput["recommendation"][];
+  decisionReviews?: DecisionReview[];
 };
 
 type StreamUiAnalysis = {
@@ -93,6 +87,9 @@ const routeItems = [
 ];
 
 const streamIncidentId = "stage-medical-assistance-stream";
+const aarBriefingIncidentId = "woodlands-medical-responder-safety";
+const startupLiveAnalysisIntervalMs = 3000;
+const steadyLiveAnalysisIntervalMs = 8000;
 
 const heroImages = {
   // codex exec '$imagegen generate an operational command centre map hero background for a firefighter bodycam incident dashboard, Singapore urban grid at night, dark inset screen material, restrained emergency amber accents, no text, no logos, save as public/ai-images/ops-map-hero.png'
@@ -153,6 +150,17 @@ function Panel({ title, label, children, tone = "command", className }: { title:
       {children}
     </section>
   );
+}
+
+function milestoneTone(status: IncidentMilestone["status"]) {
+  if (status === "confirmed") return "border-success text-success";
+  if (status === "pending") return "border-warning text-warning";
+  return "border-disabled text-muted-foreground";
+}
+
+function milestoneSourceLabel(milestone: IncidentMilestone) {
+  const source = milestone.sourceType === "dispatch-system" ? "system" : milestone.sourceType === "officer-entered" ? "officer" : "footage";
+  return `${source} · ${milestone.sourceLabel}`;
 }
 
 function HeroImageBackdrop({ src, alt }: { src: string; alt: string }) {
@@ -274,33 +282,6 @@ function formatMountedSessionClock(sessionStartMs: number | null, offsetSeconds:
   return formatSessionClock(sessionStartMs, offsetSeconds);
 }
 
-function mergeLiveAnalysis(previous: LiveAnalysis | null, next: LiveAnalysisOutput & { generatedFrom: string }) {
-  const previousEvents = previous?.events ?? [];
-  const eventIds = new Set(previousEvents.map((event) => `${event.timestamp}:${onePhrase(event.title)}:${onePhrase(event.evidence)}`));
-  const nextEvents = next.events
-    .map((event, index) => ({
-      ...event,
-      id: `${next.generatedAt}-${next.chunkStartSeconds}-${previousEvents.length + index}-${event.id}-${event.source}`,
-    }))
-    .filter((event) => {
-      const eventKey = `${event.timestamp}:${onePhrase(event.title)}:${onePhrase(event.evidence)}`;
-
-      if (eventIds.has(eventKey)) return false;
-      eventIds.add(eventKey);
-      return true;
-    });
-  const previousRecommendations = previous?.recommendations ?? [];
-  const nextRecommendations = next.recommendation.shouldRecommend
-    ? [{ ...next.recommendation, id: `${next.generatedAt}-${next.chunkStartSeconds}-${previousRecommendations.length}-${next.recommendation.id}` }]
-    : [];
-
-  return {
-    ...next,
-    events: [...previousEvents, ...nextEvents],
-    recommendations: [...previousRecommendations, ...nextRecommendations],
-  };
-}
-
 function streamAnalysis(session: StreamIncidentSession | null): StreamUiAnalysis | null {
   if (!session) return null;
 
@@ -387,7 +368,7 @@ function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, sh
                 <Activity aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">SCDF Ops Centre prototype</p>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">SCDF Ops Centre pilot workflow</p>
                 <h1 className="truncate text-base font-semibold">1stSight command dashboard</h1>
               </div>
             </div>
@@ -498,7 +479,7 @@ function MarkerDetail({ marker, state, selectedIncidentId }: { marker: Deploymen
 function DeploymentMap({ state, selectedIncidentId, selectedMarker, onSelectMarker }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; onSelectMarker: (marker: DeploymentMarker) => void }) {
   const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string; googleMapsMapId: string } | null>(null);
   const apiKey = mapsConfig?.googleMapsApiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
+  const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "1STSIGHT_MAP_ID";
   const center = state.deploymentMarkers.find((marker) => marker.incidentId === selectedIncidentId)?.position ?? state.deploymentMarkers[0].position;
 
   useEffect(() => {
@@ -767,19 +748,18 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   );
 }
 
-function BodycamGrid({ state, incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs, streamSession }: { state: ScenarioState; incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null }) {
-  const cue = state.liveAnalysisCue;
+function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
 
   useEffect(() => {
     responders.forEach((responder) => {
       const video = videoRefs.current[responder.id];
       if (!video) return;
       video.muted = activeAudioResponderId !== responder.id;
-      if (mode === "escalation" && responder.id === cue.responderId) video.currentTime = cue.timestampSeconds;
+      if (mode === "escalation" && responder.id === liveCue.responderId) video.currentTime = liveCue.timestampSeconds;
       if (playing) void video.play();
       else video.pause();
     });
-  }, [activeAudioResponderId, cue.responderId, cue.timestampSeconds, mode, playing, responders, videoRefs]);
+  }, [activeAudioResponderId, liveCue.responderId, liveCue.timestampSeconds, mode, playing, responders, videoRefs]);
 
   if (incident.id === streamIncidentId) {
     return (
@@ -844,39 +824,68 @@ function BodycamGrid({ state, incident, responders, mode, playing, activeAudioRe
   );
 }
 
-function EventLog({ analysis }: { analysis: LiveAnalysis | StreamUiAnalysis | null }) {
+function EventLog({ analysis, isAnalyzing, responders }: { analysis: LiveAnalysis | StreamUiAnalysis | null; isAnalyzing?: boolean; responders?: Responder[] }) {
   const events = analysis?.events ?? [];
 
   if (events.length === 0) {
-    return <div className="p-3 text-sm text-muted-foreground">Waiting for supported live events.</div>;
+    return (
+      <div className="bg-card p-3">
+        <div className="border border-screen-border bg-screen p-3 text-screen-foreground">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Scanning current feeds</p>
+              <p className="mt-1 text-xs leading-relaxed text-screen-foreground/65">Supported events appear here when current frames show operational changes.</p>
+            </div>
+            <span className={cn("size-2 border", isAnalyzing ? "live-dot border-accent bg-accent" : "border-screen-foreground/40")} />
+          </div>
+          {responders?.length ? (
+            <div className="mt-3 grid gap-px bg-screen-border">
+              {responders.map((responder) => (
+                <div key={responder.id} className="flex items-center justify-between gap-3 bg-black/35 px-2 py-1.5">
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/65">{responder.feedLabel}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{isAnalyzing ? "analyzing" : "queued"}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="max-h-[280px] overflow-y-auto bg-border">
-      {events.map((event) => (
-        <div key={event.id} className="border-b border-border bg-card px-3 py-2 last:border-b-0">
-          <div className="grid min-w-0 gap-3 border border-warning/60 bg-warning/10 p-3 sm:grid-cols-[112px_1fr]">
-            {event.evidenceImageUrl ? (
-              <div className="relative aspect-video overflow-hidden bg-screen">
-                <Image src={event.evidenceImageUrl} alt={conciseReason(event.evidence)} fill unoptimized className="object-cover" sizes="112px" />
+      {events.map((event) => {
+        const boxes = event.boxes?.slice(0, 3).map(insetBox) ?? [];
+
+        return (
+          <div key={event.id} className="border-b border-border bg-card px-3 py-2 last:border-b-0">
+            <div className="grid min-w-0 gap-3 border border-warning/60 bg-warning/10 p-3 sm:grid-cols-[112px_1fr]">
+              {event.evidenceImageUrl ? (
+                <div className="relative aspect-video overflow-hidden bg-screen">
+                  <Image src={event.evidenceImageUrl} alt={conciseReason(event.evidence)} fill unoptimized className="object-cover" sizes="112px" />
+                  {boxes.map((box, boxIndex) => (
+                    <div key={`${event.id}-${box.label}-${boxIndex}`} className="absolute border border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }} />
+                  ))}
+                </div>
+              ) : null}
+              <div className="min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-semibold leading-snug">{onePhrase(event.title)}</p>
+                  <OperationalBadge tone="pending-review">{eventCategory(event)}</OperationalBadge>
+                </div>
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{event.sourceResponder || event.source}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{conciseReason(event.evidence)}</p>
               </div>
-            ) : null}
-            <div className="min-w-0">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-semibold leading-snug">{onePhrase(event.title)}</p>
-                <OperationalBadge tone="pending-review">{eventCategory(event)}</OperationalBadge>
-              </div>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{event.sourceResponder || event.source}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{conciseReason(event.evidence)}</p>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function RecommendationReview({ analysis }: { analysis: LiveAnalysis | StreamUiAnalysis | null }) {
+function RecommendationReview({ analysis, incidentId }: { analysis: LiveAnalysis | StreamUiAnalysis | null; incidentId: string }) {
   const recommendations = analysis?.recommendations ?? [];
   const [decisions, setDecisions] = useState<Record<string, DecisionReview>>({});
   const [isReviewPending, startReviewTransition] = useTransition();
@@ -888,6 +897,7 @@ function RecommendationReview({ analysis }: { analysis: LiveAnalysis | StreamUiA
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           decision: decisionValue,
+          incidentId,
           recommendation: {
             id: recommendation.id,
             title: recommendation.title,
@@ -944,70 +954,183 @@ function RecommendationReview({ analysis }: { analysis: LiveAnalysis | StreamUiA
   );
 }
 
-function RuntimeEvidenceTimeline({ evidence, sessionStartMs, emptyMessage = "Building the evidence timeline from analyzed video frames." }: { evidence: RuntimeEvidence[]; sessionStartMs: number | null; emptyMessage?: string }) {
-  const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
-  const selectedEvidence = evidence.find((item) => item.frameId === selectedFrameId) ?? evidence[0];
+function decisionLabel(decision: DecisionReview["decision"]) {
+  if (decision === "approved") return "Marked for GC consideration";
+  if (decision === "rejected") return "Held from GC summary";
+  return "Edited by Ops Centre";
+}
 
-  if (evidence.length === 0) {
-    return (
-      <div className="bg-screen p-4 text-sm text-screen-foreground/65">
-        {emptyMessage}
-      </div>
-    );
-  }
+function timelineTone(kind: "system" | "footage" | "ai" | "recommendation" | "officer" | "pending", decision?: DecisionReview["decision"]) {
+  if (kind === "pending") return "border-warning text-warning";
+  if (kind === "officer") return decision === "approved" ? "border-success text-success" : decision === "rejected" ? "border-destructive text-destructive" : "border-info text-info";
+  if (kind === "ai" || kind === "recommendation") return "border-accent text-accent";
+  return "border-screen-foreground/55 text-screen-foreground/75";
+}
+
+function UnifiedIncidentTimeline({ incident, evidence, recommendations, decisionReviews, isAnalyzing, canRunReviewAnalysis, emptyMessage }: { incident: Incident; evidence: RuntimeEvidence[]; recommendations: RuntimeRecommendation[]; decisionReviews: DecisionReview[]; isAnalyzing: boolean; canRunReviewAnalysis: boolean; emptyMessage: string }) {
+  const evidenceByFrameId = new globalThis.Map(evidence.map((item) => [item.frameId, item]));
+  const confirmedMilestones = incident.milestones.filter((milestone) => milestone.status === "confirmed");
+  const pendingMilestones = incident.milestones.filter((milestone) => milestone.status === "pending");
+  const visibleRecommendations = recommendations.filter((recommendation) => recommendation.evidenceFrameIds.length === 0 || recommendation.evidenceFrameIds.some((frameId) => evidenceByFrameId.has(frameId)));
+  const entriesCount = confirmedMilestones.length + evidence.length + visibleRecommendations.length + decisionReviews.length + (pendingMilestones.length ? 1 : 0);
+  const pendingLabels = pendingMilestones.map((milestone) => milestone.label).join(" / ");
 
   return (
     <div className="bg-screen p-4 text-screen-foreground">
-      <Timeline defaultValue={evidence.length} className="max-w-none gap-0">
-        {evidence.map((item, index) => {
-          const selected = item.frameId === selectedEvidence?.frameId;
-          const boxes = item.boxes.slice(0, 3).map(insetBox);
+      <div className="mb-4 flex flex-wrap gap-2">
+        <OperationalBadge>{confirmedMilestones.length} confirmed</OperationalBadge>
+        <OperationalBadge>{evidence.length} evidence</OperationalBadge>
+        {decisionReviews.length ? <OperationalBadge tone="approved">{decisionReviews.length} officer reviewed</OperationalBadge> : null}
+        {pendingMilestones.length ? <OperationalBadge tone="pending-review">{pendingMilestones.length} pending</OperationalBadge> : null}
+      </div>
 
-          return (
-            <TimelineItem key={`${item.frameId}-${index}`} step={index + 1} className="sm:group-data-[orientation=vertical]/timeline:ms-44 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+      {entriesCount === 0 ? (
+        <div className="border border-screen-border bg-black/35 p-4 text-sm text-screen-foreground/65">
+          {canRunReviewAnalysis && isAnalyzing ? "Analyzing current feeds." : emptyMessage}
+        </div>
+      ) : (
+        <Timeline defaultValue={entriesCount} className="max-w-none gap-0">
+          {confirmedMilestones.map((milestone, index) => (
+            <TimelineItem key={milestone.id} step={index + 1} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
               <TimelineHeader>
                 <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
-                <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-44 sm:group-data-[orientation=vertical]/timeline:w-32 sm:group-data-[orientation=vertical]/timeline:text-right">
-                  {formatMountedSessionClock(sessionStartMs, item.frameTimestampSeconds)}
-                </TimelineDate>
-                <TimelineTitle className="sr-only">{item.name}</TimelineTitle>
-                <TimelineIndicator className={cn("border-screen-foreground/50 bg-screen", selected && "border-accent bg-accent")} />
+                <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{milestone.displayTime}</TimelineDate>
+                <TimelineTitle className="sr-only">{milestone.label}</TimelineTitle>
+                <TimelineIndicator className={cn("bg-screen", milestoneTone(milestone.status))} />
               </TimelineHeader>
               <TimelineContent className="text-screen-foreground">
-                <button type="button" onClick={() => setSelectedFrameId(item.frameId)} className={cn("grid w-full gap-3 border bg-black/35 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:grid-cols-[minmax(320px,1.15fr)_minmax(240px,0.85fr)] xl:grid-cols-[minmax(400px,1.2fr)_minmax(260px,0.8fr)]", selected ? "border-accent" : "border-screen-border hover:border-screen-foreground/50")} aria-pressed={selected}>
-                  <div className="relative aspect-video min-h-52 overflow-hidden bg-black">
-                    <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1280px) 760px, (min-width: 1024px) 58vw, 100vw" />
-                    {boxes.map((box, boxIndex) => (
-                      <div key={`${item.frameId}-${box.label}-${boxIndex}`} className="absolute border-2 border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }}>
-                        <span className="absolute left-0 top-0 grid size-5 place-items-center border border-screen bg-warning font-mono text-[10px] font-semibold text-background">{boxIndex + 1}</span>
-                      </div>
-                    ))}
+                <div className="border border-screen-border bg-black/35 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-sm font-semibold">{milestone.label}</p>
+                    <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone(milestone.sourceType === "footage" ? "footage" : "system"))}>{milestone.sourceType === "footage" ? "footage" : "system"}</Badge>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-screen-foreground">{onePhrase(item.name)}</p>
-                    <p className="mt-1 text-sm leading-snug text-screen-foreground/80">{onePhrase(item.description)}</p>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {incidentTags(item.tags).map((tag) => (
-                        <span key={tag} className="border border-screen-foreground/60 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/85">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-3 grid gap-1 border border-screen-border bg-black/40 p-2">
-                      {boxes.map((box, boxIndex) => (
-                        <p key={`${item.frameId}-label-${box.label}-${boxIndex}`} className="truncate text-xs text-screen-foreground/80">
-                          {boxIndex + 1}. {shortBoxLabel(box.label)}
-                        </p>
-                      ))}
-                      {boxes.length === 0 ? <p className="text-xs text-screen-foreground/65">No localized labels returned for this frame.</p> : null}
-                    </div>
-                  </div>
-                </button>
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{milestoneSourceLabel(milestone)}</p>
+                  {milestone.notes ? <p className="mt-2 text-xs leading-relaxed text-screen-foreground/75">{milestone.notes}</p> : null}
+                </div>
               </TimelineContent>
             </TimelineItem>
-          );
-        })}
-      </Timeline>
+          ))}
+
+          {evidence.map((item, index) => {
+            const boxes = item.boxes.slice(0, 3).map(insetBox);
+            const step = confirmedMilestones.length + index + 1;
+
+            return (
+              <TimelineItem key={`${item.frameId}-${index}`} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+                <TimelineHeader>
+                  <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                  <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{item.timestampLabel}</TimelineDate>
+                  <TimelineTitle className="sr-only">{item.name}</TimelineTitle>
+                  <TimelineIndicator className="border-accent bg-screen text-accent" />
+                </TimelineHeader>
+                <TimelineContent className="text-screen-foreground">
+                  <div className="grid gap-3 border border-screen-border bg-black/35 p-3 lg:grid-cols-[minmax(300px,0.95fr)_minmax(260px,1fr)]">
+                    <div className="relative aspect-video min-h-52 overflow-hidden bg-black">
+                      <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1280px) 620px, (min-width: 1024px) 42vw, 100vw" />
+                      {boxes.map((box, boxIndex) => (
+                        <div key={`${item.frameId}-${box.label}-${boxIndex}`} className="absolute border-2 border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }}>
+                          <span className="absolute left-0 top-0 grid size-5 place-items-center border border-screen bg-warning font-mono text-[10px] font-semibold text-background">{boxIndex + 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <p className="text-sm font-semibold">{onePhrase(item.name)}</p>
+                        <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("ai"))}>AI evidence</Badge>
+                      </div>
+                      <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{item.sourceResponder} / {item.sourceVideo.split("/").at(-1)}</p>
+                      <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{onePhrase(item.description)}</p>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {incidentTags(item.tags).map((tag) => (
+                          <span key={tag} className="border border-screen-foreground/60 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/85">{tag}</span>
+                        ))}
+                      </div>
+                      {boxes.length ? (
+                        <div className="mt-3 grid gap-1 border border-screen-border bg-black/40 p-2">
+                          {boxes.map((box, boxIndex) => <p key={`${item.frameId}-label-${box.label}-${boxIndex}`} className="truncate text-xs text-screen-foreground/80">{boxIndex + 1}. {shortBoxLabel(box.label)}</p>)}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </TimelineContent>
+              </TimelineItem>
+            );
+          })}
+
+          {visibleRecommendations.map((recommendation, index) => {
+            const linkedEvidence = recommendation.evidenceFrameIds.flatMap((frameId) => {
+              const item = evidenceByFrameId.get(frameId);
+              return item ? [item] : [];
+            });
+            const step = confirmedMilestones.length + evidence.length + index + 1;
+
+            return (
+              <TimelineItem key={recommendation.id} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+                <TimelineHeader>
+                  <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                  <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{linkedEvidence[0]?.timestampLabel ?? "Review"}</TimelineDate>
+                  <TimelineTitle className="sr-only">{recommendation.title}</TimelineTitle>
+                  <TimelineIndicator className="border-accent bg-screen text-accent" />
+                </TimelineHeader>
+                <TimelineContent className="text-screen-foreground">
+                  <div className="border border-accent/55 bg-accent/10 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="text-sm font-semibold">{recommendation.title}</p>
+                      <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("recommendation"))}>recommendation</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{recommendation.reason}</p>
+                    {linkedEvidence.length ? <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">Evidence: {linkedEvidence.map((item) => item.timestampLabel).join(" / ")}</p> : null}
+                  </div>
+                </TimelineContent>
+              </TimelineItem>
+            );
+          })}
+
+          {decisionReviews.map((decision, index) => {
+            const step = confirmedMilestones.length + evidence.length + visibleRecommendations.length + index + 1;
+
+            return (
+              <TimelineItem key={decision.id} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+                <TimelineHeader>
+                  <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                  <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{decision.timestamp}</TimelineDate>
+                  <TimelineTitle className="sr-only">{decisionLabel(decision.decision)}</TimelineTitle>
+                  <TimelineIndicator className={cn("bg-screen", timelineTone("officer", decision.decision))} />
+                </TimelineHeader>
+                <TimelineContent className="text-screen-foreground">
+                  <div className="border border-screen-border bg-black/35 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="text-sm font-semibold">{decisionLabel(decision.decision)}</p>
+                      <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("officer", decision.decision))}>officer reviewed</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{decision.reason}</p>
+                  </div>
+                </TimelineContent>
+              </TimelineItem>
+            );
+          })}
+
+          {pendingMilestones.length ? (
+            <TimelineItem step={entriesCount} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+              <TimelineHeader>
+                <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">Pending</TimelineDate>
+                <TimelineTitle className="sr-only">Pending records</TimelineTitle>
+                <TimelineIndicator className="border-warning bg-screen text-warning" />
+              </TimelineHeader>
+              <TimelineContent className="text-screen-foreground">
+                <div className="border border-warning/55 bg-warning/10 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-sm font-semibold">Pending formal records</p>
+                    <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("pending"))}>pending</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{pendingLabels}</p>
+                </div>
+              </TimelineContent>
+            </TimelineItem>
+          ) : null}
+        </Timeline>
+      )}
     </div>
   );
 }
@@ -1190,11 +1313,14 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const liveLoopRef = useRef(false);
   const analyzeInFlightRef = useRef(false);
+  const queuedAnalysisTimesRef = useRef<Record<string, number> | null>(null);
   const selectedIncident = getIncident(state, selectedIncidentId);
   const isStreamIncident = selectedIncident.id === streamIncidentId;
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
   const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && (isStreamIncident || incidentResponders.length > 0);
   const displayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : analysis;
+  const liveAnalysisIntervalMs = analysis?.events.length ? steadyLiveAnalysisIntervalMs : startupLiveAnalysisIntervalMs;
+  const liveCue = selectedIncident.id === aarBriefingIncidentId ? { responderId: "med-woodlands-a", timestampSeconds: 45.5 } : state.liveAnalysisCue;
 
   function selectIncident(incidentId: string) {
     setMode("live");
@@ -1206,6 +1332,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     videoRefs.current = {};
     liveLoopRef.current = false;
     analyzeInFlightRef.current = false;
+    queuedAnalysisTimesRef.current = null;
     setSelectedIncidentId(incidentId);
     router.replace(incidentHref(pathname, incidentId), { scroll: false });
   }
@@ -1213,7 +1340,10 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const analyzeChunk = useCallback((nextTimes?: Record<string, number>) => {
     if (!canRunLiveAnalysis) return;
     if (isStreamIncident) return;
-    if (analyzeInFlightRef.current) return;
+    if (analyzeInFlightRef.current) {
+      if (nextTimes) queuedAnalysisTimesRef.current = nextTimes;
+      return;
+    }
     analyzeInFlightRef.current = true;
 
     startTransition(async () => {
@@ -1242,6 +1372,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         setAnalysis((current) => mergeLiveAnalysis(current, result));
       } finally {
         analyzeInFlightRef.current = false;
+        const queuedTimes = queuedAnalysisTimesRef.current;
+        queuedAnalysisTimesRef.current = null;
+        if (queuedTimes) window.setTimeout(() => analyzeChunk(queuedTimes), 0);
       }
     });
   }, [canRunLiveAnalysis, incidentResponders, isStreamIncident, selectedIncident.id, startTransition]);
@@ -1276,13 +1409,13 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     const interval = window.setInterval(() => {
       if (!liveLoopRef.current) return;
       analyzeChunk();
-    }, 8000);
+    }, liveAnalysisIntervalMs);
 
     return () => {
       liveLoopRef.current = false;
       window.clearInterval(interval);
     };
-  }, [analyzeChunk, canRunLiveAnalysis, isStreamIncident, mode, playing]);
+  }, [analyzeChunk, canRunLiveAnalysis, isStreamIncident, liveAnalysisIntervalMs, mode, playing]);
 
   function toggleStreamAnalysis() {
     if (!isStreamIncident) {
@@ -1309,10 +1442,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   function jumpToEscalation() {
     if (isStreamIncident) return;
     setMode("escalation");
-    const cue = state.liveAnalysisCue;
-    const nextTimes = Object.fromEntries(incidentResponders.map((responder) => [responder.id, responder.id === cue.responderId ? cue.timestampSeconds : videoRefs.current[responder.id]?.currentTime ?? 0]));
-    const target = videoRefs.current[cue.responderId];
-    if (target) target.currentTime = cue.timestampSeconds;
+    const nextTimes = Object.fromEntries(incidentResponders.map((responder) => [responder.id, responder.id === liveCue.responderId ? liveCue.timestampSeconds : videoRefs.current[responder.id]?.currentTime ?? 0]));
+    const target = videoRefs.current[liveCue.responderId];
+    if (target) target.currentTime = liveCue.timestampSeconds;
     analyzeChunk(nextTimes);
   }
 
@@ -1332,7 +1464,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{isStreamIncident ? "Monitor connected browser bodycams while uploaded chunks generate structured stream events." : canRunLiveAnalysis ? "Monitor bodycams while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
-              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{isStreamIncident ? (streamSession?.analysisPaused ? "Stream analysis paused" : "Stream analysis active") : canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : "Continuous analysis active") : "Runtime analysis unavailable"}</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{isStreamIncident ? (streamSession?.analysisPaused ? "Stream analysis paused" : "Stream analysis active") : canRunLiveAnalysis ? (isPending ? "Analyzing current feeds" : analysis?.events.length ? "Continuous analysis active" : "Scanning current feeds") : "Runtime analysis unavailable"}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 bg-card p-4 lg:justify-end">
@@ -1362,7 +1494,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
       <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Live responder feeds" label="Feeds" className="h-full min-h-0 overflow-y-auto">
-          <BodycamGrid state={state} incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} streamSession={streamSession} />
+          <BodycamGrid incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} streamSession={streamSession} liveCue={liveCue} />
         </Panel>
 
         <div className="grid max-h-full auto-rows-max content-start gap-4 overflow-y-auto xl:sticky xl:top-20">
@@ -1401,9 +1533,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
             </details>
           </Panel>
           <Panel title="Events" label="Live analysis">
-            <EventLog analysis={displayAnalysis} />
+            <EventLog analysis={displayAnalysis} isAnalyzing={isPending} responders={isStreamIncident ? undefined : incidentResponders} />
           </Panel>
-          <RecommendationReview analysis={displayAnalysis} />
+          <RecommendationReview analysis={displayAnalysis} incidentId={selectedIncidentId} />
           {analysisError ? (
             <div className="border border-destructive bg-command p-3 text-sm text-destructive">{analysisError}</div>
           ) : null}
@@ -1422,6 +1554,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [activeEvidence, setActiveEvidence] = useState<RuntimeEvidence[]>([]);
+  const [decisionReviews, setDecisionReviews] = useState<DecisionReview[]>([]);
   const [hasEvidenceFilter, setHasEvidenceFilter] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isExportPending, startExportTransition] = useTransition();
@@ -1430,13 +1563,15 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const selectedIncident = getIncident(state, selectedIncidentId);
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
   const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
-  const canExportSlides = sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
+  const canGenerateAarSlides = selectedIncident.id === aarBriefingIncidentId;
+  const canExportSlides = canGenerateAarSlides && sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
 
   function selectIncident(incidentId: string) {
     setAnalysis(null);
     setAnalysisError(null);
     setExportError(null);
     setActiveEvidence([]);
+    setDecisionReviews([]);
     setHasEvidenceFilter(false);
     analysisStartedRef.current = false;
     setSelectedIncidentId(incidentId);
@@ -1471,6 +1606,25 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }, [canRunReviewAnalysis, incidentResponders, selectedIncident.id, startTransition]);
 
   useEffect(() => {
+    let active = true;
+
+    void fetch(`/api/recommendation-review?incidentId=${encodeURIComponent(selectedIncident.id)}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { decisions?: DecisionReview[] }) => {
+        if (!active) return;
+        setDecisionReviews(payload.decisions ?? []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDecisionReviews([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedIncident.id]);
+
+  useEffect(() => {
     if (!canRunReviewAnalysis) return;
     if (analysisStartedRef.current) return;
     analysisStartedRef.current = true;
@@ -1478,25 +1632,26 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }, [canRunReviewAnalysis, runAnalysis]);
 
   function exportReport() {
-    if (!analysis || activeEvidence.length === 0 || sessionStartMs === null) return;
+    if (!canGenerateAarSlides || !analysis || activeEvidence.length === 0 || sessionStartMs === null) return;
 
     startExportTransition(async () => {
       setExportError(null);
-      const exportEvidence = topEvidence(activeEvidence);
+      const exportEvidence = topEvidence(analysis.evidence);
       const exportAnalysis = {
         ...analysis,
+        decisionReviews,
         evidence: exportEvidence.map((item) => ({
           frameId: item.frameId,
           sourceVideo: item.sourceVideo,
           responderId: item.responderId,
           sourceResponder: item.sourceResponder,
           frameTimestampSeconds: item.frameTimestampSeconds,
-          timestampLabel: formatMountedSessionClock(sessionStartMs, item.frameTimestampSeconds),
+          timestampLabel: item.timestampLabel,
           imageUrl: item.imageUrl,
-            order: item.order,
+          order: item.order,
           name: item.name,
           description: item.description,
-          tags: incidentTags(item.tags),
+          tags: item.tags,
           boxes: item.boxes.slice(0, 3).map((box) => ({ ...box, label: shortBoxLabel(box.label) })),
         })),
         recommendations: analysis.recommendations
@@ -1523,7 +1678,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "1stsight-runtime-evidence-report.pdf";
+      link.download = "1stsight-woodlands-aar-briefing-slides.pdf";
       document.body.append(link);
       link.click();
       link.remove();
@@ -1552,7 +1707,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
             </Button>
             <Button size="lg" variant="outline" className="rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportSlides}>
               <Download data-icon="inline-start" />
-              {isExportPending ? "Exporting" : "Export PDF"}
+              {isExportPending ? "Exporting" : "Export AAR slides"}
             </Button>
           </div>
         </div>
@@ -1561,40 +1716,37 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       {analysisError ? <div className="border border-destructive bg-command p-3 text-sm text-destructive">{analysisError}</div> : null}
       {exportError ? <div className="border border-destructive bg-command p-3 text-sm text-destructive">{exportError}</div> : null}
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <Panel title="Evidence timeline" label="Evidence">
-          <RuntimeEvidenceTimeline evidence={analysis ? activeEvidence : []} sessionStartMs={sessionStartMs} emptyMessage={canRunReviewAnalysis ? "Building the evidence timeline from analyzed video frames." : selectedIncident.unavailableReason ?? "No review footage is attached."} />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <Panel title="Incident timeline" label="Provenance">
+          <UnifiedIncidentTimeline
+            incident={selectedIncident}
+            evidence={analysis ? activeEvidence : []}
+            recommendations={analysis?.recommendations ?? []}
+            decisionReviews={decisionReviews}
+            isAnalyzing={isPending}
+            canRunReviewAnalysis={canRunReviewAnalysis}
+            emptyMessage={canRunReviewAnalysis ? "Building timeline from analyzed frames." : selectedIncident.unavailableReason ?? "No review footage is attached."}
+          />
         </Panel>
 
-        <Panel title="Search" label="Secondary" tone="paper" className="h-fit xl:sticky xl:top-20">
-          <RuntimeSearchPanel incidentId={selectedIncident.id} evidence={analysis?.evidence ?? []} onResultsChange={(items, hasFilter) => {
-            setActiveEvidence(items);
-            setHasEvidenceFilter(hasFilter);
-          }} />
-        </Panel>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <Panel title="Ops Centre recommendations" label="Review">
-          <div className="divide-y divide-border">
-            {analysis?.recommendations.length ? analysis.recommendations.map((item) => (
-              <div key={item.id} className="p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">{item.evidenceFrameIds.length} evidence frame{item.evidenceFrameIds.length === 1 ? "" : "s"}</span>
-                </div>
-                <p className="mt-2 text-sm font-semibold">{item.title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{item.reason}</p>
-              </div>
-            )) : (
-              <div className="p-4 text-sm text-muted-foreground">Recommendations appear after runtime analysis returns evidence.</div>
-            )}
-          </div>
-        </Panel>
+        <div className="grid gap-4 xl:sticky xl:top-20">
+          <Panel title="Search" label="Filter" tone="paper" className="h-fit">
+            <RuntimeSearchPanel incidentId={selectedIncident.id} evidence={analysis?.evidence ?? []} onResultsChange={(items, hasFilter) => {
+              setActiveEvidence(items);
+              setHasEvidenceFilter(hasFilter);
+            }} />
+          </Panel>
 
         <Panel title="Generate AAR briefing PDF" label="Slides" tone="paper">
           <div className="p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {canRunReviewAnalysis ? (analysis ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"}.` : "Analysis starts automatically.") : "Export is disabled until footage is available."}
+              {!canGenerateAarSlides
+                ? "AAR slide PDF export is available for the Woodlands responder-safety review only."
+                : canRunReviewAnalysis
+                  ? analysis
+                    ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"} with timeline provenance.`
+                    : "Analysis starts automatically."
+                  : "Export is disabled until footage is available."}
             </p>
             {analysis ? (
               <Button size="sm" variant="outline" className="mt-4 rounded-sm" onClick={exportReport} disabled={!canRunReviewAnalysis || !canExportSlides}>
@@ -1604,6 +1756,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
             ) : null}
           </div>
         </Panel>
+        </div>
       </div>
 
     </AppShell>

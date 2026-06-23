@@ -140,3 +140,7 @@ Import schema and catalog without pulling in React:
 ```typescript
 import { schema, standardComponentDefinitions } from "@json-render/react-pdf/server";
 ```
+
+## Operational slide PDFs
+
+For presentation-ready operational/AAR evidence exports, see `references/operational-aar-slide-pdf.md`. It covers slide page structure, source/timestamp provenance, pending officer-input handling, Next.js route-handler headers, and visual verification with `pdfinfo`/`pdftoppm`.

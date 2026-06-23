@@ -1,7 +1,79 @@
-import type { ScenarioState } from "@/lib/domain";
+import type { IncidentMilestone, ScenarioState } from "@/lib/domain";
 
 export const DEFAULT_INCIDENT_ID = "punggol-residential-fire";
+export const WOODLANDS_AAR_INCIDENT_ID = "woodlands-medical-responder-safety";
 export const STREAM_INCIDENT_ID = "stage-medical-assistance-stream";
+
+const sharedMilestoneLabels: Record<IncidentMilestone["id"], string> = {
+  "call-received": "Call received",
+  dispatch: "Dispatch",
+  acknowledge: "Acknowledge",
+  "move-out": "Move out",
+  "arrive-at-scene": "Arrive at scene",
+  "at-patient-side": "At patient side",
+  "after-patient-assessment": "After patient assessment",
+  "moving-out-to-hospital": "Moving out to hospital",
+  "arrive-hospital": "Arrive hospital",
+  "first-jet-out": "First jet out",
+  "ba-entry": "BA entry",
+  "damping-down": "Damping down",
+  "investigation-cause-search": "Investigation / cause search",
+  "hand-over": "Hand over",
+};
+
+function milestone(id: IncidentMilestone["id"], fields: Omit<IncidentMilestone, "id" | "label">): IncidentMilestone {
+  return {
+    id,
+    label: sharedMilestoneLabels[id],
+    ...fields,
+  };
+}
+
+function unavailableMilestone(id: IncidentMilestone["id"], notes: string): IncidentMilestone {
+  return milestone(id, {
+    displayTime: "Unavailable",
+    sourceType: "officer-entered",
+    sourceLabel: "Officer review input required",
+    status: "unavailable",
+    notes,
+  });
+}
+
+const punggolFireMilestones: IncidentMilestone[] = [
+  milestone("call-received", { timestamp: "13:56:10", displayTime: "13:56", sourceType: "dispatch-system", sourceLabel: "Caller intake log", status: "confirmed", notes: "Caller reports small unit fire; no injuries reported." }),
+  milestone("dispatch", { timestamp: "13:57:24", displayTime: "13:57", sourceType: "dispatch-system", sourceLabel: "Dispatch console", status: "confirmed", notes: "Basic Task Force assigned in live Ops Centre flow." }),
+  milestone("acknowledge", { timestamp: "13:58:02", displayTime: "13:58", sourceType: "dispatch-system", sourceLabel: "Unit status log", status: "confirmed" }),
+  milestone("move-out", { timestamp: "13:59:16", displayTime: "13:59", sourceType: "dispatch-system", sourceLabel: "Unit status log", status: "confirmed" }),
+  milestone("arrive-at-scene", { timestamp: "14:01:48", displayTime: "14:01", sourceType: "dispatch-system", sourceLabel: "Unit status log", status: "confirmed" }),
+  unavailableMilestone("at-patient-side", "Medical patient-side timing is not applicable to this fire workflow."),
+  unavailableMilestone("after-patient-assessment", "Patient assessment timing is not applicable to this fire workflow."),
+  unavailableMilestone("moving-out-to-hospital", "Hospital conveyance timing is not part of this fire workflow."),
+  unavailableMilestone("arrive-hospital", "Hospital arrival timing is not part of this fire workflow."),
+  milestone("first-jet-out", { timestamp: "14:02:10", displayTime: "14:02", sourceType: "footage", sourceLabel: "Bodycam A", status: "confirmed", notes: "Hose-line movement visible near initial fire area.", evidenceRef: "ev-fire-a-attack" }),
+  milestone("ba-entry", { timestamp: "14:04:06", displayTime: "14:04", sourceType: "footage", sourceLabel: "Bodycam C", status: "confirmed", notes: "Entry-control conditions recorded from responder footage.", evidenceRef: "ev-fire-c-entry-control" }),
+  milestone("damping-down", { displayTime: "Pending officer input", sourceType: "officer-entered", sourceLabel: "Officer review input required", status: "pending", notes: "Not derived from current selected bodycam frames." }),
+  milestone("investigation-cause-search", { displayTime: "Pending officer input", sourceType: "officer-entered", sourceLabel: "Officer review input required", status: "pending", notes: "Formal investigation milestone not supplied to 1stSight." }),
+  milestone("hand-over", { displayTime: "Pending officer input", sourceType: "officer-entered", sourceLabel: "Officer review input required", status: "pending", notes: "Handover timestamp must be confirmed by officer/system record." }),
+];
+
+const woodlandsMedicalMilestones: IncidentMilestone[] = [
+  milestone("call-received", { timestamp: "17:22:08", displayTime: "17:22", sourceType: "dispatch-system", sourceLabel: "995 caller context supplied for scenario", status: "confirmed", notes: "Caller reports adult female appears distressed and may require medical attention." }),
+  milestone("dispatch", { displayTime: "Pending officer input", sourceType: "dispatch-system", sourceLabel: "Dispatch system record not supplied", status: "pending", notes: "Bodycam footage cannot confirm dispatch." }),
+  milestone("acknowledge", { displayTime: "Pending officer input", sourceType: "dispatch-system", sourceLabel: "Unit status record not supplied", status: "pending" }),
+  milestone("move-out", { displayTime: "Pending officer input", sourceType: "dispatch-system", sourceLabel: "Unit status record not supplied", status: "pending" }),
+  milestone("arrive-at-scene", { displayTime: "Pending officer input", sourceType: "dispatch-system", sourceLabel: "Arrival status record not supplied", status: "pending" }),
+  milestone("at-patient-side", { timestamp: "00:21.5", displayTime: "00:21", sourceType: "footage", sourceLabel: "Bodycam W1", status: "confirmed", notes: "Responder is at the patient interaction area in selected footage.", evidenceRef: "med-woodlands-a-21.5s" }),
+  milestone("after-patient-assessment", { timestamp: "00:22.5", displayTime: "00:22.5", sourceType: "footage", sourceLabel: "Bodycam W1", status: "confirmed", notes: "Assessment/proximity review point is footage-derived and requires officer interpretation.", evidenceRef: "med-woodlands-a-22_5s" }),
+  milestone("moving-out-to-hospital", { displayTime: "Pending officer input", sourceType: "officer-entered", sourceLabel: "Officer review input required", status: "pending", notes: "Conveyance decision/timing is not visible in current selected frames." }),
+  milestone("arrive-hospital", { displayTime: "Pending officer input", sourceType: "officer-entered", sourceLabel: "Officer review input required", status: "pending", notes: "Hospital arrival record was not supplied." }),
+  unavailableMilestone("first-jet-out", "Fire suppression timing is not applicable to this medical/responder-safety workflow."),
+  unavailableMilestone("ba-entry", "BA entry timing is not applicable to this medical/responder-safety workflow."),
+  unavailableMilestone("damping-down", "Damping down is not applicable to this medical/responder-safety workflow."),
+  unavailableMilestone("investigation-cause-search", "Fire investigation/cause-search timing is not applicable to this medical/responder-safety workflow."),
+  milestone("hand-over", { displayTime: "Pending officer input", sourceType: "officer-entered", sourceLabel: "Officer review input required", status: "pending", notes: "Handover must be confirmed by officer or receiving facility record." }),
+];
+
+const unavailableMilestones: IncidentMilestone[] = Object.keys(sharedMilestoneLabels).map((id) => unavailableMilestone(id as IncidentMilestone["id"], "No timestamp source is attached to this incident."));
 
 export const scenarioState: ScenarioState = {
   scenarioId: "punggol-residential-ops-2026-07-03",
@@ -10,7 +82,7 @@ export const scenarioState: ScenarioState = {
   deploymentProgress: 78,
   liveAnalysisCue: {
     responderId: "ff-b",
-    timestampSeconds: 78,
+    timestampSeconds: 77.5,
   },
   responders: [
     {
@@ -65,6 +137,7 @@ export const scenarioState: ScenarioState = {
       objectIds: ["obj-bodycam-a-attack", "obj-flame-spread", "obj-bodycam-c-entry-control"],
       evidenceIds: ["ev-fire-a-attack", "ev-fire-b-escalation", "ev-fire-c-entry-control"],
       responderIds: ["ff-a", "ff-b", "ff-c"],
+      milestones: punggolFireMilestones,
       supportsRuntimeAnalysis: true,
     },
     {
@@ -81,6 +154,7 @@ export const scenarioState: ScenarioState = {
       objectIds: [],
       evidenceIds: [],
       responderIds: [],
+      milestones: unavailableMilestones,
       supportsRuntimeAnalysis: false,
       unavailableReason: "No responder video has been attached to this incident.",
     },
@@ -98,11 +172,12 @@ export const scenarioState: ScenarioState = {
       objectIds: [],
       evidenceIds: [],
       responderIds: [],
+      milestones: unavailableMilestones,
       supportsRuntimeAnalysis: false,
       unavailableReason: "No bodycam footage is available for review.",
     },
     {
-      id: "woodlands-medical-responder-safety",
+      id: WOODLANDS_AAR_INCIDENT_ID,
       type: "medical",
       title: "Woodlands medical assistance responder safety review",
       severity: "elevated",
@@ -115,6 +190,7 @@ export const scenarioState: ScenarioState = {
       objectIds: [],
       evidenceIds: [],
       responderIds: ["med-woodlands-a"],
+      milestones: woodlandsMedicalMilestones,
       supportsRuntimeAnalysis: true,
     },
     {
@@ -131,6 +207,7 @@ export const scenarioState: ScenarioState = {
       objectIds: [],
       evidenceIds: [],
       responderIds: [],
+      milestones: unavailableMilestones,
       supportsRuntimeAnalysis: true,
     },
   ],
@@ -215,17 +292,17 @@ export function getScenarioState() {
   return scenarioState;
 }
 
-// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+// 1stSight incident catalogue: generated for multi-incident command routing.
 export function getIncidentById(incidentId: string) {
   return scenarioState.incidents.find((incident) => incident.id === incidentId) ?? null;
 }
 
-// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+// 1stSight incident catalogue: generated for multi-incident command routing.
 export function getSelectedIncidentId(incidentId: string | null | undefined) {
   return getIncidentById(incidentId ?? "")?.id ?? DEFAULT_INCIDENT_ID;
 }
 
-// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+// 1stSight incident catalogue: generated for multi-incident command routing.
 export function getIncidentResponders(incidentId: string) {
   const incident = getIncidentById(incidentId);
 
@@ -235,7 +312,7 @@ export function getIncidentResponders(incidentId: string) {
   return scenarioState.responders.filter((responder) => responderIds.has(responder.id));
 }
 
-// 1stSight prototype incident catalogue: generated for multi-incident command routing.
+// 1stSight incident catalogue: generated for multi-incident command routing.
 export function getRuntimeIncident(incidentId: string) {
   const incident = getIncidentById(incidentId);
 
@@ -246,4 +323,12 @@ export function getRuntimeIncident(incidentId: string) {
 
 export function findEvidence(id: string) {
   return scenarioState.evidence.find((item) => item.id === id);
+}
+
+export function getIncidentMilestones(incidentId: string) {
+  return getIncidentById(incidentId)?.milestones ?? [];
+}
+
+export function supportsAarBriefingSlides(incidentId: string) {
+  return incidentId === WOODLANDS_AAR_INCIDENT_ID;
 }

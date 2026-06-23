@@ -100,7 +100,7 @@ Acceptance criteria:
 
 ### Generate AAR briefing slide PDF
 
-Status: TODO
+Status: DONE
 
 Purpose: align the output with SCDF officer feedback: concise, visual AAR briefing slides in PDF format.
 
@@ -127,7 +127,7 @@ Acceptance criteria:
 
 ### Track critical incident milestones with timestamps
 
-Status: TODO
+Status: DONE
 
 Purpose: show important operational milestones in the incident timeline and AAR briefing slides with correct timestamp provenance.
 

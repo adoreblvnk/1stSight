@@ -1,6 +1,6 @@
 # Project Context
 
-**Last Updated:** 2026-06-22
+**Last Updated:** 2026-06-23
 **Repository:** 1stSight
 **Repo Root:** `/home/adoreblvnk/Documents/1stSight`
 
@@ -232,3 +232,14 @@ The presentation should be presenter-controlled rather than video-length-control
 - **Risk:** GB10 availability, model compatibility, and Cloudflare Tunnel reachability must be validated before relying on local text reasoning in the deployed presentation.
 - **Risk:** Cloud AI use for sensitive incident footage requires explicit data-governance approval before any real SCDF-like data is sent to third-party providers.
 - **Missing:** Final Woodlands location label, responder role/call sign, BWC ID naming convention, and whether to include audio/transcript analysis in the first presenter-ready build.
+
+## 11. Finale Demo Surfaces & Logistics
+
+See `resources/SCDF Finale Logistics and Demo Modes.md` for the full organiser timeline, rehearsal slot, finale agenda, stage/booth setup notes, and judge list.
+
+- **Stage Demo Scope:** The main stage presentation should focus on two flows: Punggol house fire and Woodlands medical / responder-safety review.
+- **Punggol Stage Flow:** Show the live C&C dashboard, three firefighter bodycam feeds, live incident timeline, and officer-reviewed recommendation flow. Incident review can be shown as an evidence timeline / review surface, but do not generate a fire report or AAR slide PDF for Punggol.
+- **Woodlands Stage Flow:** Show the medical assistance / responder-safety flow with one available bodycam feed, incident review timeline, responder-safety search, and AAR briefing slide PDF generation. Woodlands may start from a dashboard-style view, but the main product moment is review plus AAR slides.
+- **Ubi Booth Flow:** Ubi live site bodycam/dashboard is a booth-only demo surface, not part of the main on-stage presentation. Use it to demonstrate the system with booth hardware and the GB10 nearby.
+- **GB10 Constraint:** The GB10 remains at the booth and is not intended to be brought on stage. Stage demos should not rely on carrying the GB10 to the stage; use a tested deployed/tunnel endpoint only if reliable, otherwise keep the stage demo on laptop/cloud-backed paths.
+- **Finale Format:** Each team has 20 minutes on stage: 15 minutes presentation plus 5 minutes Q&A. Booth setup starts from 10am on 3 July 2026 at SCDF HQ Ubi.
