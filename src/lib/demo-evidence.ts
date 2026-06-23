@@ -50,6 +50,82 @@ const punggolFireCues: DemoCue[] = [
       { x: 7, y: 36, width: 31, height: 42, label: "Reduced operating space near fire" },
     ],
   },
+  {
+    frameId: "demo-punggol-post-fire-a-08s-sweep",
+    responderId: "ff-a",
+    sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
+    timestampSeconds: 8,
+    title: "Post-fire sweep begins",
+    description: "Wei Jie POV shows the Punggol incident continuing into a post-fire corridor sweep after the fire-response phase.",
+    tags: ["fire response", "responder safety"],
+    boxes: [
+      { x: 22, y: 24, width: 52, height: 48, label: "Post-fire corridor sweep area" },
+    ],
+  },
+  {
+    frameId: "demo-punggol-post-fire-a-18s-welfare-check",
+    responderId: "ff-a",
+    sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
+    timestampSeconds: 18,
+    title: "Welfare check interaction visible",
+    description: "Wei Jie POV shows responders conducting a welfare-check interaction after the fire response.",
+    tags: ["responder safety", "medical assistance"],
+    boxes: [
+      { x: 32, y: 14, width: 34, height: 56, label: "Welfare-check interaction" },
+      { x: 61, y: 20, width: 25, height: 48, label: "Responder proximity" },
+    ],
+  },
+  {
+    frameId: "demo-punggol-post-fire-a-31s-verbal-aggression",
+    responderId: "ff-a",
+    sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
+    timestampSeconds: 31,
+    title: "Verbal aggression during welfare check",
+    description: "Wei Jie POV captures raised verbal aggression during the post-fire welfare-check sequence.",
+    tags: ["responder safety", "unsafe proximity"],
+    boxes: [
+      { x: 36, y: 10, width: 32, height: 58, label: "Aggressive bystander posture" },
+      { x: 63, y: 18, width: 26, height: 52, label: "Responder in close proximity" },
+    ],
+  },
+  {
+    frameId: "demo-punggol-post-fire-a-37s-physical-contact",
+    responderId: "ff-a",
+    sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
+    timestampSeconds: 37,
+    title: "Physical contact / shove against Hafiz",
+    description: "Wei Jie POV at 0:37 is the clearest view of physical contact / shove against Hafiz during the welfare-check sequence.",
+    tags: ["responder safety", "physical contact", "unsafe proximity"],
+    boxes: [
+      { x: 34, y: 12, width: 36, height: 56, label: "Visible physical contact / shove" },
+      { x: 61, y: 18, width: 25, height: 52, label: "Hafiz receiving contact" },
+    ],
+  },
+  {
+    frameId: "demo-punggol-post-fire-b-37s-impact-recovery",
+    responderId: "ff-b",
+    sourceVideo: "/videos/fire/punggol-post-fire-hafiz-pov.mp4",
+    timestampSeconds: 37,
+    title: "Impact and recovery perspective",
+    description: "Hafiz POV at 0:37 supports the contact event with a sudden impact/recovery perspective.",
+    tags: ["responder safety", "physical contact", "crew intervention"],
+    boxes: [
+      { x: 25, y: 20, width: 50, height: 52, label: "Impact / recovery view" },
+    ],
+  },
+  {
+    frameId: "demo-punggol-post-fire-b-40s-recovery",
+    responderId: "ff-b",
+    sourceVideo: "/videos/fire/punggol-post-fire-hafiz-pov.mp4",
+    timestampSeconds: 40,
+    title: "De-escalation and restraint / recovery",
+    description: "Hafiz POV shows recovery and crew de-escalation/restraint actions immediately after the contact moment.",
+    tags: ["responder safety", "crew intervention"],
+    boxes: [
+      { x: 28, y: 18, width: 42, height: 54, label: "Recovery and de-escalation" },
+      { x: 61, y: 22, width: 24, height: 46, label: "Crew intervention area" },
+    ],
+  },
 ];
 
 const woodlandsResponderSafetyCues: DemoCue[] = [

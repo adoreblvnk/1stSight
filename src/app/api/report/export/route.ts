@@ -182,11 +182,11 @@ function sourceReference(item: RuntimeEvidence) {
 function validateIncidentEvidence(analysis: RuntimeAnalysis) {
   const responders = getIncidentResponders(analysis.incidentId);
   const responderIds = new Set(responders.map((responder) => responder.id));
-  const sourceVideos = new Set(responders.map((responder) => responder.videoSrc));
+  const sourceVideos = new Set(responders.flatMap((responder) => [responder.videoSrc, ...(responder.reviewVideoSrcs ?? [])]));
   const invalidEvidence = analysis.evidence.find((item) => !responderIds.has(item.responderId) || !sourceVideos.has(item.sourceVideo));
 
   if (invalidEvidence) {
-    throw new Error("AAR briefing slide PDF evidence must belong to the Woodlands incident responder footage.");
+    throw new Error("AAR briefing slide evidence must belong to the selected incident responder footage.");
   }
 }
 
@@ -210,7 +210,7 @@ function sanitizeAnalysis(analysis: RuntimeAnalysis): RuntimeAnalysis {
   }
 
   if (!supportsAarBriefingSlides(incident.id)) {
-    throw new Error("AAR briefing slide PDF is available only for the Woodlands medical responder-safety review in this presentation flow.");
+    throw new Error("AAR briefing slides are unavailable for this incident in the presentation flow.");
   }
 
   if (!incident.supportsRuntimeAnalysis) {
@@ -261,15 +261,16 @@ function evidenceChallenges(evidence: RuntimeEvidence[]) {
   const refs = sourceReferences(evidence);
   const hasResponderSafety = evidence.some((item) => item.tags.some((tag) => /responder safety|physical contact|unsafe proximity/i.test(tag)));
   const hasCrewIntervention = evidence.some((item) => item.tags.some((tag) => /crew intervention|patient movement/i.test(tag)));
+  const hasFireEscalation = evidence.some((item) => item.tags.some((tag) => /fire escalation|smoke spread|visibility/i.test(tag)));
 
   return [
     {
-      title: hasResponderSafety ? "Responder-safety risk in patient interaction" : "Patient-side interaction requires officer review",
-      body: `${hasResponderSafety ? "Selected frames show unsafe proximity or contact-risk indicators." : "Selected frames require officer interpretation before final AAR wording."} Source: ${refs}.`,
+      title: hasResponderSafety ? "Responder-safety risk in post-fire welfare check" : hasFireEscalation ? "Fire escalation requires command review" : "Incident interaction requires officer review",
+      body: `${hasResponderSafety ? "Selected frames show unsafe proximity or physical-contact indicators without assigning legal intent." : hasFireEscalation ? "Selected frames show fire or smoke escalation requiring GC review." : "Selected frames require officer interpretation before final AAR wording."} Source: ${refs}.`,
     },
     {
       title: hasCrewIntervention ? "Crew intervention visible in current footage" : "Formal operational sequence remains incomplete",
-      body: `${hasCrewIntervention ? "Crew movement/intervention can be reviewed against the bodycam timeline." : "Dispatch, conveyance, and handover data should come from system/officer records."} Source: ${refs}.`,
+      body: `${hasCrewIntervention ? "Crew movement/intervention can be reviewed against the bodycam timeline." : "Formal records should come from system/officer inputs where footage cannot confirm them."} Source: ${refs}.`,
     },
   ];
 }
@@ -329,7 +330,7 @@ function OverviewSlide({ analysis, milestones }: { analysis: RuntimeAnalysis; mi
     Page,
     { size: "A4", orientation: "landscape", style: styles.slide },
     React.createElement(SlideHeader, { section: "Incident overview", page: "01 / 05" }),
-    React.createElement(Text, { style: styles.title }, "Woodlands medical assistance responder-safety AAR"),
+    React.createElement(Text, { style: styles.title }, `${incident?.title ?? analysis.incidentTitle} AAR`),
     React.createElement(Text, { style: styles.subtitle }, incident?.summary ?? analysis.summary),
     React.createElement(
       View,
@@ -529,7 +530,7 @@ async function renderPptxBuffer(analysis: RuntimeAnalysis) {
   const overview = pptx.addSlide();
   overview.background = { color: pptxColor(colors.paper) };
   addPptxHeader(overview, "Incident overview", "01 / 05");
-  overview.addText("Woodlands medical assistance responder-safety AAR", { x: 0.35, y: 0.72, w: 11.6, h: 0.5, fontFace: "Aptos Display", fontSize: 24, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
+  overview.addText(`${incident?.title ?? analysis.incidentTitle} AAR`, { x: 0.35, y: 0.72, w: 11.6, h: 0.5, fontFace: "Aptos Display", fontSize: 24, bold: true, color: pptxColor(colors.ink), fit: "shrink" });
   overview.addText(incident?.summary ?? analysis.summary, { x: 0.35, y: 1.25, w: 11.8, h: 0.46, fontFace: "Aptos", fontSize: 10, color: pptxColor(colors.muted), fit: "shrink" });
   addPptxMetric(overview, "Location", truncate(incident?.location ?? analysis.incidentTitle, 42), "Supplied caller context", 0.35, 2.0, 3.85);
   addPptxMetric(overview, "Runtime evidence", `${analysis.evidence.length} selected BWC frame${analysis.evidence.length === 1 ? "" : "s"}`, generatedFromLabel(analysis.generatedFrom), 4.55, 2.0, 3.85);
@@ -629,7 +630,7 @@ export async function POST(request: NextRequest) {
     return new Response(pptxBody, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "Content-Disposition": 'attachment; filename="1stsight-woodlands-aar-briefing-slides.pptx"',
+        "Content-Disposition": 'attachment; filename="1stsight-aar-briefing-slides.pptx"',
       },
     });
   }
@@ -641,7 +642,7 @@ export async function POST(request: NextRequest) {
   return new Response(pdfBody, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": 'attachment; filename="1stsight-woodlands-aar-briefing-slides.pdf"',
+      "Content-Disposition": 'attachment; filename="1stsight-aar-briefing-slides.pdf"',
     },
   });
 }

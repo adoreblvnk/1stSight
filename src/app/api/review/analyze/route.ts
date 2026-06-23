@@ -145,14 +145,24 @@ export async function POST(request: Request) {
         : await buildWoodlandsDemoFrames(cacheDir, incidentResponders);
       const evidence = frames.map(demoEvidenceItem);
       const recommendation = isDemoFireIncident(incident)
-        ? [{
-            id: "demo-fire-etf-review-recommendation",
-            rank: 1,
-            order: 1,
-            title: "Flag Enhanced Task Force consideration for Ground Commander",
-            reason: "Fire escalation at 1:17.5 on Bodycam B supports command review for ETF escalation.",
-            evidenceFrameIds: [frames[0].frameId],
-          }]
+        ? [
+            {
+              id: "demo-fire-etf-review-recommendation",
+              rank: 1,
+              order: 1,
+              title: "Flag Enhanced Task Force consideration for Ground Commander",
+              reason: "Fire escalation at 1:17.5 on Bodycam B supports command review for ETF escalation.",
+              evidenceFrameIds: ["demo-fire-b-77_5s-escalation-etf"],
+            },
+            {
+              id: "demo-punggol-onsite-police-support-guidance",
+              rank: 2,
+              order: 2,
+              title: "Confirm on-site police support with Ground Commander",
+              reason: "Post-fire welfare-check footage shows verbal aggression, physical contact / shove evidence, and recovery actions; on-site police-support confirmation is for officer / GC review.",
+              evidenceFrameIds: ["demo-punggol-post-fire-a-37s-physical-contact", "demo-punggol-post-fire-b-37s-impact-recovery"],
+            },
+          ]
         : [{
             id: "demo-woodlands-responder-safety-review",
             rank: 1,
@@ -166,8 +176,8 @@ export async function POST(request: Request) {
         incidentId: incident.id,
         incidentTitle: incident.title,
         summary: isDemoFireIncident(incident)
-          ? "Deterministic demo analysis selected the two Bodycam B fire-escalation moments requested for the Punggol incident timeline."
-          : "Deterministic demo analysis selected the two Woodlands responder-safety abuse/contact moments requested for AAR export.",
+          ? "Current BWC evidence selection covers the Punggol fire response, post-fire sweep, welfare check, responder-safety contact moment, and reviewable on-site police-support guidance."
+          : "Current BWC evidence selection covers the Woodlands responder-safety review moments requested for AAR export.",
         generatedFrom: "Current BWC evidence selection",
         evidence,
         recommendations: recommendation,

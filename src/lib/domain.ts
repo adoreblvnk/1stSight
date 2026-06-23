@@ -31,6 +31,12 @@ export type IncidentMilestoneId =
   | "first-jet-out"
   | "ba-entry"
   | "damping-down"
+  | "post-fire-sweep"
+  | "welfare-check"
+  | "verbal-aggression"
+  | "physical-contact"
+  | "de-escalation-restraint"
+  | "police-support-notified"
   | "investigation-cause-search"
   | "hand-over";
 
@@ -69,6 +75,8 @@ export type Responder = {
   role: string;
   feedLabel: string;
   videoSrc: string;
+  reviewVideoSrcs?: string[];
+  unavailableNote?: string;
   status: "en route" | "interior" | "monitoring" | "post-incident";
   position: Coordinates;
 };

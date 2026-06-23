@@ -100,6 +100,8 @@ const routeItems = [
 
 const streamIncidentId = "stage-medical-assistance-stream";
 const aarBriefingIncidentId = "woodlands-medical-responder-safety";
+const punggolIncidentId = "punggol-residential-fire";
+const aarBriefingIncidentIds = new Set([punggolIncidentId, aarBriefingIncidentId]);
 const startupLiveAnalysisIntervalMs = 3000;
 const steadyLiveAnalysisIntervalMs = 8000;
 
@@ -242,6 +244,10 @@ function incidentTags(tags: string[]) {
     .map((tag) => tag.toLowerCase().replace(/-/g, " "))
     .map((tag) => {
       if (tag.includes("entry")) return "entry approach";
+      if (tag.includes("responder safety")) return "responder safety";
+      if (tag.includes("physical")) return "physical contact";
+      if (tag.includes("proximity")) return "unsafe proximity";
+      if (tag.includes("crew")) return "crew intervention";
       if (tag.includes("smoke")) return "smoke spread";
       if (tag.includes("flame") || tag.includes("fire")) return "fire escalation";
       if (tag.includes("hazmat") || tag.includes("chemical") || tag.includes("gas")) return "hazmat";
@@ -830,6 +836,7 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
 }
 
 function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
+  const isPunggolPostFirePhase = incident.id === punggolIncidentId && mode === "concluded";
 
   useEffect(() => {
     responders.forEach((responder) => {
@@ -837,10 +844,11 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
       if (!video) return;
       video.muted = activeAudioResponderId !== responder.id;
       if (mode === "escalation" && responder.id === liveCue.responderId) video.currentTime = liveCue.timestampSeconds;
+      if (isPunggolPostFirePhase && responder.reviewVideoSrcs?.length && video.currentTime > 44) video.currentTime = 0;
       if (playing) void video.play();
       else video.pause();
     });
-  }, [activeAudioResponderId, liveCue.responderId, liveCue.timestampSeconds, mode, playing, responders, videoRefs]);
+  }, [activeAudioResponderId, isPunggolPostFirePhase, liveCue.responderId, liveCue.timestampSeconds, mode, playing, responders, videoRefs]);
 
   if (incident.id === streamIncidentId) {
     return (
@@ -854,6 +862,25 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
   }
 
   function renderFeed(responder: ScenarioState["responders"][number]) {
+    if (isPunggolPostFirePhase && !responder.reviewVideoSrcs?.length) {
+      return (
+        <div key={responder.id} className="min-w-0 bg-screen text-left text-screen-foreground">
+          <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{responder.feedLabel}</p>
+              <p className="text-sm font-medium">{responder.name}</p>
+            </div>
+            <span className="size-2 border border-screen-foreground/30" />
+          </div>
+          <div className="grid aspect-video place-items-center bg-black/60 p-4 text-center font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
+            {responder.unavailableNote ?? "Not attached to current phase"}
+          </div>
+        </div>
+      );
+    }
+
+    const videoSrc = isPunggolPostFirePhase && responder.reviewVideoSrcs?.[0] ? responder.reviewVideoSrcs[0] : responder.videoSrc;
+
     return (
       <button key={responder.id} type="button" onClick={() => onAudioChange(responder.id)} className="min-w-0 bg-screen text-left text-screen-foreground transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
         <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
@@ -870,7 +897,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
           ref={(node) => {
             videoRefs.current[responder.id] = node;
           }}
-          src={responder.videoSrc}
+          src={videoSrc}
           muted={activeAudioResponderId !== responder.id}
           loop
           playsInline
@@ -889,7 +916,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-screen-foreground/70">{incident.unavailableReason ?? "No responder video has been attached to this incident."}</p>
         </div>
       )}
-      <div className="min-h-52 bg-screen text-screen-foreground">
+      {!isPunggolPostFirePhase ? <div className="min-h-52 bg-screen text-screen-foreground">
         <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">Reserve feed</p>
@@ -900,7 +927,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
         <div className="grid aspect-video place-items-center bg-black/60 font-mono text-xs uppercase tracking-widest text-screen-foreground/45">
           Empty feed slot
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -1708,7 +1735,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const selectedIncident = getIncident(state, selectedIncidentId);
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
   const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
-  const canGenerateAarSlides = selectedIncident.id === aarBriefingIncidentId;
+  const canGenerateAarSlides = aarBriefingIncidentIds.has(selectedIncident.id);
   const canExportSlides = canGenerateAarSlides && sessionStartMs !== null && Boolean(analysis) && activeEvidence.length > 0 && !isExportPending;
 
   function selectIncident(incidentId: string) {
@@ -1781,7 +1808,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
 
     startExportTransition(async () => {
       setExportError(null);
-      const exportEvidence = topEvidence(analysis.evidence);
+      const exportEvidence = topEvidence(activeEvidence);
       const exportAnalysis = {
         ...analysis,
         decisionReviews,
@@ -1823,7 +1850,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `1stsight-woodlands-aar-briefing-slides.${format}`;
+      link.download = `1stsight-${selectedIncident.id}-aar-briefing-slides.${format}`;
       document.body.append(link);
       link.click();
       link.remove();
@@ -1890,10 +1917,10 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
           <div className="p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
               {!canGenerateAarSlides
-                ? "AAR slide export is available for the Woodlands responder-safety review only."
+                ? "AAR slide export is available for incidents with reviewable bodycam evidence."
                 : canRunReviewAnalysis
                   ? analysis
-                    ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"} with timeline provenance. PPTX is editable; PDF is available as a locked copy.`
+                    ? `Export top ${Math.min(activeEvidence.length, 3)} current evidence screenshot${Math.min(activeEvidence.length, 3) === 1 ? "" : "s"} with full incident timeline provenance. PPTX is editable; PDF is available as a locked copy.`
                     : "Analysis starts automatically."
                   : "Export is disabled until footage is available."}
             </p>
