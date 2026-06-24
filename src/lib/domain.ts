@@ -14,6 +14,9 @@ export type IncidentTag =
   | "physical contact"
   | "unsafe proximity"
   | "crew intervention"
+  | "abuse"
+  | "strike"
+  | "assault"
   | "patient movement";
 
 export type IncidentType = "fire" | "medical";

@@ -159,7 +159,7 @@ export async function POST(request: Request) {
               rank: 2,
               order: 2,
               title: "Confirm on-site police support with Ground Commander",
-              reason: "Post-fire welfare-check footage shows verbal aggression, physical contact / shove evidence, and recovery actions; on-site police-support confirmation is for officer / GC review.",
+              reason: "Post-fire welfare-check footage beside the building shows the drunk/aggressive man, physical contact / shove evidence, and recovery actions; on-site police-support confirmation is for officer / GC review.",
               evidenceFrameIds: ["demo-punggol-post-fire-a-37s-physical-contact", "demo-punggol-post-fire-b-37s-impact-recovery"],
             },
           ]
@@ -176,7 +176,7 @@ export async function POST(request: Request) {
         incidentId: incident.id,
         incidentTitle: incident.title,
         summary: isDemoFireIncident(incident)
-          ? "Current BWC evidence selection covers the Punggol fire response, post-fire sweep, welfare check, responder-safety contact moment, and reviewable on-site police-support guidance."
+          ? "Current BWC evidence selection covers the Punggol landed house fire response, post-fire sweep beside the adjacent building, welfare check, responder-safety contact moment, and reviewable on-site police-support guidance."
           : "Current BWC evidence selection covers the Woodlands responder-safety review moments requested for AAR export.",
         generatedFrom: "Current BWC evidence selection",
         evidence,

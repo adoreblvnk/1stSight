@@ -25,6 +25,31 @@ export type DemoEvidenceFrame = DemoCue & {
 
 const punggolFireCues: DemoCue[] = [
   {
+    frameId: "demo-fire-a-24s-initial-attack",
+    responderId: "ff-a",
+    sourceVideo: "/videos/fire/fire-feed-a.mp4",
+    timestampSeconds: 24,
+    title: "Initial attack line positioned",
+    description: "Bodycam A shows responders positioning the attack line at the landed house fire next to the adjacent building.",
+    tags: ["fire response", "ground operations", "entry approach"],
+    boxes: [
+      { x: 18, y: 36, width: 36, height: 38, label: "Attack line positioning" },
+      { x: 52, y: 15, width: 34, height: 54, label: "Fire area at landed house" },
+    ],
+  },
+  {
+    frameId: "demo-fire-a-52s-smoke-spread",
+    responderId: "ff-a",
+    sourceVideo: "/videos/fire/fire-feed-a.mp4",
+    timestampSeconds: 52,
+    title: "Smoke spread reduces visibility",
+    description: "Bodycam A shows smoke spread and reduced visibility during operations at the landed house fire.",
+    tags: ["smoke spread", "visibility", "fire response"],
+    boxes: [
+      { x: 20, y: 10, width: 58, height: 44, label: "Smoke spread reducing visibility" },
+    ],
+  },
+  {
     frameId: "demo-fire-b-77_5s-escalation-etf",
     responderId: "ff-b",
     sourceVideo: "/videos/fire/fire-feed-b-escalation.mp4",
@@ -51,12 +76,25 @@ const punggolFireCues: DemoCue[] = [
     ],
   },
   {
+    frameId: "demo-fire-c-64s-entry-control",
+    responderId: "ff-c",
+    sourceVideo: "/videos/fire/fire-feed-c.mp4",
+    timestampSeconds: 64,
+    title: "Entry-control conditions recorded",
+    description: "Bodycam C records entry-control conditions while the landed house fire is being managed beside the adjacent building.",
+    tags: ["entry approach", "ground operations", "smoke spread"],
+    boxes: [
+      { x: 14, y: 24, width: 34, height: 46, label: "Entry-control position" },
+      { x: 50, y: 18, width: 38, height: 50, label: "Access point visibility" },
+    ],
+  },
+  {
     frameId: "demo-punggol-post-fire-a-08s-sweep",
     responderId: "ff-a",
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 8,
     title: "Post-fire sweep begins",
-    description: "Wei Jie POV shows the Punggol incident continuing into a post-fire corridor sweep after the fire-response phase.",
+    description: "Wei Jie POV shows the Punggol incident continuing into a post-fire sweep beside the adjacent building after the house-fire phase.",
     tags: ["fire response", "responder safety"],
     boxes: [
       { x: 22, y: 24, width: 52, height: 48, label: "Post-fire corridor sweep area" },
@@ -68,7 +106,7 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 18,
     title: "Welfare check interaction visible",
-    description: "Wei Jie POV shows responders conducting a welfare-check interaction after the fire response.",
+    description: "Wei Jie POV shows responders conducting a welfare-check interaction beside the building after the house-fire response.",
     tags: ["responder safety", "medical assistance"],
     boxes: [
       { x: 32, y: 14, width: 34, height: 56, label: "Welfare-check interaction" },
@@ -81,10 +119,10 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 31,
     title: "Verbal aggression during welfare check",
-    description: "Wei Jie POV captures raised verbal aggression during the post-fire welfare-check sequence.",
+    description: "Wei Jie POV captures a drunk/aggressive man beside the building during the post-fire welfare-check sequence.",
     tags: ["responder safety", "unsafe proximity"],
     boxes: [
-      { x: 36, y: 10, width: 32, height: 58, label: "Aggressive bystander posture" },
+      { x: 36, y: 10, width: 32, height: 58, label: "Drunk/aggressive man beside building" },
       { x: 63, y: 18, width: 26, height: 52, label: "Responder in close proximity" },
     ],
   },
@@ -94,8 +132,8 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 37,
     title: "Physical contact / shove against Hafiz",
-    description: "Wei Jie POV at 0:37 is the clearest view of physical contact / shove against Hafiz during the welfare-check sequence.",
-    tags: ["responder safety", "physical contact", "unsafe proximity"],
+    description: "Wei Jie POV at 0:37 is the clearest view of the drunk/aggressive man making physical contact / shove against Hafiz beside the building.",
+    tags: ["responder safety", "physical contact", "unsafe proximity", "abuse", "strike", "assault"],
     boxes: [
       { x: 34, y: 12, width: 36, height: 56, label: "Visible physical contact / shove" },
       { x: 61, y: 18, width: 25, height: 52, label: "Hafiz receiving contact" },
@@ -107,8 +145,8 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-hafiz-pov.mp4",
     timestampSeconds: 37,
     title: "Impact and recovery perspective",
-    description: "Hafiz POV at 0:37 supports the contact event with a sudden impact/recovery perspective.",
-    tags: ["responder safety", "physical contact", "crew intervention"],
+    description: "Hafiz POV at 0:37 supports the responder-safety event with a sudden impact/recovery perspective beside the building.",
+    tags: ["responder safety", "physical contact", "crew intervention", "abuse", "strike", "assault"],
     boxes: [
       { x: 25, y: 20, width: 50, height: 52, label: "Impact / recovery view" },
     ],
@@ -119,8 +157,8 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-hafiz-pov.mp4",
     timestampSeconds: 40,
     title: "De-escalation and restraint / recovery",
-    description: "Hafiz POV shows recovery and crew de-escalation/restraint actions immediately after the contact moment.",
-    tags: ["responder safety", "crew intervention"],
+    description: "Hafiz POV shows recovery and crew de-escalation/restraint actions immediately after the contact moment beside the building.",
+    tags: ["responder safety", "crew intervention", "abuse"],
     boxes: [
       { x: 28, y: 18, width: 42, height: 54, label: "Recovery and de-escalation" },
       { x: 61, y: 22, width: 24, height: 46, label: "Crew intervention area" },

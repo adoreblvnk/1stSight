@@ -29,7 +29,7 @@ import { liveRelayFrameIntervalMs } from "@/lib/stream-relay-config";
 import { cn } from "@/lib/utils";
 import { browserRtcConfiguration } from "@/lib/webrtc";
 
-const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident"]);
+const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident", "abuse", "strike", "assault"]);
 
 type LiveMode = "live" | "escalation" | "post-fire" | "concluded";
 
@@ -253,6 +253,9 @@ function incidentTags(tags: string[]) {
     .map((tag) => {
       if (tag.includes("entry")) return "entry approach";
       if (tag.includes("responder safety")) return "responder safety";
+      if (tag.includes("abuse")) return "abuse";
+      if (tag.includes("strike")) return "strike";
+      if (tag.includes("assault")) return "assault";
       if (tag.includes("physical")) return "physical contact";
       if (tag.includes("proximity")) return "unsafe proximity";
       if (tag.includes("crew")) return "crew intervention";
@@ -280,9 +283,10 @@ function shortBoxLabel(label: string) {
 
 function topEvidence(evidence: RuntimeEvidence[]) {
   const buckets = [
+    /ground operations|entry approach|entry control/i,
     /fire escalation|smoke spread|fire response/i,
     /post-fire|welfare|sweep/i,
-    /physical contact|impact|recovery|crew intervention|unsafe proximity/i,
+    /physical contact|impact|recovery|crew intervention|unsafe proximity|abuse|strike|assault/i,
   ];
   const selected: RuntimeEvidence[] = [];
 
@@ -293,7 +297,7 @@ function topEvidence(evidence: RuntimeEvidence[]) {
   });
 
   evidence.forEach((item) => {
-    if (selected.length >= 3) return;
+    if (selected.length >= 4) return;
     if (!selected.some((selectedItem) => selectedItem.frameId === item.frameId)) selected.push(item);
   });
 
@@ -866,8 +870,9 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   );
 }
 
-function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
+function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, onPunggolFireEnded, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; onPunggolFireEnded: () => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
   const isPunggolPostFirePhase = isPostFirePhase(incident.id, mode);
+  const isPunggolFirePhase = incident.id === punggolIncidentId && mode !== "post-fire";
 
   useEffect(() => {
     responders.forEach((responder) => {
@@ -890,6 +895,10 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
         })}
       </div>
     );
+  }
+
+  function handleFeedEnded(responderId: string) {
+    if (isPunggolFirePhase && responderId === "ff-b") onPunggolFireEnded();
   }
 
   function renderFeed(responder: ScenarioState["responders"][number]) {
@@ -931,7 +940,8 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
           }}
           src={videoSrc}
           muted={activeAudioResponderId !== responder.id}
-          loop
+          loop={!isPunggolFirePhase}
+          onEnded={() => handleFeedEnded(responder.id)}
           playsInline
           className="aspect-video w-full bg-black object-cover"
         />
@@ -966,6 +976,14 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
 
 function EventLog({ analysis, isAnalyzing, responders }: { analysis: LiveAnalysis | StreamUiAnalysis | null; isAnalyzing?: boolean; responders?: Responder[] }) {
   const events = analysis?.events ?? [];
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const latestEventKey = events.map((event) => event.id).join("|");
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || events.length === 0) return;
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+  }, [events.length, latestEventKey]);
 
   if (events.length === 0) {
     return (
@@ -994,7 +1012,7 @@ function EventLog({ analysis, isAnalyzing, responders }: { analysis: LiveAnalysi
   }
 
   return (
-    <div className="max-h-[280px] overflow-y-auto bg-border">
+    <div ref={scrollRef} className="max-h-[280px] overflow-y-auto bg-border">
       {events.map((event) => {
         const boxes = event.boxes?.slice(0, 3).map(insetBox) ?? [];
 
@@ -1029,6 +1047,14 @@ function RecommendationReview({ analysis, incidentId }: { analysis: LiveAnalysis
   const recommendations = analysis?.recommendations ?? [];
   const [decisions, setDecisions] = useState<Record<string, DecisionReview>>({});
   const [isReviewPending, startReviewTransition] = useTransition();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const latestRecommendationKey = recommendations.map((recommendation) => recommendation.id).join("|");
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || recommendations.length === 0) return;
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+  }, [recommendations.length, latestRecommendationKey]);
 
   function review(recommendation: LiveAnalysisOutput["recommendation"], decisionValue: "approved" | "rejected") {
     startReviewTransition(async () => {
@@ -1054,7 +1080,7 @@ function RecommendationReview({ analysis, incidentId }: { analysis: LiveAnalysis
 
   return (
     <Panel title="Recommendations" label="Officer review">
-      <div className="max-h-[360px] overflow-y-auto bg-border">
+      <div ref={scrollRef} className="max-h-[360px] overflow-y-auto bg-border">
         {recommendations.length ? recommendations.map((recommendation) => {
           const decision = decisions[recommendation.id];
 
@@ -1107,7 +1133,7 @@ function timelineTone(kind: "system" | "footage" | "ai" | "recommendation" | "of
   return "border-screen-foreground/55 text-screen-foreground/75";
 }
 
-function UnifiedIncidentTimeline({ incident, evidence, recommendations, decisionReviews, isAnalyzing, canRunReviewAnalysis, emptyMessage }: { incident: Incident; evidence: RuntimeEvidence[]; recommendations: RuntimeRecommendation[]; decisionReviews: DecisionReview[]; isAnalyzing: boolean; canRunReviewAnalysis: boolean; emptyMessage: string }) {
+function UnifiedIncidentTimeline({ incident, evidence, highlightedEvidenceIds, recommendations, decisionReviews, isAnalyzing, canRunReviewAnalysis, emptyMessage }: { incident: Incident; evidence: RuntimeEvidence[]; highlightedEvidenceIds: Set<string>; recommendations: RuntimeRecommendation[]; decisionReviews: DecisionReview[]; isAnalyzing: boolean; canRunReviewAnalysis: boolean; emptyMessage: string }) {
   const evidenceByFrameId = new globalThis.Map(evidence.map((item) => [item.frameId, item]));
   const confirmedMilestones = incident.milestones.filter((milestone) => milestone.status === "confirmed");
   const pendingMilestones = incident.milestones.filter((milestone) => milestone.status === "pending");
@@ -1154,6 +1180,7 @@ function UnifiedIncidentTimeline({ incident, evidence, recommendations, decision
           {evidence.map((item, index) => {
             const boxes = item.boxes.slice(0, 3).map(insetBox);
             const step = confirmedMilestones.length + index + 1;
+            const highlighted = highlightedEvidenceIds.has(item.frameId);
 
             return (
               <TimelineItem key={`${item.frameId}-${index}`} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
@@ -1164,7 +1191,7 @@ function UnifiedIncidentTimeline({ incident, evidence, recommendations, decision
                   <TimelineIndicator className="border-accent bg-screen text-accent" />
                 </TimelineHeader>
                 <TimelineContent className="text-screen-foreground">
-                  <div className="grid gap-3 border border-screen-border bg-black/35 p-3 lg:grid-cols-[minmax(300px,0.95fr)_minmax(260px,1fr)]">
+                  <div className={cn("grid gap-3 border bg-black/35 p-3 lg:grid-cols-[minmax(300px,0.95fr)_minmax(260px,1fr)]", highlighted ? "border-warning bg-warning/15 ring-2 ring-warning/80" : "border-screen-border")}>
                     <div className="relative aspect-video min-h-52 overflow-hidden bg-black">
                       <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1280px) 620px, (min-width: 1024px) 42vw, 100vw" />
                       {boxes.map((box, boxIndex) => (
@@ -1176,7 +1203,7 @@ function UnifiedIncidentTimeline({ incident, evidence, recommendations, decision
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <p className="text-sm font-semibold">{onePhrase(item.name)}</p>
-                        <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("ai"))}>AI evidence</Badge>
+                        <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", highlighted ? "border-warning text-warning" : timelineTone("ai"))}>{highlighted ? "search match" : "AI evidence"}</Badge>
                       </div>
                       <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{item.sourceResponder} / {item.sourceVideo.split("/").at(-1)}</p>
                       <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{onePhrase(item.description)}</p>
@@ -1283,7 +1310,27 @@ function RuntimeSearchPanel({ incidentId, evidence, onResultsChange }: { inciden
   const lastResultKeyRef = useRef("");
 
   function runSearch() {
-    if (!query.trim() || evidence.length === 0) return;
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || evidence.length === 0) return;
+
+    const normalizedQuery = trimmedQuery.toLowerCase();
+    const directTerms = normalizedQuery.match(/abuse|strike|assault|physical contact|shove|drunk|aggressive/g);
+    if (directTerms?.length) {
+      const directMatches = evidence.filter((item) => {
+        const haystack = `${item.name} ${item.description} ${item.tags.join(" ")} ${item.boxes.map((box) => box.label).join(" ")}`.toLowerCase();
+        return directTerms.some((term) => haystack.includes(term));
+      });
+
+      setSearchError(null);
+      setResult({
+        query: trimmedQuery,
+        intent: "Responder-safety / abuse evidence",
+        answer: directMatches.length ? "Matching responder-safety evidence is highlighted in the timeline." : "No matching responder-safety evidence found in analyzed frames.",
+        reason: "Matched query terms against analyzed evidence titles, descriptions, tags, and box labels.",
+        evidenceFrameIds: directMatches.map((item) => item.frameId),
+      });
+      return;
+    }
 
     startSearchTransition(async () => {
       setSearchError(null);
@@ -1337,17 +1384,25 @@ function RuntimeSearchPanel({ incidentId, evidence, onResultsChange }: { inciden
     onResultsChange(activeEvidence, Boolean(result));
   }, [evidence, matchedEvidence, onResultsChange, result]);
 
+  function clearSearch() {
+    setQuery("");
+    setResult(null);
+    setSearchError(null);
+    onResultsChange(evidence, false);
+  }
+
   return (
     <div className="flex flex-col gap-3 p-3">
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="incident-search">Search analyzed evidence</FieldLabel>
           <div className="flex gap-2">
-            <Input id="incident-search" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 rounded-sm" placeholder="Smoke, flame, entry control" />
+            <Input id="incident-search" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 rounded-sm" placeholder="abuse, strike, assault" />
             <Button size="sm" className="rounded-sm" onClick={runSearch} disabled={isSearchPending || evidence.length === 0 || !query.trim()}>
               <Search data-icon="inline-start" />
               {isSearchPending ? "Searching" : "Search"}
             </Button>
+            {result ? <Button size="sm" variant="outline" className="rounded-sm" onClick={clearSearch}>Clear</Button> : null}
           </div>
         </Field>
       </FieldGroup>
@@ -1665,21 +1720,28 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     setActiveAudioResponderId("ff-a");
   }
 
+  function handlePunggolFireEnded() {
+    if (selectedIncident.id !== punggolIncidentId || mode === "post-fire") return;
+    continuePostFireSweep();
+  }
+
   return (
     <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="live" fixedViewport>
       <section className={cn(commandScope, "shrink-0 overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
-        <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
-          <div className="command-texture command-texture-live relative overflow-hidden bg-card p-4">
+        <div className="grid gap-px bg-border lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)_auto]">
+          <div className="command-texture command-texture-live relative overflow-hidden bg-card p-3">
             <HeroImageBackdrop src={heroImages.live} alt="AI generated live bodycam feed background" />
             <div className="relative">
               <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Live operations</p>
-              <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
+              <h2 className="mt-1 text-lg font-semibold leading-tight">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{isStreamIncident ? "Monitor connected browser bodycams while current feed windows generate structured stream events." : canRunLiveAnalysis ? "Monitor source feeds while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
-              <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{analysisStatusLabel}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 bg-card p-4 lg:justify-end">
+          <div className="bg-card p-3">
+            <p className="text-sm leading-snug text-muted-foreground">{isStreamIncident ? "Monitor connected browser bodycams while current feed windows generate structured stream events." : canRunLiveAnalysis ? "Monitor source feeds while live analysis adds supported events." : selectedIncident.unavailableReason ?? "No live footage is attached."}</p>
+            <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{analysisStatusLabel}</p>
+          </div>
+          <div className="flex flex-wrap content-start gap-2 bg-card p-3 lg:justify-end">
             {operatorControlsVisible ? (
               <Button size="lg" variant="outline" className="rounded-sm" onClick={toggleStreamAnalysis} disabled={!canRunLiveAnalysis || isPending}>
                 {(isStreamIncident ? !streamSession?.analysisPaused : playing) ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
@@ -1690,16 +1752,15 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
               <VolumeX data-icon="inline-start" />
               Mute all
             </Button>
+            <Button size="lg" variant="outline" className="rounded-sm" onClick={continuePostFireSweep} disabled={!canRunLiveAnalysis || isStreamIncident || selectedIncident.id !== punggolIncidentId || postFirePhase}>
+              <Square data-icon="inline-start" />
+              Advance feeds
+            </Button>
             <Button size="lg" variant="outline" className="rounded-sm" render={<Link href={incidentHref("/review", selectedIncidentId)} />} nativeButton={false}>
               <Search data-icon="inline-start" />
               Open incident review
             </Button>
-            {operatorControlsVisible ? (
-              <Button size="lg" variant="destructive" className="rounded-sm" onClick={continuePostFireSweep} disabled={!canRunLiveAnalysis || isStreamIncident || selectedIncident.id !== punggolIncidentId || postFirePhase}>
-                <Square data-icon="inline-start" />
-                Continue welfare sweep
-              </Button>
-            ) : null}
+
           </div>
         </div>
       </section>
@@ -1712,7 +1773,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
       <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Live responder feeds" label="Feeds" className="h-full min-h-0 overflow-y-auto">
-          <BodycamGrid incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} videoRefs={videoRefs} streamSession={streamSession} liveCue={liveCue} />
+          <BodycamGrid incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} onPunggolFireEnded={handlePunggolFireEnded} videoRefs={videoRefs} streamSession={streamSession} liveCue={liveCue} />
         </Panel>
 
         <div className="grid max-h-full auto-rows-max content-start gap-4 overflow-y-auto xl:sticky xl:top-20">
@@ -1783,7 +1844,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const selectedIncident = getIncident(state, selectedIncidentId);
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
   const selectableMilestones = useMemo(() => selectedIncident.milestones.filter((milestone) => milestone.status !== "unavailable"), [selectedIncident.milestones]);
-  const selectedExportEvidence = analysis ? briefingEvidence(analysis.evidence, selectedBriefingEvidenceIds) : [];
+  const selectedExportEvidence = analysis ? briefingEvidence(hasEvidenceFilter ? activeEvidence : analysis.evidence, selectedBriefingEvidenceIds) : [];
   const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
   const canGenerateAarSlides = aarBriefingIncidentIds.has(selectedIncident.id);
   const canExportSlides = canGenerateAarSlides && sessionStartMs !== null && Boolean(analysis) && selectedExportEvidence.length > 0 && selectedBriefingMilestoneIds.size > 0 && !isExportPending;
@@ -1981,7 +2042,8 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
         <Panel title="Incident timeline" label="Provenance">
           <UnifiedIncidentTimeline
             incident={selectedIncident}
-            evidence={analysis ? activeEvidence : []}
+            evidence={analysis ? analysis.evidence : []}
+            highlightedEvidenceIds={hasEvidenceFilter ? new Set(activeEvidence.map((item) => item.frameId)) : new Set()}
             recommendations={analysis?.recommendations ?? []}
             decisionReviews={decisionReviews}
             isAnalyzing={isPending}
