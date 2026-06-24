@@ -54,6 +54,7 @@ type RuntimeRecommendation = {
   order: number;
   title: string;
   reason: string;
+  sourceTimestamp?: string;
   evidenceFrameIds: string[];
 };
 
@@ -361,8 +362,98 @@ function insetBox(box: { x: number; y: number; width: number; height: number; la
   };
 }
 
+const punggolFireDurationSeconds = 205.333;
+
+const punggolMilestoneOffsets: Partial<Record<IncidentMilestone["id"], number>> = {
+  "call-received": -20 * 60,
+  dispatch: -18 * 60,
+  acknowledge: -16 * 60,
+  "move-out": -14 * 60,
+  "arrive-at-scene": 0,
+  "first-jet-out": 5,
+  "ba-entry": 64,
+  "post-fire-sweep": punggolFireDurationSeconds + 8,
+  "welfare-check": punggolFireDurationSeconds + 18,
+  "verbal-aggression": punggolFireDurationSeconds + 31,
+  "physical-contact": punggolFireDurationSeconds + 37,
+  "de-escalation-restraint": punggolFireDurationSeconds + 40,
+  "police-support-notified": punggolFireDurationSeconds + 44,
+};
+
 function formatSessionClock(sessionStartMs: number, offsetSeconds: number) {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(sessionStartMs + Math.max(0, offsetSeconds) * 1000));
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(sessionStartMs + offsetSeconds * 1000));
+}
+
+function incidentEvidenceOffsetSeconds(item: Pick<RuntimeEvidence, "sourceVideo" | "frameTimestampSeconds">) {
+  return item.sourceVideo.includes("punggol-post-fire") ? punggolFireDurationSeconds + item.frameTimestampSeconds : item.frameTimestampSeconds;
+}
+
+function applyRuntimeEvidenceClock<T extends RuntimeEvidence>(item: T, sessionStartMs: number | null): T {
+  if (sessionStartMs === null) return item;
+  return {
+    ...item,
+    timestampLabel: formatSessionClock(sessionStartMs, incidentEvidenceOffsetSeconds(item)),
+  };
+}
+
+function applyRuntimeMilestoneClock(milestone: IncidentMilestone, incidentId: string, sessionStartMs: number | null): IncidentMilestone {
+  if (incidentId !== punggolIncidentId || sessionStartMs === null || milestone.status !== "confirmed") return milestone;
+  const offsetSeconds = punggolMilestoneOffsets[milestone.id];
+  if (offsetSeconds === undefined) return milestone;
+  return {
+    ...milestone,
+    timestamp: new Date(sessionStartMs + offsetSeconds * 1000).toISOString(),
+    displayTime: formatSessionClock(sessionStartMs, offsetSeconds),
+  };
+}
+
+function applyRuntimeRecommendationClock<T extends RuntimeRecommendation>(recommendation: T, evidence: RuntimeEvidence[]): T {
+  const linkedEvidence = evidence.find((item) => recommendation.evidenceFrameIds.includes(item.frameId));
+  return linkedEvidence ? { ...recommendation, sourceTimestamp: linkedEvidence.timestampLabel } : recommendation;
+}
+
+function timestampLabelSeconds(label: string) {
+  const parts = label.split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part))) return 0;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] ?? 0;
+}
+
+function evidenceFrameOffsetSeconds(frameId: string, timestampLabel: string) {
+  const seconds = timestampLabelSeconds(timestampLabel);
+  return frameId.includes("post-fire") ? punggolFireDurationSeconds + seconds : seconds;
+}
+
+function liveEventOffsetSeconds(event: Pick<LiveEvent, "timestamp" | "title" | "evidence" | "source">) {
+  const seconds = timestampLabelSeconds(event.timestamp);
+  const text = `${event.title} ${event.evidence} ${event.source}`.toLowerCase();
+  return /post-fire|welfare|physical contact|shove|de-escalation|recovery|police|aggression/.test(text) ? punggolFireDurationSeconds + seconds : seconds;
+}
+
+function applyRuntimeLiveClock(analysis: LiveAnalysis, sessionStartMs: number | null, incidentId: string): LiveAnalysis {
+  if (incidentId !== punggolIncidentId || sessionStartMs === null) return analysis;
+  const events = analysis.events.map((event) => {
+    const timestamp = formatSessionClock(sessionStartMs, liveEventOffsetSeconds(event));
+    return {
+      ...event,
+      timestamp,
+      source: event.source.replace(event.timestamp, timestamp),
+    };
+  });
+  const recommendations = analysis.recommendations.map((recommendation) => {
+    const offsetSeconds = evidenceFrameOffsetSeconds(recommendation.evidenceFrameId, recommendation.sourceTimestamp);
+    return { ...recommendation, sourceTimestamp: formatSessionClock(sessionStartMs, offsetSeconds) };
+  });
+  return {
+    ...analysis,
+    events,
+    recommendations,
+    recommendation: {
+      ...analysis.recommendation,
+      sourceTimestamp: formatSessionClock(sessionStartMs, evidenceFrameOffsetSeconds(analysis.recommendation.evidenceFrameId, analysis.recommendation.sourceTimestamp)),
+    },
+  };
 }
 
 function useMountedSessionStart() {
@@ -435,7 +526,6 @@ function IncidentSelector({ state, selectedIncidentId, onIncidentChange }: { sta
 
   return (
     <div className="flex min-w-[min(100%,22rem)] flex-col gap-1">
-      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Incident</span>
       <Select items={incidentOptions} value={selectedIncident.id} onValueChange={(incidentId) => incidentId && onIncidentChange(incidentId)}>
         <SelectTrigger size="default" className="h-9 w-full rounded-sm border-border bg-card font-mono text-xs uppercase tracking-widest text-foreground">
           <SelectValue />
@@ -1133,13 +1223,44 @@ function timelineTone(kind: "system" | "footage" | "ai" | "recommendation" | "of
   return "border-screen-foreground/55 text-screen-foreground/75";
 }
 
+function timelineClockMinutes(label: string) {
+  const parts = label.trim().match(/(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+  if (!parts) return Number.MAX_SAFE_INTEGER;
+  let hour = Number(parts[1]);
+  const minute = Number(parts[2]);
+  const period = parts[3]?.toUpperCase();
+  if (period === "PM" && hour !== 12) hour += 12;
+  if (period === "AM" && hour === 12) hour = 0;
+  return hour * 60 + minute;
+}
+
+function timelineDecisionMinutes(timestamp: string) {
+  const parsed = Date.parse(timestamp);
+  if (Number.isNaN(parsed)) return timelineClockMinutes(timestamp);
+  const date = new Date(parsed);
+  return date.getHours() * 60 + date.getMinutes();
+}
+
 function UnifiedIncidentTimeline({ incident, evidence, highlightedEvidenceIds, recommendations, decisionReviews, isAnalyzing, canRunReviewAnalysis, emptyMessage }: { incident: Incident; evidence: RuntimeEvidence[]; highlightedEvidenceIds: Set<string>; recommendations: RuntimeRecommendation[]; decisionReviews: DecisionReview[]; isAnalyzing: boolean; canRunReviewAnalysis: boolean; emptyMessage: string }) {
   const evidenceByFrameId = new globalThis.Map(evidence.map((item) => [item.frameId, item]));
   const confirmedMilestones = incident.milestones.filter((milestone) => milestone.status === "confirmed");
   const pendingMilestones = incident.milestones.filter((milestone) => milestone.status === "pending");
   const visibleRecommendations = recommendations.filter((recommendation) => recommendation.evidenceFrameIds.length === 0 || recommendation.evidenceFrameIds.some((frameId) => evidenceByFrameId.has(frameId)));
-  const entriesCount = confirmedMilestones.length + evidence.length + visibleRecommendations.length + decisionReviews.length + (pendingMilestones.length ? 1 : 0);
   const pendingLabels = pendingMilestones.map((milestone) => milestone.label).join(" / ");
+  const timelineEntries = [
+    ...confirmedMilestones.map((milestone, index) => ({ kind: "milestone" as const, key: `milestone-${milestone.id}`, sort: timelineClockMinutes(milestone.displayTime) * 1000 + index, milestone })),
+    ...evidence.map((item, index) => ({ kind: "evidence" as const, key: `evidence-${item.frameId}-${index}`, sort: timelineClockMinutes(item.timestampLabel) * 1000 + 300 + index, item })),
+    ...visibleRecommendations.map((recommendation, index) => {
+      const linkedEvidence = recommendation.evidenceFrameIds.flatMap((frameId) => {
+        const item = evidenceByFrameId.get(frameId);
+        return item ? [item] : [];
+      });
+      const sourceTime = linkedEvidence[0]?.timestampLabel ?? recommendation.sourceTimestamp ?? "Review";
+      return { kind: "recommendation" as const, key: `recommendation-${recommendation.id}`, sort: timelineClockMinutes(sourceTime) * 1000 + 600 + index, recommendation, linkedEvidence };
+    }),
+    ...decisionReviews.map((decision, index) => ({ kind: "decision" as const, key: `decision-${decision.id}`, sort: timelineDecisionMinutes(decision.timestamp) * 1000 + 800 + index, decision })),
+  ].sort((a, b) => a.sort - b.sort);
+  const entriesCount = timelineEntries.length + (pendingMilestones.length ? 1 : 0);
 
   return (
     <div className="bg-screen p-4 text-screen-foreground">
@@ -1156,108 +1277,106 @@ function UnifiedIncidentTimeline({ incident, evidence, highlightedEvidenceIds, r
         </div>
       ) : (
         <Timeline defaultValue={entriesCount} className="max-w-none gap-0">
-          {confirmedMilestones.map((milestone, index) => (
-            <TimelineItem key={milestone.id} step={index + 1} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
-              <TimelineHeader>
-                <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
-                <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{milestone.displayTime}</TimelineDate>
-                <TimelineTitle className="sr-only">{milestone.label}</TimelineTitle>
-                <TimelineIndicator className={cn("bg-screen", milestoneTone(milestone.status))} />
-              </TimelineHeader>
-              <TimelineContent className="text-screen-foreground">
-                <div className="border border-screen-border bg-black/35 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-sm font-semibold">{milestone.label}</p>
-                    <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone(milestone.sourceType === "footage" ? "footage" : "system"))}>{milestone.sourceType === "footage" ? "footage" : "system"}</Badge>
-                  </div>
-                  <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{milestoneSourceLabel(milestone)}</p>
-                  {milestone.notes ? <p className="mt-2 text-xs leading-relaxed text-screen-foreground/75">{milestone.notes}</p> : null}
-                </div>
-              </TimelineContent>
-            </TimelineItem>
-          ))}
+          {timelineEntries.map((entry, index) => {
+            const step = index + 1;
 
-          {evidence.map((item, index) => {
-            const boxes = item.boxes.slice(0, 3).map(insetBox);
-            const step = confirmedMilestones.length + index + 1;
-            const highlighted = highlightedEvidenceIds.has(item.frameId);
-
-            return (
-              <TimelineItem key={`${item.frameId}-${index}`} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
-                <TimelineHeader>
-                  <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
-                  <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{item.timestampLabel}</TimelineDate>
-                  <TimelineTitle className="sr-only">{item.name}</TimelineTitle>
-                  <TimelineIndicator className="border-accent bg-screen text-accent" />
-                </TimelineHeader>
-                <TimelineContent className="text-screen-foreground">
-                  <div className={cn("grid gap-3 border bg-black/35 p-3 lg:grid-cols-[minmax(300px,0.95fr)_minmax(260px,1fr)]", highlighted ? "border-warning bg-warning/15 ring-2 ring-warning/80" : "border-screen-border")}>
-                    <div className="relative aspect-video min-h-52 overflow-hidden bg-black">
-                      <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1280px) 620px, (min-width: 1024px) 42vw, 100vw" />
-                      {boxes.map((box, boxIndex) => (
-                        <div key={`${item.frameId}-${box.label}-${boxIndex}`} className="absolute border-2 border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }}>
-                          <span className="absolute left-0 top-0 grid size-5 place-items-center border border-screen bg-warning font-mono text-[10px] font-semibold text-background">{boxIndex + 1}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="min-w-0">
+            if (entry.kind === "milestone") {
+              const milestone = entry.milestone;
+              return (
+                <TimelineItem key={entry.key} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+                  <TimelineHeader>
+                    <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                    <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{milestone.displayTime}</TimelineDate>
+                    <TimelineTitle className="sr-only">{milestone.label}</TimelineTitle>
+                    <TimelineIndicator className={cn("bg-screen", milestoneTone(milestone.status))} />
+                  </TimelineHeader>
+                  <TimelineContent className="text-screen-foreground">
+                    <div className="border border-screen-border bg-black/35 p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="text-sm font-semibold">{onePhrase(item.name)}</p>
-                        <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", highlighted ? "border-warning text-warning" : timelineTone("ai"))}>{highlighted ? "search match" : "AI evidence"}</Badge>
+                        <p className="text-sm font-semibold">{milestone.label}</p>
+                        <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone(milestone.sourceType === "footage" ? "footage" : "system"))}>{milestone.sourceType === "footage" ? "footage" : "system"}</Badge>
                       </div>
-                      <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{item.sourceResponder} / {item.sourceVideo.split("/").at(-1)}</p>
-                      <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{onePhrase(item.description)}</p>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {incidentTags(item.tags).map((tag) => (
-                          <span key={tag} className="border border-screen-foreground/60 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/85">{tag}</span>
+                      <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{milestoneSourceLabel(milestone)}</p>
+                      {milestone.notes ? <p className="mt-2 text-xs leading-relaxed text-screen-foreground/75">{milestone.notes}</p> : null}
+                    </div>
+                  </TimelineContent>
+                </TimelineItem>
+              );
+            }
+
+            if (entry.kind === "evidence") {
+              const item = entry.item;
+              const boxes = item.boxes.slice(0, 3).map(insetBox);
+              const highlighted = highlightedEvidenceIds.has(item.frameId);
+              return (
+                <TimelineItem key={entry.key} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+                  <TimelineHeader>
+                    <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                    <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{item.timestampLabel}</TimelineDate>
+                    <TimelineTitle className="sr-only">{item.name}</TimelineTitle>
+                    <TimelineIndicator className="border-accent bg-screen text-accent" />
+                  </TimelineHeader>
+                  <TimelineContent className="text-screen-foreground">
+                    <div className={cn("grid gap-3 border bg-black/35 p-3 lg:grid-cols-[minmax(300px,0.95fr)_minmax(260px,1fr)]", highlighted ? "border-warning bg-warning/15 ring-2 ring-warning/80" : "border-screen-border")}>
+                      <div className="relative aspect-video min-h-52 overflow-hidden bg-black">
+                        <Image src={item.imageUrl} alt={item.description} fill unoptimized className="object-cover" sizes="(min-width: 1280px) 620px, (min-width: 1024px) 42vw, 100vw" />
+                        {boxes.map((box, boxIndex) => (
+                          <div key={`${item.frameId}-${box.label}-${boxIndex}`} className="absolute border-2 border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }}>
+                            <span className="absolute left-0 top-0 grid size-5 place-items-center border border-screen bg-warning font-mono text-[10px] font-semibold text-background">{boxIndex + 1}</span>
+                          </div>
                         ))}
                       </div>
-                      {boxes.length ? (
-                        <div className="mt-3 grid gap-1 border border-screen-border bg-black/40 p-2">
-                          {boxes.map((box, boxIndex) => <p key={`${item.frameId}-label-${box.label}-${boxIndex}`} className="truncate text-xs text-screen-foreground/80">{boxIndex + 1}. {shortBoxLabel(box.label)}</p>)}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="text-sm font-semibold">{onePhrase(item.name)}</p>
+                          <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", highlighted ? "border-warning text-warning" : timelineTone("ai"))}>{highlighted ? "search match" : "AI evidence"}</Badge>
                         </div>
-                      ) : null}
+                        <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{item.sourceResponder} / {item.sourceVideo.split("/").at(-1)}</p>
+                        <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{onePhrase(item.description)}</p>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {incidentTags(item.tags).map((tag) => (
+                            <span key={tag} className="border border-screen-foreground/60 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/85">{tag}</span>
+                          ))}
+                        </div>
+                        {boxes.length ? (
+                          <div className="mt-3 grid gap-1 border border-screen-border bg-black/40 p-2">
+                            {boxes.map((box, boxIndex) => <p key={`${item.frameId}-label-${box.label}-${boxIndex}`} className="truncate text-xs text-screen-foreground/80">{boxIndex + 1}. {shortBoxLabel(box.label)}</p>)}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </TimelineContent>
-              </TimelineItem>
-            );
-          })}
+                  </TimelineContent>
+                </TimelineItem>
+              );
+            }
 
-          {visibleRecommendations.map((recommendation, index) => {
-            const linkedEvidence = recommendation.evidenceFrameIds.flatMap((frameId) => {
-              const item = evidenceByFrameId.get(frameId);
-              return item ? [item] : [];
-            });
-            const step = confirmedMilestones.length + evidence.length + index + 1;
-
-            return (
-              <TimelineItem key={recommendation.id} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
-                <TimelineHeader>
-                  <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
-                  <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{linkedEvidence[0]?.timestampLabel ?? "Review"}</TimelineDate>
-                  <TimelineTitle className="sr-only">{recommendation.title}</TimelineTitle>
-                  <TimelineIndicator className="border-accent bg-screen text-accent" />
-                </TimelineHeader>
-                <TimelineContent className="text-screen-foreground">
-                  <div className="border border-accent/55 bg-accent/10 p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="text-sm font-semibold">{recommendation.title}</p>
-                      <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("recommendation"))}>recommendation</Badge>
+            if (entry.kind === "recommendation") {
+              const recommendation = entry.recommendation;
+              return (
+                <TimelineItem key={entry.key} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+                  <TimelineHeader>
+                    <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                    <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{entry.linkedEvidence[0]?.timestampLabel ?? recommendation.sourceTimestamp ?? "Review"}</TimelineDate>
+                    <TimelineTitle className="sr-only">{recommendation.title}</TimelineTitle>
+                    <TimelineIndicator className="border-accent bg-screen text-accent" />
+                  </TimelineHeader>
+                  <TimelineContent className="text-screen-foreground">
+                    <div className="border border-accent/55 bg-accent/10 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <p className="text-sm font-semibold">{recommendation.title}</p>
+                        <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("recommendation"))}>recommendation</Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{recommendation.reason}</p>
+                      {entry.linkedEvidence.length ? <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">Evidence: {entry.linkedEvidence.map((item) => item.timestampLabel).join(" / ")}</p> : null}
                     </div>
-                    <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{recommendation.reason}</p>
-                    {linkedEvidence.length ? <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">Evidence: {linkedEvidence.map((item) => item.timestampLabel).join(" / ")}</p> : null}
-                  </div>
-                </TimelineContent>
-              </TimelineItem>
-            );
-          })}
+                  </TimelineContent>
+                </TimelineItem>
+              );
+            }
 
-          {decisionReviews.map((decision, index) => {
-            const step = confirmedMilestones.length + evidence.length + visibleRecommendations.length + index + 1;
-
+            const decision = entry.decision;
             return (
-              <TimelineItem key={decision.id} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+              <TimelineItem key={entry.key} step={step} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
                 <TimelineHeader>
                   <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
                   <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">{decision.timestamp}</TimelineDate>
@@ -1267,9 +1386,10 @@ function UnifiedIncidentTimeline({ incident, evidence, highlightedEvidenceIds, r
                 <TimelineContent className="text-screen-foreground">
                   <div className="border border-screen-border bg-black/35 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="text-sm font-semibold">{decisionLabel(decision.decision)}</p>
-                      <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("officer", decision.decision))}>officer reviewed</Badge>
+                      <p className="text-sm font-semibold">Officer decision: {decisionLabel(decision.decision)}</p>
+                      <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("officer", decision.decision))}>{decision.decision}</Badge>
                     </div>
+                    <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-screen-foreground/55">{decision.reviewer}</p>
                     <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{decision.reason}</p>
                   </div>
                 </TimelineContent>
@@ -1278,18 +1398,18 @@ function UnifiedIncidentTimeline({ incident, evidence, highlightedEvidenceIds, r
           })}
 
           {pendingMilestones.length ? (
-            <TimelineItem step={entriesCount} className="sm:group-data-[orientation=vertical]/timeline:ms-40 group-data-[orientation=vertical]/timeline:not-last:pb-5">
+            <TimelineItem step={timelineEntries.length + 1} className="sm:group-data-[orientation=vertical]/timeline:ms-40">
               <TimelineHeader>
-                <TimelineSeparator className="bg-screen-foreground/25 group-data-completed/timeline-item:bg-accent" />
+                <TimelineSeparator className="bg-screen-foreground/25" />
                 <TimelineDate className="font-mono text-screen-foreground/75 sm:group-data-[orientation=vertical]/timeline:absolute sm:group-data-[orientation=vertical]/timeline:-left-40 sm:group-data-[orientation=vertical]/timeline:w-28 sm:group-data-[orientation=vertical]/timeline:text-right">Pending</TimelineDate>
                 <TimelineTitle className="sr-only">Pending records</TimelineTitle>
                 <TimelineIndicator className="border-warning bg-screen text-warning" />
               </TimelineHeader>
               <TimelineContent className="text-screen-foreground">
-                <div className="border border-warning/55 bg-warning/10 p-3">
+                <div className="border border-warning/60 bg-warning/10 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <p className="text-sm font-semibold">Pending formal records</p>
-                    <Badge variant="outline" className={cn("rounded-sm font-mono text-[10px] uppercase tracking-widest", timelineTone("pending"))}>pending</Badge>
+                    <Badge variant="outline" className="rounded-sm border-warning font-mono text-[10px] uppercase tracking-widest text-warning">pending</Badge>
                   </div>
                   <p className="mt-2 text-sm leading-snug text-screen-foreground/80">{pendingLabels}</p>
                 </div>
@@ -1325,7 +1445,7 @@ function RuntimeSearchPanel({ incidentId, evidence, onResultsChange }: { inciden
       setResult({
         query: trimmedQuery,
         intent: "Responder-safety / abuse evidence",
-        answer: directMatches.length ? "Matching responder-safety evidence is highlighted in the timeline." : "No matching responder-safety evidence found in analyzed frames.",
+        answer: directMatches.length ? "Matching responder-safety evidence is highlighted in the timeline." : "No matching responder-safety evidence found.",
         reason: "Matched query terms against analyzed evidence titles, descriptions, tags, and box labels.",
         evidenceFrameIds: directMatches.map((item) => item.frameId),
       });
@@ -1580,7 +1700,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const postFirePhase = isPostFirePhase(selectedIncident.id, mode);
   const analysisResponders = useMemo(() => postFirePhase ? incidentResponders.filter((responder) => responder.reviewVideoSrcs?.length) : incidentResponders, [incidentResponders, postFirePhase]);
   const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && (isStreamIncident || analysisResponders.length > 0);
-  const displayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : analysis;
+  const streamDisplayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : null;
+  const liveDisplayAnalysis = useMemo(() => analysis ? applyRuntimeLiveClock(analysis, sessionStartMs, selectedIncident.id) : null, [analysis, selectedIncident.id, sessionStartMs]);
+  const displayAnalysis = isStreamIncident ? streamDisplayAnalysis : liveDisplayAnalysis;
   const liveAnalysisIntervalMs = analysis?.events.length ? steadyLiveAnalysisIntervalMs : startupLiveAnalysisIntervalMs;
   const liveCue = selectedIncident.id === aarBriefingIncidentId ? { responderId: "med-woodlands-a", timestampSeconds: 45.5 } : state.liveAnalysisCue;
   const operatorControlsVisible = searchParams.get("operator") === "1" || searchParams.get("debug") === "1";
@@ -1842,12 +1964,15 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   const analysisStartedRef = useRef(false);
   const sessionStartMs = useMountedSessionStart();
   const selectedIncident = getIncident(state, selectedIncidentId);
+  const runtimeMilestones = useMemo(() => selectedIncident.milestones.map((milestone) => applyRuntimeMilestoneClock(milestone, selectedIncident.id, sessionStartMs)), [selectedIncident.id, selectedIncident.milestones, sessionStartMs]);
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
-  const selectableMilestones = useMemo(() => selectedIncident.milestones.filter((milestone) => milestone.status !== "unavailable"), [selectedIncident.milestones]);
+  const selectableMilestones = useMemo(() => runtimeMilestones.filter((milestone) => milestone.status !== "unavailable"), [runtimeMilestones]);
   const selectedExportEvidence = analysis ? briefingEvidence(hasEvidenceFilter ? activeEvidence : analysis.evidence, selectedBriefingEvidenceIds) : [];
   const canRunReviewAnalysis = selectedIncident.supportsRuntimeAnalysis && incidentResponders.length > 0;
   const canGenerateAarSlides = aarBriefingIncidentIds.has(selectedIncident.id);
   const canExportSlides = canGenerateAarSlides && sessionStartMs !== null && Boolean(analysis) && selectedExportEvidence.length > 0 && selectedBriefingMilestoneIds.size > 0 && !isExportPending;
+  const refreshDisabled = !canRunReviewAnalysis || isPending;
+  const exportDisabled = !canRunReviewAnalysis || !canExportSlides;
 
   function selectIncident(incidentId: string) {
     setAnalysis(null);
@@ -1864,7 +1989,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }
 
   const runAnalysis = useCallback(() => {
-    if (!canRunReviewAnalysis) return;
+    if (!canRunReviewAnalysis || sessionStartMs === null) return;
     startTransition(async () => {
       setAnalysisError(null);
       setExportError(null);
@@ -1879,18 +2004,19 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
         setAnalysisError(typeof result.error === "string" ? result.error : "Post-incident analysis failed.");
         return;
       }
+      const timedEvidence = (result.evidence as RuntimeEvidence[]).map((item) => applyRuntimeEvidenceClock(item, sessionStartMs));
       const normalizedAnalysis = {
         ...result,
-        evidence: result.evidence,
-        recommendations: result.recommendations,
+        evidence: timedEvidence,
+        recommendations: result.recommendations.map((recommendation: RuntimeRecommendation) => applyRuntimeRecommendationClock(recommendation, timedEvidence)),
       };
       setAnalysis(normalizedAnalysis);
       setActiveEvidence([...normalizedAnalysis.evidence].sort((a, b) => a.order - b.order));
       setSelectedBriefingEvidenceIds(new Set(normalizedAnalysis.evidence.map((item: RuntimeEvidence) => item.frameId)));
-      setSelectedBriefingMilestoneIds(new Set(selectedIncident.milestones.filter((milestone) => milestone.status !== "unavailable").map((milestone) => milestone.id)));
+      setSelectedBriefingMilestoneIds(new Set(runtimeMilestones.filter((milestone) => milestone.status !== "unavailable").map((milestone) => milestone.id)));
       setHasEvidenceFilter(false);
     });
-  }, [canRunReviewAnalysis, incidentResponders, selectedIncident.id, selectedIncident.milestones, startTransition]);
+  }, [canRunReviewAnalysis, incidentResponders, runtimeMilestones, selectedIncident.id, sessionStartMs, startTransition]);
 
   useEffect(() => {
     let active = true;
@@ -1912,11 +2038,11 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }, [selectedIncident.id]);
 
   useEffect(() => {
-    if (!canRunReviewAnalysis) return;
+    if (!canRunReviewAnalysis || sessionStartMs === null) return;
     if (analysisStartedRef.current) return;
     analysisStartedRef.current = true;
     runAnalysis();
-  }, [canRunReviewAnalysis, runAnalysis]);
+  }, [canRunReviewAnalysis, runAnalysis, sessionStartMs]);
 
   function exportReport(format: "pdf" | "pptx") {
     if (!canGenerateAarSlides || !analysis || selectedExportEvidence.length === 0 || selectedBriefingMilestoneIds.size === 0 || sessionStartMs === null) return;
@@ -1953,7 +2079,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       const response = await fetch(format === "pptx" ? "/api/report/export?format=pptx" : "/api/report/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysis: exportAnalysis, milestoneIds: [...selectedBriefingMilestoneIds] }),
+        body: JSON.stringify({ analysis: exportAnalysis, milestoneIds: [...selectedBriefingMilestoneIds], milestones: runtimeMilestones }),
       });
 
       if (!response.ok) {
@@ -2014,20 +2140,20 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
               <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Post-incident review</p>
               <h2 className="mt-1 text-lg font-semibold">{selectedIncident.title}</h2>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedIncident.location}</p>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence is extracted automatically from the current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{canRunReviewAnalysis ? "Evidence timeline from current videos." : selectedIncident.unavailableReason ?? "No review footage is attached."}</p>
               <p className="mt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{canRunReviewAnalysis ? (isPending ? "Analyzing current evidence window" : analysis ? `${activeEvidence.length} evidence item${activeEvidence.length === 1 ? "" : "s"}${hasEvidenceFilter ? " filtered for review" : ""} / ${selectedExportEvidence.length} selected for briefing` : "Queued for analysis") : "Analysis unavailable"}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 bg-card p-4 lg:justify-end">
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={runAnalysis} disabled={!canRunReviewAnalysis || isPending}>
+            <Button size="lg" variant="outline" className="rounded-sm aria-disabled:pointer-events-none aria-disabled:opacity-50" aria-disabled={refreshDisabled} data-disabled={refreshDisabled ? "" : undefined} onClick={() => { if (refreshDisabled) return; runAnalysis(); }}>
               <Search data-icon="inline-start" />
               {isPending ? "Analyzing" : "Refresh analysis"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => exportReport("pptx")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+            <Button size="lg" variant="outline" className="rounded-sm aria-disabled:pointer-events-none aria-disabled:opacity-50" aria-disabled={exportDisabled} data-disabled={exportDisabled ? "" : undefined} onClick={() => { if (exportDisabled) return; exportReport("pptx"); }}>
               <Download data-icon="inline-start" />
               {isExportPending ? "Exporting" : "Download PPTX"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-sm" onClick={() => exportReport("pdf")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+            <Button size="lg" variant="outline" className="rounded-sm aria-disabled:pointer-events-none aria-disabled:opacity-50" aria-disabled={exportDisabled} data-disabled={exportDisabled ? "" : undefined} onClick={() => { if (exportDisabled) return; exportReport("pdf"); }}>
               <Download data-icon="inline-start" />
               {isExportPending ? "Exporting" : "Download PDF"}
             </Button>
@@ -2041,14 +2167,14 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <Panel title="Incident timeline" label="Provenance">
           <UnifiedIncidentTimeline
-            incident={selectedIncident}
+            incident={{ ...selectedIncident, milestones: runtimeMilestones }}
             evidence={analysis ? analysis.evidence : []}
             highlightedEvidenceIds={hasEvidenceFilter ? new Set(activeEvidence.map((item) => item.frameId)) : new Set()}
             recommendations={analysis?.recommendations ?? []}
             decisionReviews={decisionReviews}
             isAnalyzing={isPending}
             canRunReviewAnalysis={canRunReviewAnalysis}
-            emptyMessage={canRunReviewAnalysis ? "Building timeline from analyzed frames." : selectedIncident.unavailableReason ?? "No review footage is attached."}
+            emptyMessage={canRunReviewAnalysis ? "Building evidence timeline." : selectedIncident.unavailableReason ?? "No review footage is attached."}
           />
         </Panel>
 
@@ -2067,7 +2193,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
                 ? "AAR slide export is available for incidents with reviewable bodycam evidence."
                 : canRunReviewAnalysis
                   ? analysis
-                    ? `Briefing slides use the full selected incident sequence by default. Search only filters this review view; export scope changes only when the officer excludes evidence or milestones below.`
+                    ? `Briefing slides cover the full incident by default. Active search focuses the export until cleared.`
                     : "Analysis starts automatically."
                   : "Export is disabled until footage is available."}
             </p>
@@ -2125,13 +2251,13 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
                   </div>
                 </div>
 
-                <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{selectedExportEvidence.length} evidence / {selectedBriefingMilestoneIds.size} milestones selected for officer-reviewed output</p>
+                <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{selectedExportEvidence.length} evidence / {selectedBriefingMilestoneIds.size} milestones selected for briefing slides</p>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pptx")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+                  <Button size="sm" variant="outline" className="rounded-sm aria-disabled:pointer-events-none aria-disabled:opacity-50" aria-disabled={exportDisabled} data-disabled={exportDisabled ? "" : undefined} onClick={() => { if (exportDisabled) return; exportReport("pptx"); }}>
                     <Download data-icon="inline-start" />
                     {isExportPending ? "Exporting" : "Download PPTX"}
                   </Button>
-                  <Button size="sm" variant="outline" className="rounded-sm" onClick={() => exportReport("pdf")} disabled={!canRunReviewAnalysis || !canExportSlides}>
+                  <Button size="sm" variant="outline" className="rounded-sm aria-disabled:pointer-events-none aria-disabled:opacity-50" aria-disabled={exportDisabled} data-disabled={exportDisabled ? "" : undefined} onClick={() => { if (exportDisabled) return; exportReport("pdf"); }}>
                     <Download data-icon="inline-start" />
                     {isExportPending ? "Exporting" : "Download PDF"}
                   </Button>
