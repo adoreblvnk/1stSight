@@ -17,7 +17,7 @@
 
 The stage scenario is a continuous Punggol landed house fire next to a building. A caller reports a small fire at a house at 21 Punggol Field Walk. The caller is outside and reports no visible injuries. SCDF dispatches a Basic Task Force from Punggol Fire Station. 1stSight shows the responding unit on the map, then opens the live dashboard once firefighters arrive. The live view starts with the caller-provided brief only. Bodycam footage becomes the evidence source for fire growth, smoke spread, reduced visibility, entry-control concerns, the live incident timeline, and any resource-escalation recommendation.
 
-After the fire-response footage, the same Punggol incident continues into a post-fire sweep / welfare check beside the adjacent building. Firefighter A is Wei Jie and Firefighter B is Hafiz. Firefighter C remains part of the fire-response footage, but C's bodycam feed can be absent from the post-fire welfare phase because only A and B continue that sweep. At 00:37 in the post-fire footage, Wei Jie's POV clearly shows a drunk/aggressive man beside the building making physical contact / shove against Hafiz. Hafiz's POV shows the impact as a sudden blur and recovery. 1stSight should use both perspectives as evidence for the same responder-safety event, while avoiding unsupported claims about intent.
+After the fire-response footage, the same Punggol incident continues into a post-fire sweep / welfare check beside the adjacent building. Firefighter A is Tze Kai and Firefighter B is Joseph. Jia Jia remains part of the fire-response footage, but C's bodycam feed can be absent from the post-fire welfare phase because only A and B continue that sweep. At 00:37 in the post-fire footage, Tze Kai's POV clearly shows a drunk/aggressive man beside the building making physical contact / shove against Joseph. Joseph's POV shows the impact as a sudden blur and recovery. 1stSight should use both perspectives as evidence for the same responder-safety event, while avoiding unsupported claims about intent.
 
 Police and SCDF may already be deployed together at the incident site, but police may or may not follow SCDF during scouting or post-fire welfare checks.
 
@@ -27,8 +27,9 @@ The Woodlands medical assistance / responder-safety scenario remains available f
 
 - **Incident Selector:** Lets the officer switch between active or reviewable incidents without mixing evidence across scenarios.
 - **Live Deployment Map:** Uses `@vis.gl/react-google-maps` to show a Singapore map with the Basic Task Force moving from Punggol Fire Station to the Punggol landed house fire, then enables incident entry once the section reaches the site.
-- **Live Responder Feed Area:** Shows available bodycam feed cards with feed video, responder name, and alert indicators. The Punggol fire response uses three firefighter bodycam feeds: Wei Jie as Bodycam A, Hafiz as Bodycam B, and Firefighter C as Bodycam C. The post-fire welfare phase continues with A and B POV footage only; Bodycam C should be intentionally marked absent / not attached for that phase, not shown as broken.
+- **Live Responder Feed Area:** Shows available bodycam feed cards with feed video, responder name, and alert indicators. The Punggol fire response uses three firefighter bodycam feeds: Tze Kai as Bodycam A, Joseph as Bodycam B, and Jia Jia as Bodycam C. The post-fire welfare phase continues with A and B POV footage only; Bodycam C should be intentionally marked absent / not attached for that phase, not shown as broken.
 - **Live Events Panel:** Starts empty and fills chronologically with compact events from runtime live chunk analysis, forming the Punggol incident timeline.
+- **Live Timestamp Model:** The live demo session clock starts when the presenter opens the live dashboard. Caller/call-received context is treated as 20 minutes before that live start. Fire footage timestamps display as live start time + fire video offset. Post-fire / drunk welfare-check timestamps display as live start time + full fire-video duration + post-fire video offset. Live events and recommendations must use the analyzed frame/source offset, not a single hardcoded cue timestamp.
 - **Live C&C Dashboard:** Shows responder bodycam feeds, live events, and Ops Centre action prompts during the active Punggol landed house fire.
 - **Live Recommendations:** Creates reviewable Ops Centre recommendations from the observed live event stream, with a one-phrase reason and source-frame screenshot.
 - **Incident Review:** Shows a vertical post-incident evidence timeline with frame screenshots, bounding boxes, short labels, search/filter controls, suggested incident tags/titles, and AAR briefing slide material after the incident ends. The stage review should use the full Punggol incident timeline, including the landed house fire response, post-fire sweep beside the building, welfare check, physical-contact evidence, and officer decisions.
@@ -147,8 +148,8 @@ flowchart LR
 #### Responder Source
 
 1. Responder bodycam footage is loaded into 1stSight as the current footage source for each incident.
-2. Punggol uses three firefighter bodycam feeds for live fire operations: Wei Jie / Bodycam A, Hafiz / Bodycam B, and Firefighter C / Bodycam C.
-3. The Punggol post-fire sweep continues immediately after the fire footage with Wei Jie POV and Hafiz POV. Bodycam C can stay absent because C is not attached to the welfare sweep.
+2. Punggol uses three firefighter bodycam feeds for live fire operations: Tze Kai / Bodycam A, Joseph / Bodycam B, and Jia Jia / Bodycam C.
+3. The Punggol post-fire sweep continues immediately after the fire footage with Tze Kai POV and Joseph POV. Bodycam C can stay absent because C is not attached to the welfare sweep.
 4. Woodlands uses one available crew bodycam feed for booth-only post-incident responder-safety review.
 5. Source video is chunked or frame-captured by the backend, with responder, source video, frame, and timestamp references preserved.
 
@@ -156,13 +157,13 @@ flowchart LR
 
 1. Officer opens the deployment map and watches the Basic Task Force travel from Punggol Fire Station to the Punggol landed house fire.
 2. Officer enters the live incident dashboard when the section reaches the incident site.
-3. Officer monitors Wei Jie / Bodycam A, Hafiz / Bodycam B, Firefighter C / Bodycam C, live events, and action prompts during the fire-response phase.
+3. Officer monitors Tze Kai / Bodycam A, Joseph / Bodycam B, Jia Jia / Bodycam C, live events, and action prompts during the fire-response phase.
 4. Live chunk analysis runs against the current fire bodycam feeds.
 5. 1stSight creates a live incident timeline and a fire-response recommendation only when returned model evidence supports it.
 6. Officer reviews the recommendation and can approve, reject, or edit the decision record.
-7. After the fire-response footage, the same incident continues into post-fire sweep / welfare-check footage from Wei Jie POV and Hafiz POV.
+7. After the fire-response footage, the same incident continues into post-fire sweep / welfare-check footage from Tze Kai POV and Joseph POV.
 8. 1stSight records Bodycam C as not attached to the post-fire welfare phase instead of showing it as a failed feed.
-9. At 00:37 in Wei Jie's post-fire POV, physical contact / shove against Hafiz is visible; Hafiz's POV provides the impact/recovery perspective.
+9. At 00:37 in Tze Kai's post-fire POV, physical contact / shove against Joseph is visible; Joseph's POV provides the impact/recovery perspective.
 10. 1stSight raises a responder-safety event, locks both POVs as evidence, and creates reviewable guidance such as on-site police support notification / confirmation.
 11. AAR briefing slide generation defaults to both Punggol evidence events: the landed house fire response and the post-fire responder-safety evidence beside the building. Active responder-safety search focuses the export on highlighted matching cards until cleared.
 12. The presentation does not generate an official SCDF Fire Report, Ambulance Report, or autonomous police dispatch record.
@@ -177,23 +178,25 @@ flowchart LR
 6. Officer reviews generated evidence cards with model-returned bounding boxes, one-phrase labels, source references, and review state.
 7. Officer exports concise AAR briefing slides as editable PPTX and PDF files containing the full selected incident timeline by default, with officer selection controlling what is presented.
 
-### 10-Minute Presenter Flow
+### 15-Minute Presenter Flow
 
-The core stage demo should stay on one continuous Punggol incident. Fire clips run first across three responder feeds, then Wei Jie POV and Hafiz POV continue immediately into the post-fire sweep / welfare-check phase. Bodycam C should disappear intentionally for that phase with a clear unavailable/not-attached label. Woodlands and Ubi live-site flows are booth experiences and should not take stage time unless the presenter explicitly references them as follow-up demos.
+The core stage demo should stay on one continuous Punggol incident: map dispatch, live C&C dashboard, caller background context, optional audio playback, live event logging, fire-response recommendation, post-fire responder-safety event, post-incident evidence review, AAR briefing slide generation, natural-language search, focused AAR export, and a short Ubi live-stream dashboard handoff for booth authenticity. Woodlands remains a booth or secondary exploration flow, not the main stage AAR story. The Ubi live stream dashboard may be launched on stage only as a quick proof of authenticity; presenters do not need to demo it in depth because visitors can try it at the booth.
 
 | Approx. time | Presenter action | Product moment |
 | --- | --- | --- |
-| 0:00-0:45 | Introduce the bodycam review problem and 1stSight's Ops Centre role. | 1stSight turns responder footage into live awareness, responder-safety evidence, and reviewable AAR briefing slides. |
-| 0:45-1:30 | Open Punggol landed house fire and read only the caller context. | Map shows Basic Task Force moving from Punggol Fire Station to 21 Punggol Field Walk. |
-| 1:30-2:30 | Enter the live fire dashboard. | Wei Jie / Bodycam A, Hafiz / Bodycam B, and Firefighter C / Bodycam C show the fire-response phase. |
-| 2:30-3:45 | Run live frame analysis on the fire feeds. | Current frames are extracted and turned into timestamped fire/smoke/escalation events with source feed references. |
-| 3:45-4:30 | Review the fire-response recommendation. | Officer approves, rejects, or edits; the decision is recorded as officer-reviewed. |
-| 4:30-5:15 | Continue into post-fire sweep / welfare check. | Wei Jie POV and Hafiz POV play immediately after the fire footage; Bodycam C is marked not attached to the welfare sweep. |
-| 5:15-6:15 | Show the welfare check interaction. | The timeline adds post-fire sweep and welfare-check events as footage-derived evidence, not caller context. |
-| 6:15-7:00 | Show the 00:37 physical-contact moment. | Wei Jie POV supports the visible shove/contact; Hafiz POV supports impact/recovery evidence. |
-| 7:00-8:00 | Search responder-safety moments and review support guidance. | Queries such as abuse, strike, assault, physical contact, unsafe proximity, crew intervention, or police support highlight matching Punggol evidence; guidance references on-site police support, not autonomous external dispatch. |
-| 8:00-9:15 | Generate AAR briefing slides from the Punggol evidence timeline. | With no search active, the AAR covers the house-fire response and responder-safety event; with an abuse/strike/assault search active, export focuses on the highlighted matching cards until cleared. |
-| 9:15-10:00 | Close and point to booth demos. | Stage shows the full Punggol evidence spine; Woodlands and Ubi remain available for booth interaction. |
+| 0:00-1:15 | Open with the hook and problem statement. | Position 1stSight as an Ops Centre workflow that reduces manual bodycam scrubbing by turning live responder footage into evidence-linked awareness, recommendations, and AAR briefing material. |
+| 1:15-2:15 | Open the Punggol landed house fire on the deployment map. | Map shows Basic Task Force moving from Punggol Fire Station to 21 Punggol Field Walk. |
+| 2:15-3:30 | Enter the live C&C dashboard and read the caller background context only. Toggle audio if useful. | The live view starts from caller context: small fire at a landed house, caller outside, no visible injuries reported. Footage-derived evidence has not yet been added. |
+| 3:30-5:00 | Let incidents log from the live fire feeds. | Tze Kai / Bodycam A, Joseph / Bodycam B, and Jia Jia / Bodycam C show the fire-response phase while current frames become timestamped fire, smoke, visibility, and escalation events with source-feed references. |
+| 5:00-6:00 | Show live recommendations. | 1stSight surfaces reviewable Ops Centre guidance such as resource escalation, with a reason phrase and source frame for officer approval, rejection, or edit. |
+| 6:00-7:15 | Continue into the post-fire welfare check and drunk/aggressive-person incident. | Tze Kai POV and Joseph POV continue after the fire footage; Bodycam C is intentionally marked not attached to the welfare sweep. The responder-safety event is logged from footage, not caller context. |
+| 7:15-8:30 | Open post-incident review. | The incident moves from live monitoring into evidence review across the same Punggol incident timeline. |
+| 8:30-10:00 | Show the evidence timeline and emphasize labeled bounding boxes. | Evidence cards show selected frames, source IDs, timestamps, one-phrase labels, and bounding boxes for fire-response and responder-safety moments, including physical contact / impact evidence from both POVs. |
+| 10:00-11:00 | Generate or open the AAR briefing slide for the whole Punggol incident. | With no active search, the AAR briefing slide covers the full incident spine: landed-house fire response, post-fire welfare check, responder-safety event, and officer-reviewed decisions. |
+| 11:00-12:30 | Return to the evidence timeline and search for `strike` or `abuse`. | Natural-language search highlights only the relevant responder-safety evidence cards, demonstrating that officers can retrieve moments without manually scrubbing footage. |
+| 12:30-13:30 | Export an AAR briefing slide focused only on the drunk/aggressive-person case. | Because the search is active, the export narrows to the highlighted responder-safety evidence until the search is cleared. |
+| 13:30-14:15 | Launch the Ubi live-stream dashboard briefly. | Show that 1stSight also supports an authentic live camera/bodycam dashboard surface; do not spend stage time demoing it fully because visitors can try it at the booth. |
+| 14:15-15:00 | Explain how 1stSight was built and close. | Cover the privacy-preserving architecture: responder footage enters the platform, structured analysis and evidence selection happen behind backend boundaries, local GB10 reasoning is used where practical, cloud vision is reserved for high-accuracy multimodal tasks, and officers retain review authority. |
 
 ## 7. State Models
 
@@ -217,7 +220,7 @@ The core stage demo should stay on one continuous Punggol incident. Fire clips r
 - **NVIDIA NIM:** Model-serving path through hosted API calls or self-hosted containers, subject to GB10/GPU limits.
 - **Cloud AI Providers:** Use AI SDK's OpenAI provider for `gpt-5.5` via OpenAI key and AI SDK's OpenAI-compatible provider for the local hosted GB10 model exposed through an OpenAI-compatible endpoint.
 - **Fire Video Sources:** Current Punggol fire-response footage uses three clips served from `public/videos/fire/` as `/videos/fire/fire-feed-a.mp4`, `/videos/fire/fire-feed-b-escalation.mp4`, and `/videos/fire/fire-feed-c.mp4`.
-- **Punggol Post-Fire POV Sources:** Punggol post-fire welfare / responder-safety footage is served from `public/videos/fire/` as `/videos/fire/punggol-post-fire-wei-jie-pov.mp4` and `/videos/fire/punggol-post-fire-hafiz-pov.mp4`. Wei Jie POV is the clearest source for the 00:37 physical-contact frame; Hafiz POV is the supporting impact/recovery perspective.
+- **Punggol Post-Fire POV Sources:** Punggol post-fire welfare / responder-safety footage is served from `public/videos/fire/` as `/videos/fire/punggol-post-fire-wei-jie-pov.mp4` and `/videos/fire/punggol-post-fire-hafiz-pov.mp4`. Tze Kai POV is the clearest source for the 00:37 physical-contact frame; Joseph POV is the supporting impact/recovery perspective.
 - **Woodlands Booth Video Source:** Current Woodlands footage is served from `public/videos/woodlands/woodlands-medical-bodycam.mp4` as `/videos/woodlands/woodlands-medical-bodycam.mp4` for booth-only responder-safety review.
 - **Formal Incident Data:** Future upload/integration may accept fire report, medical report, casualty/conveyance details, appliance summaries, crew statements, routes, layouts, control points, CCTV references, and building/floor plans as source data around the BWC timeline. These fields support review context; they are not generated as official reports by 1stSight.
 
@@ -237,7 +240,7 @@ The core stage demo should stay on one continuous Punggol incident. Fire clips r
 
 - **Assumption:** `PROJECT_CONTEXT.md` is the single source of truth for current product, scenario, architecture, and implementation direction.
 - **Implementation Gap:** Existing source code may still contain older two-scenario stage wording where Woodlands is the AAR presentation scenario. It must be updated so the stage path is Punggol-only and Woodlands is booth/secondary.
-- **Implementation Gap:** Punggol fire-response feeds and post-fire POV clips must be sequenced so Wei Jie / Bodycam A and Hafiz / Bodycam B continue into welfare-check footage while Bodycam C is intentionally absent from that phase.
+- **Implementation Gap:** Punggol fire-response feeds and post-fire POV clips must be sequenced so Tze Kai / Bodycam A and Joseph / Bodycam B continue into welfare-check footage while Bodycam C is intentionally absent from that phase.
 - **Risk:** Fire-response and responder-safety footage require careful sourcing, editing, and usage checks.
 - **Risk:** GB10 availability, model compatibility, and Cloudflare Tunnel reachability must be validated before relying on local text reasoning in the deployed presentation.
 - **Risk:** Cloud AI use for sensitive incident footage requires explicit data-governance approval before any real SCDF-like data is sent to third-party providers.
@@ -248,7 +251,7 @@ The core stage demo should stay on one continuous Punggol incident. Fire clips r
 See `resources/SCDF Finale Logistics and Demo Modes.md` for the full organiser timeline, rehearsal slot, finale agenda, stage/booth setup notes, and judge list.
 
 - **Stage Demo Scope:** The main stage presentation should focus on one continuous Punggol flow: landed house fire response, post-fire welfare check beside the building, responder-safety event, evidence-linked timeline, officer-reviewed guidance, and AAR briefing slide generation from the selected evidence timeline.
-- **Punggol Stage Flow:** Show the live C&C dashboard, three firefighter bodycam feeds for fire response, Wei Jie / Hafiz POV footage for the post-fire welfare phase, Bodycam C intentionally absent from that phase, responder-safety search, on-site police support guidance, and AAR briefing slide PPTX/PDF generation. Do not generate an official fire report or ambulance report.
+- **Punggol Stage Flow:** Show the live C&C dashboard, three firefighter bodycam feeds for fire response, Tze Kai / Joseph POV footage for the post-fire welfare phase, Bodycam C intentionally absent from that phase, responder-safety search, on-site police support guidance, and AAR briefing slide PPTX/PDF generation. Do not generate an official fire report or ambulance report.
 - **Woodlands Booth Flow:** Show the medical assistance / responder-safety flow with one available bodycam feed, incident review timeline, responder-safety search, and AAR briefing slide PPTX/PDF generation as a booth or secondary demo only.
 - **Ubi Booth Flow:** Ubi live site bodycam/dashboard is a booth-only interactive try-out surface for visitors, not part of the main on-stage presentation. Use it to demonstrate the system with booth hardware and the GB10 nearby.
 - **GB10 Constraint:** The GB10 remains at the booth and is not intended to be brought on stage. Stage demos should not rely on carrying the GB10 to the stage; use a tested deployed/tunnel endpoint only if reliable, otherwise keep the stage demo on laptop/cloud-backed paths.

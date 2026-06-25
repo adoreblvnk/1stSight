@@ -126,23 +126,6 @@ function seededCueCovered(event: { timestamp: string; source: string; title: str
     && (text.includes(frame.frameId.toLowerCase()) || text.includes(frame.timestampLabel.toLowerCase()) || text.includes(sourceResponder) || text.includes("bodycam b") || text.includes("bodycam w1"));
 }
 
-function seededRecommendation(frame: { frameId: string; timestampSeconds: number; timestampLabel: string; description: string; imageUrl: string }) {
-  const sustainedEscalation = frame.timestampSeconds >= 120;
-
-  return {
-    shouldRecommend: true,
-    id: sustainedEscalation ? "demo-etf-recommendation-122s" : "demo-etf-recommendation-77_5s",
-    title: "Flag ETF consideration for Ground Commander",
-    action: "Flag Enhanced Task Force consideration for Ground Commander",
-    reason: sustainedEscalation ? "Sustained fire growth at 2:02 adds severity to the earlier escalation evidence." : "Bodycam B shows escalating fire conditions at 1:17.5.",
-    evidence: frame.description,
-    evidenceFrameId: frame.frameId,
-    evidenceImageUrl: frame.imageUrl,
-    sourceTimestamp: frame.timestampLabel,
-    reviewState: "pending-review" as const,
-  };
-}
-
 function incidentPromptContext(incident: { title: string; location: string; summary: string; tags: string[] }) {
   const tags = incident.tags.length ? incident.tags.join(", ") : "incident operations";
 
@@ -284,12 +267,12 @@ export async function POST(request: Request) {
     });
 
     const supportedEvents = analysis.events.filter((event) => isSupportedLiveEvent(event.title, event.evidence));
-    const visibleThroughSecondsByResponder = Object.fromEntries(feeds.map((feed) => [feed.responder.id, Math.max(0, feed.currentTime)]));
+    const visibleThroughSecondsBySource = Object.fromEntries(feeds.map((feed) => [feed.videoSrc, Math.max(0, feed.currentTime)]));
     const operatorEvidenceSupport = body.operatorEvidenceSupport === true;
     const seededFrames = operatorEvidenceSupport && isDemoFireIncident(incident)
-      ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsByResponder)
+      ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource)
       : operatorEvidenceSupport && isDemoWoodlandsIncident(incident)
-      ? await buildWoodlandsDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsByResponder)
+      ? await buildWoodlandsDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource)
       : [];
     const seededEvents = seededFrames
       .filter((frame) => !supportedEvents.some((event) => seededCueCovered(event, frame)))
@@ -306,16 +289,15 @@ export async function POST(request: Request) {
         reviewState: "pending-review" as const,
       }));
     const frameById = new Map(frames.map((frame) => [frame.frameId, frame]));
-    const fallbackFrame = frames[0];
+    const fallbackFrame = latestFrame(frames);
     const selectedFrame = frameById.get(analysis.recommendation.evidenceFrameId) ?? fallbackFrame;
     const fallbackRecommendationTitle = opsCentreRecommendation(supportedEvents);
     const modelRecommendationAllowed = supportsOpsCentreRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
     const conservativeRecommendationAllowed = incident.type === "medical"
       ? supportsMedicalOpsRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence)
       : modelRecommendationAllowed;
-    const modelEnhancedTaskForce = supportsEnhancedTaskForce(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
-    const shouldUseSeededRecommendation = operatorEvidenceSupport && isDemoFireIncident(incident) && seededFrames.length > 0 && !modelEnhancedTaskForce;
-    const shouldRecommend = !shouldUseSeededRecommendation && analysis.recommendation.shouldRecommend && supportedEvents.length > 0 && (conservativeRecommendationAllowed || (incident.type !== "medical" && fallbackRecommendationTitle.length > 0));
+    const hasFireFallbackRecommendation = incident.type !== "medical" && fallbackRecommendationTitle.length > 0 && supportedEvents.length > 0;
+    const shouldRecommend = (analysis.recommendation.shouldRecommend && supportedEvents.length > 0 && (conservativeRecommendationAllowed || hasFireFallbackRecommendation)) || hasFireFallbackRecommendation;
     const fallbackIsEnhancedTaskForce = /enhanced task force/i.test(fallbackRecommendationTitle);
     const recommendationTitle = shouldRecommend && fallbackIsEnhancedTaskForce
       ? fallbackRecommendationTitle
@@ -324,9 +306,7 @@ export async function POST(request: Request) {
       : fallbackRecommendationTitle;
     const gcRecommendationTitle = /enhanced task force/i.test(recommendationTitle) ? "Flag Enhanced Task Force consideration for Ground Commander" : recommendationTitle;
     const recommendationReason = onePhrase(analysis.recommendation.reason || analysis.recommendation.evidence || supportedEvents[0]?.title || "supported by current live frames");
-    const recommendation = shouldUseSeededRecommendation
-      ? seededRecommendation(latestFrame(seededFrames))
-      : shouldRecommend
+    const recommendation = shouldRecommend
       ? {
           ...analysis.recommendation,
           shouldRecommend,
@@ -336,6 +316,7 @@ export async function POST(request: Request) {
           evidence: recommendationReason,
           evidenceFrameId: selectedFrame.frameId,
           evidenceImageUrl: `data:image/png;base64,${selectedFrame.image.toString("base64")}`,
+          sourceTimestamp: selectedFrame.timestampLabel,
         }
       : emptyRecommendation();
 

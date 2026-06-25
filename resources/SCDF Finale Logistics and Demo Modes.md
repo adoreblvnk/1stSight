@@ -4,27 +4,30 @@ Source: organiser messages shared by the user for the SCDF & Dell Lifesavers' In
 
 ## Demo surfaces
 
-1stSight should be planned as two stage demo flows and one booth-only live-site demo.
+1stSight should be planned as one primary stage demo flow and booth/secondary exploration flows.
 
-### Stage demo: Punggol house fire
+### Stage demo: Punggol house fire and responder-safety review
 
 - Show the Punggol residential fire as the live C&C scenario.
-- Include live dashboard, three firefighter bodycam feeds, live incident timeline, and officer-reviewed recommendation flow.
-- Incident review may be shown as an evidence timeline / review surface, but do not generate a fire report or AAR slide PDF for this scenario.
+- Include the hook and problem statement, deployment map, live dashboard, caller background context, optional audio toggle, three firefighter bodycam feeds, live incident timeline, and officer-reviewed recommendation flow.
+- Continue the same Punggol incident into the post-fire welfare check and drunk/aggressive-person responder-safety event.
+- Move into post-incident review, evidence timeline, labeled bounding boxes, full-incident AAR briefing slide, natural-language search for `strike` or `abuse`, highlighted relevant incident cards, and a focused AAR briefing slide export for the responder-safety event.
+- Launch the Ubi live-stream dashboard only briefly to show authenticity; visitors can try it at the booth.
+- Do not generate an official fire report, ambulance report, legal assault conclusion, medical diagnosis, or autonomous police dispatch record.
 
-### Stage demo: Woodlands medical / responder-safety case
+### Booth / secondary demo: Woodlands medical / responder-safety case
 
-- Show Woodlands as the medical assistance and responder-safety review scenario.
+- Keep Woodlands as a medical assistance and responder-safety review scenario for booth visitors or secondary exploration.
 - It can start from a live dashboard-style view, then move into incident review.
 - Include one available bodycam feed, evidence timeline, responder-safety search, and AAR briefing slide PDF generation.
 - Keep later prosecution, injury, charge, or outcome details out of the initial caller brief; use them only after footage review if needed for validation or presenter background.
 
 ### Booth-only demo: Ubi live site
 
-- Ubi live site demo is for the team booth, not the main on-stage presentation.
+- Ubi live site demo is primarily for the team booth, not the main on-stage presentation.
 - Product surface: live bodycam / camera source plus dashboard view.
 - Use it to show the system operating with booth hardware and the GB10 nearby.
-- Do not spend stage demo time on this unless the deck explicitly references it as a booth follow-up.
+- On stage, launch it only as a short authenticity handoff; do not spend time demoing it fully unless the deck explicitly allocates time.
 
 ## GB10 and stage constraint
 

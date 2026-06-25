@@ -31,7 +31,7 @@ import { browserRtcConfiguration } from "@/lib/webrtc";
 
 const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident", "abuse", "strike", "assault"]);
 
-type LiveMode = "live" | "escalation" | "post-fire" | "concluded";
+type LiveMode = "live" | "escalation" | "post-fire-loading" | "post-fire" | "concluded";
 
 type RuntimeEvidence = {
   frameId: string;
@@ -146,7 +146,7 @@ function getIncidentResponders(state: ScenarioState, incident: Incident) {
 }
 
 function isPostFirePhase(incidentId: string, mode: LiveMode) {
-  return incidentId === punggolIncidentId && mode === "post-fire";
+  return incidentId === punggolIncidentId && (mode === "post-fire-loading" || mode === "post-fire");
 }
 
 function liveFeedSource(responder: Responder, postFirePhase: boolean) {
@@ -960,21 +960,86 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   );
 }
 
-function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, onPunggolFireEnded, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; onPunggolFireEnded: () => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
+function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, onPunggolFireEnded, onPostFireReady, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; onPunggolFireEnded: () => void; onPostFireReady: () => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
   const isPunggolPostFirePhase = isPostFirePhase(incident.id, mode);
-  const isPunggolFirePhase = incident.id === punggolIncidentId && mode !== "post-fire";
+  const isPunggolFirePhase = incident.id === punggolIncidentId && mode !== "post-fire-loading" && mode !== "post-fire";
 
   useEffect(() => {
+    const readyListeners: Array<{ video: HTMLVideoElement; listener: () => void }> = [];
+    let readinessTimer: number | null = null;
+    let postFireStarted = false;
+    const postFireVideos: HTMLVideoElement[] = [];
+    const expectedPostFireVideoCount = mode === "post-fire-loading" ? responders.filter((responder) => responder.reviewVideoSrcs?.length).length : 0;
+
+    const postFireReady = () => postFireVideos.length === expectedPostFireVideoCount && postFireVideos.length > 0 && postFireVideos.every((video) => video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA);
+    const startPostFirePlayback = () => {
+      if (mode !== "post-fire-loading" || postFireStarted || !postFireReady()) return;
+      postFireStarted = true;
+      postFireVideos.forEach((video) => {
+        video.pause();
+        video.currentTime = 0;
+      });
+      postFireVideos.forEach((video) => void video.play());
+      onPostFireReady();
+    };
+
     responders.forEach((responder) => {
       const video = videoRefs.current[responder.id];
       if (!video) return;
-      video.muted = activeAudioResponderId !== responder.id;
+
+      video.muted = mode === "post-fire-loading" || activeAudioResponderId !== responder.id;
       if (mode === "escalation" && responder.id === liveCue.responderId) video.currentTime = liveCue.timestampSeconds;
-      if (isPunggolPostFirePhase && responder.reviewVideoSrcs?.length && video.currentTime > 44) video.currentTime = 0;
-      if (playing) void video.play();
-      else video.pause();
+
+      if (isPunggolPostFirePhase && responder.reviewVideoSrcs?.length) {
+        postFireVideos.push(video);
+        if (video.dataset.postFirePrepared !== "true") {
+          video.currentTime = 0;
+          video.dataset.postFirePrepared = "true";
+        }
+        if (video.currentTime > 44) video.currentTime = 0;
+        if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) video.load();
+      } else {
+        delete video.dataset.postFirePrepared;
+      }
+
+      if (!playing) {
+        video.pause();
+        return;
+      }
+
+      if (mode === "post-fire-loading") {
+        video.pause();
+        return;
+      }
+
+      const playWhenReady = () => void video.play();
+      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        playWhenReady();
+      } else {
+        video.addEventListener("canplay", playWhenReady, { once: true });
+        readyListeners.push({ video, listener: playWhenReady });
+      }
     });
-  }, [activeAudioResponderId, isPunggolPostFirePhase, liveCue.responderId, liveCue.timestampSeconds, mode, playing, responders, videoRefs]);
+
+    if (mode === "post-fire-loading") {
+      postFireVideos.forEach((video) => video.pause());
+      readinessTimer = window.setInterval(startPostFirePlayback, 50);
+      if (postFireReady()) {
+        window.setTimeout(startPostFirePlayback, 0);
+      } else {
+        postFireVideos.forEach((video) => {
+          if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
+          video.addEventListener("canplay", startPostFirePlayback, { once: true });
+          readyListeners.push({ video, listener: startPostFirePlayback });
+        });
+      }
+    }
+
+    return () => {
+      if (readinessTimer !== null) window.clearInterval(readinessTimer);
+      readyListeners.forEach(({ video, listener }) => video.removeEventListener("canplay", listener));
+    };
+  }, [activeAudioResponderId, isPunggolPostFirePhase, liveCue.responderId, liveCue.timestampSeconds, mode, onPostFireReady, playing, responders, videoRefs]);
 
   if (incident.id === streamIncidentId) {
     return (
@@ -989,6 +1054,24 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
 
   function handleFeedEnded(responderId: string) {
     if (isPunggolFirePhase && responderId === "ff-b") onPunggolFireEnded();
+  }
+
+  function selectAudioFeed(responderId: string) {
+    onAudioChange(responderId);
+    Object.entries(videoRefs.current).forEach(([videoResponderId, video]) => {
+      if (!video) return;
+      video.muted = true;
+      if (videoResponderId !== responderId) return;
+      if (!playing || mode === "post-fire-loading") {
+        video.muted = false;
+        return;
+      }
+      void video.play().then(() => {
+        video.muted = false;
+      }).catch(() => {
+        video.muted = false;
+      });
+    });
   }
 
   function renderFeed(responder: ScenarioState["responders"][number]) {
@@ -1012,7 +1095,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
     const videoSrc = liveFeedSource(responder, isPunggolPostFirePhase);
 
     return (
-      <button key={responder.id} type="button" onClick={() => onAudioChange(responder.id)} className="min-w-0 bg-screen text-left text-screen-foreground transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+      <button key={responder.id} type="button" onClick={() => selectAudioFeed(responder.id)} className="relative min-w-0 bg-screen text-left text-screen-foreground transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
         <div className="flex items-center justify-between border-b border-screen-border px-3 py-2">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-widest text-screen-foreground/60">{responder.feedLabel}</p>
@@ -1023,18 +1106,28 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
             <span className={cn("size-2 border", playing ? "live-dot border-success bg-success" : "border-screen-foreground/40")} />
           </div>
         </div>
-        <video
-          key={videoSrc}
-          ref={(node) => {
-            videoRefs.current[responder.id] = node;
-          }}
-          src={videoSrc}
-          muted={activeAudioResponderId !== responder.id}
-          loop={!isPunggolFirePhase}
-          onEnded={() => handleFeedEnded(responder.id)}
-          playsInline
-          className="aspect-video w-full bg-black object-cover"
-        />
+        <div className="relative aspect-video bg-black">
+          <video
+            key={`${mode}-${videoSrc}`}
+            ref={(node) => {
+              videoRefs.current[responder.id] = node;
+            }}
+            src={videoSrc}
+            muted={mode === "post-fire-loading" || activeAudioResponderId !== responder.id}
+            loop={!isPunggolFirePhase}
+            onEnded={() => handleFeedEnded(responder.id)}
+            onLoadedMetadata={(event) => {
+              if (mode === "post-fire-loading") event.currentTarget.currentTime = 0;
+            }}
+            playsInline
+            className="aspect-video w-full bg-black object-cover"
+          />
+          {mode === "post-fire-loading" ? (
+            <div className="absolute inset-0 grid place-items-center bg-black font-mono text-xs uppercase tracking-widest text-screen-foreground/55">
+              Loading post-fire POV
+            </div>
+          ) : null}
+        </div>
       </button>
     );
   }
@@ -1758,7 +1851,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
         const response = await fetch("/api/live/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ incidentId: selectedIncident.id, feeds, operatorEvidenceSupport: operatorControlsVisible }),
+          body: JSON.stringify({ incidentId: selectedIncident.id, feeds, operatorEvidenceSupport: operatorControlsVisible || selectedIncident.id === punggolIncidentId }),
         });
         const result = await response.json();
         if (!response.ok) {
@@ -1837,13 +1930,21 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
   function continuePostFireSweep() {
     if (isStreamIncident) return;
-    setMode("post-fire");
-    setPlaying(true);
+    setMode("post-fire-loading");
+    setPlaying(false);
     setActiveAudioResponderId("ff-a");
   }
 
+  const handlePostFireReady = useCallback(() => {
+    setMode((currentMode) => {
+      if (currentMode !== "post-fire-loading") return currentMode;
+      setPlaying(true);
+      return "post-fire";
+    });
+  }, []);
+
   function handlePunggolFireEnded() {
-    if (selectedIncident.id !== punggolIncidentId || mode === "post-fire") return;
+    if (selectedIncident.id !== punggolIncidentId || postFirePhase) return;
     continuePostFireSweep();
   }
 
@@ -1895,7 +1996,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
       <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Live responder feeds" label="Feeds" className="h-full min-h-0 overflow-y-auto">
-          <BodycamGrid incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} onPunggolFireEnded={handlePunggolFireEnded} videoRefs={videoRefs} streamSession={streamSession} liveCue={liveCue} />
+          <BodycamGrid incident={selectedIncident} responders={incidentResponders} mode={mode} playing={playing} activeAudioResponderId={activeAudioResponderId} onAudioChange={setActiveAudioResponderId} onPunggolFireEnded={handlePunggolFireEnded} onPostFireReady={handlePostFireReady} videoRefs={videoRefs} streamSession={streamSession} liveCue={liveCue} />
         </Panel>
 
         <div className="grid max-h-full auto-rows-max content-start gap-4 overflow-y-auto xl:sticky xl:top-20">

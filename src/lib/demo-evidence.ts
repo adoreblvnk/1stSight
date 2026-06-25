@@ -94,7 +94,7 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 8,
     title: "Post-fire sweep begins",
-    description: "Wei Jie POV shows the post-fire sweep beside the adjacent building.",
+    description: "Tze Kai POV shows the post-fire sweep beside the adjacent building.",
     tags: ["fire response", "responder safety"],
     boxes: [
       { x: 22, y: 24, width: 52, height: 48, label: "Post-fire corridor sweep area" },
@@ -106,7 +106,7 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 18,
     title: "Welfare check interaction visible",
-    description: "Wei Jie POV shows responders conducting a welfare-check interaction beside the building.",
+    description: "Tze Kai POV shows responders conducting a welfare-check interaction beside the building.",
     tags: ["responder safety", "medical assistance"],
     boxes: [
       { x: 32, y: 14, width: 34, height: 56, label: "Welfare-check interaction" },
@@ -119,7 +119,7 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 31,
     title: "Verbal aggression during welfare check",
-    description: "Wei Jie POV captures a drunk/aggressive man during the welfare-check sequence.",
+    description: "Tze Kai POV captures a drunk/aggressive man during the welfare-check sequence.",
     tags: ["responder safety", "unsafe proximity"],
     boxes: [
       { x: 36, y: 10, width: 32, height: 58, label: "Drunk/aggressive man beside building" },
@@ -131,12 +131,12 @@ const punggolFireCues: DemoCue[] = [
     responderId: "ff-a",
     sourceVideo: "/videos/fire/punggol-post-fire-wei-jie-pov.mp4",
     timestampSeconds: 37,
-    title: "Physical contact / shove against Hafiz",
-    description: "Wei Jie POV shows the drunk/aggressive man making physical contact / shove against Hafiz at 0:37.",
+    title: "Physical contact / shove against Joseph",
+    description: "Tze Kai POV shows the drunk/aggressive man making physical contact / shove against Joseph at 0:37.",
     tags: ["responder safety", "physical contact", "unsafe proximity", "abuse", "strike", "assault"],
     boxes: [
       { x: 34, y: 12, width: 36, height: 56, label: "Visible physical contact / shove" },
-      { x: 61, y: 18, width: 25, height: 52, label: "Hafiz receiving contact" },
+      { x: 61, y: 18, width: 25, height: 52, label: "Joseph receiving contact" },
     ],
   },
   {
@@ -145,7 +145,7 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-hafiz-pov.mp4",
     timestampSeconds: 37,
     title: "Impact and recovery perspective",
-    description: "Hafiz POV shows the impact/recovery perspective at 0:37.",
+    description: "Joseph POV shows the impact/recovery perspective at 0:37.",
     tags: ["responder safety", "physical contact", "crew intervention", "abuse", "strike", "assault"],
     boxes: [
       { x: 25, y: 20, width: 50, height: 52, label: "Impact / recovery view" },
@@ -157,7 +157,7 @@ const punggolFireCues: DemoCue[] = [
     sourceVideo: "/videos/fire/punggol-post-fire-hafiz-pov.mp4",
     timestampSeconds: 40,
     title: "De-escalation and restraint / recovery",
-    description: "Hafiz POV shows recovery and crew de-escalation/restraint actions.",
+    description: "Joseph POV shows recovery and crew de-escalation/restraint actions.",
     tags: ["responder safety", "crew intervention", "abuse"],
     boxes: [
       { x: 28, y: 18, width: 42, height: 54, label: "Recovery and de-escalation" },
@@ -242,6 +242,8 @@ async function buildDemoFrames(cacheDir: string, cues: DemoCue[], responders: Re
   );
 }
 
+const demoCueToleranceSeconds = 1.5;
+
 export function isDemoFireIncident(incident: Incident) {
   return incident.id === demoFireIncidentId;
 }
@@ -250,17 +252,17 @@ export function isDemoWoodlandsIncident(incident: Incident) {
   return incident.id === demoWoodlandsIncidentId;
 }
 
-export async function buildPunggolFireDemoFrames(cacheDir: string, responders: Responder[], visibleThroughSecondsByResponder?: Record<string, number>) {
-  const cues = visibleThroughSecondsByResponder
-    ? punggolFireCues.filter((cue) => (visibleThroughSecondsByResponder[cue.responderId] ?? 0) + 0.25 >= cue.timestampSeconds)
+export async function buildPunggolFireDemoFrames(cacheDir: string, responders: Responder[], visibleThroughSecondsBySource?: Record<string, number>) {
+  const cues = visibleThroughSecondsBySource
+    ? punggolFireCues.filter((cue) => (visibleThroughSecondsBySource[cue.sourceVideo] ?? -Infinity) + demoCueToleranceSeconds >= cue.timestampSeconds)
     : punggolFireCues;
 
   return buildDemoFrames(cacheDir, cues, responders);
 }
 
-export async function buildWoodlandsDemoFrames(cacheDir: string, responders: Responder[], visibleThroughSecondsByResponder?: Record<string, number>) {
-  const cues = visibleThroughSecondsByResponder
-    ? woodlandsResponderSafetyCues.filter((cue) => (visibleThroughSecondsByResponder[cue.responderId] ?? 0) + 0.25 >= cue.timestampSeconds)
+export async function buildWoodlandsDemoFrames(cacheDir: string, responders: Responder[], visibleThroughSecondsBySource?: Record<string, number>) {
+  const cues = visibleThroughSecondsBySource
+    ? woodlandsResponderSafetyCues.filter((cue) => (visibleThroughSecondsBySource[cue.sourceVideo] ?? -Infinity) + demoCueToleranceSeconds >= cue.timestampSeconds)
     : woodlandsResponderSafetyCues;
 
   return buildDemoFrames(cacheDir, cues, responders);
