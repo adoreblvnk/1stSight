@@ -34,6 +34,17 @@ const bodySchema = z.object({
   evidence: z.array(evidenceSchema).min(1),
 });
 
+function formatEvidenceCatalog(evidence: z.infer<typeof evidenceSchema>[]) {
+  return evidence
+    .map((item) => {
+      const boxLabels = item.boxes.map((box) => box.label).join(", ") || "none";
+      const tags = item.tags.join(", ") || "none";
+
+      return `frameId=${item.frameId}; source=${item.sourceResponder}; time=${item.timestampLabel}; order=${item.order}; name=${item.name}; description=${item.description}; tags=${tags}; boxes=${boxLabels}`;
+    })
+    .join("\n");
+}
+
 export async function POST(request: NextRequest) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
 
@@ -52,23 +63,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: incident.unavailableReason ?? "Evidence search is unavailable for this incident." }, { status: 400 });
   }
 
-  const evidenceCatalog = body.evidence.map((item) => ({
-    frameId: item.frameId,
-    sourceVideo: item.sourceVideo,
-    sourceResponder: item.sourceResponder,
-    timestampLabel: item.timestampLabel,
-    order: item.order,
-    name: item.name,
-    description: item.description,
-    tags: item.tags,
-    boxes: item.boxes.map((box) => box.label),
-  }));
+  const evidenceCatalog = formatEvidenceCatalog(body.evidence);
 
   try {
     const result = await generateStructuredStrict({
       schema: runtimeEvidenceSearchSchema,
       prefer: "text",
-      prompt: `Answer this post-incident natural-language search using only the runtime-analyzed evidence catalog. Query: ${body.query}\nEvidence catalog JSON:\n${JSON.stringify(evidenceCatalog)}`,
+      outputName: "runtimeEvidenceSearchResult",
+      outputDescription: "Search result object, not an evidence catalog item.",
+      prompt: `Return exactly one JSON object with keys query, intent, answer, reason, and evidenceFrameIds. Do not return, copy, or wrap any evidence catalog row. Use only frameId values from the evidence catalog for evidenceFrameIds. Query: ${body.query}\nEvidence catalog rows:\n${evidenceCatalog}`,
     });
 
     const validFrameIds = new Set(body.evidence.map((item) => item.frameId));
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
       evidenceFrameIds: result.evidenceFrameIds.filter((frameId) => validFrameIds.has(frameId)),
     });
   } catch (error) {
-    console.error("runtime evidence search unavailable", error);
+    console.error("runtime evidence search unavailable", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Runtime evidence search is unavailable. Check the server model/API configuration." }, { status: 502 });
   }
 }

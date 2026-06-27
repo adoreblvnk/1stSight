@@ -12,5 +12,5 @@ fi
 
 ollama pull "$OLLAMA_MODEL"
 
-echo "Starting Ollama on ${OLLAMA_HOST}. Use GB10_OPENAI_BASE_URL=http://<gb10-ip>:${OLLAMA_HOST##*:}/v1 and GB10_MODEL_ID=${OLLAMA_MODEL}."
+echo "Starting Ollama on ${OLLAMA_HOST}. Use GB10_OPENAI_BASE_URL=http://<gb10-ip>:${OLLAMA_HOST##*:}/v1 and serve the model as gb10-local-text."
 ollama serve

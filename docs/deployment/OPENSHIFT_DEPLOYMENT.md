@@ -28,9 +28,9 @@ Official platform URLs from the organiser guide:
 Set these on the OpenShift deployment as secrets/env vars. Do not commit real values.
 
 ```bash
+AI_MODEL_MODE=gb10-openai
 OPENAI_API_KEY=<cloud-vision-key>
 GB10_OPENAI_BASE_URL=https://<cloudflare-tunnel-host>/v1
-GB10_MODEL_ID=<served-gb10-model-id>
 GB10_OPENAI_API_KEY=<gb10-token-if-enabled>
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key>
 NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<optional-map-id>
@@ -39,7 +39,10 @@ NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<optional-map-id>
 Notes:
 
 - `OPENAI_API_KEY` is used for cloud vision/high-accuracy tasks.
-- `GB10_OPENAI_BASE_URL` and `GB10_MODEL_ID` route text reasoning to the GB10 OpenAI-compatible endpoint.
+- `AI_MODEL_MODE=gb10-openai` routes text reasoning to the GB10 OpenAI-compatible endpoint and vision tasks to OpenAI.
+- GB10 should serve the model as `gb10-local-text`; this is fixed in the app and not configured through env.
+- `AI_MODEL_MODE=openai` routes both text and vision tasks to OpenAI.
+- `AI_MODEL_MODE=codex` is for laptop development with Codex CLI, not the deployed OpenShift path.
 - The OpenShift platform does not provide GPUs for hosted LLMs. Do not try to run the GB10 model container inside OpenShift.
 - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is browser-exposed. Restrict it by referrer/domain in Google Cloud.
 
@@ -106,9 +109,9 @@ If you have `oc` configured for your team project, use:
 chmod +x scripts/openshift/deploy-with-oc.sh
 TEAM_NAME=<your-team-name> \
 IMAGE_TAG=finale \
+AI_MODEL_MODE=gb10-openai \
 OPENAI_API_KEY=<cloud-vision-key> \
 GB10_OPENAI_BASE_URL=https://<cloudflare-tunnel-host>/v1 \
-GB10_MODEL_ID=<served-gb10-model-id> \
 GB10_OPENAI_API_KEY=<gb10-token-if-enabled> \
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key> \
 ./scripts/openshift/deploy-with-oc.sh

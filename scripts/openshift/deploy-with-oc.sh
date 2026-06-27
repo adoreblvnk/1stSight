@@ -16,9 +16,9 @@ if ! command -v oc >/dev/null 2>&1; then
 fi
 
 oc create secret generic "$SECRET_NAME" \
+  --from-literal=AI_MODEL_MODE="${AI_MODEL_MODE:-gb10-openai}" \
   --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
   --from-literal=GB10_OPENAI_BASE_URL="${GB10_OPENAI_BASE_URL:-}" \
-  --from-literal=GB10_MODEL_ID="${GB10_MODEL_ID:-}" \
   --from-literal=GB10_OPENAI_API_KEY="${GB10_OPENAI_API_KEY:-}" \
   --from-literal=NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}" \
   --from-literal=NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID="${NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID:-}" \

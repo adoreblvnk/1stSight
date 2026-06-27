@@ -160,4 +160,4 @@ Use deep black inset treatment for video frames, evidence canvases, logs, AI tra
 
 When the Next.js app is scaffolded, put CSS-first Tailwind tokens in `app/globals.css`, use App Router conventions, keep Motion in client components only, and keep static layout structure in server components where possible.
 
-Use `@vis.gl/react-google-maps` for the deployment map, `@react-pdf/renderer` for slide-style AAR briefing PDFs, and keep model calls behind backend/API boundaries. Do not expose `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, `GB10_MODEL_ID`, or `GB10_OPENAI_API_KEY` through `NEXT_PUBLIC_*`; only `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is browser-exposed.
+Use `@vis.gl/react-google-maps` for the deployment map, `@react-pdf/renderer` for slide-style AAR briefing PDFs, and keep model calls behind backend/API boundaries. Do not expose `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, or `GB10_OPENAI_API_KEY` through `NEXT_PUBLIC_*`; only `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is browser-exposed.

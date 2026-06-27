@@ -29,7 +29,5 @@ export function browserRtcConfiguration(): RTCConfiguration {
 }
 
 export function webRtcVideoMaxBitrateBitsPerSecond() {
-  const value = Number(process.env.NEXT_PUBLIC_WEBRTC_VIDEO_MAX_BITRATE_KBPS);
-  const kbps = Number.isFinite(value) && value > 0 ? value : defaultVideoMaxBitrateKbps;
-  return Math.round(kbps * 1000);
+  return defaultVideoMaxBitrateKbps * 1000;
 }

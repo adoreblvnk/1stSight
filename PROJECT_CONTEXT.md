@@ -53,9 +53,11 @@ The Woodlands medical assistance / responder-safety scenario remains available f
 - **State & Data:** Core data includes incidents, incident objects, responder video/frame evidence, event timelines, recommendations, decision reviews, map markers, AAR slide drafts, editable PPTX exports, and slide-style PDF exports.
 - **Development Runtime:** The developer laptop runs the same application locally during implementation and testing.
 - **OpenShift Hosting [Cloud Native Platform]:** Dell Cloud Native Platform / Red Hat OpenShift hosts the deployed dashboard/backend, and the containerized app listens on port `8080`.
+- **OpenShift Console [Cloud Native Platform]:** `https://console-openshift-console.apps.innovate.sg-aie.com/`.
 - **Registry [Cloud Native Platform]:** Harbor stores the container image used for OpenShift deployment.
+- **Harbor Console [Cloud Native Platform]:** `https://ihl-harbor.apps.innovate.sg-aie.com/`.
 - **Route & DNS [Cloud Native Platform]:** OpenShift route provides app access; custom DNS is not required for the hackathon presentation.
-- **Runtime Secrets [Cloud Native Platform]:** Store `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, `GB10_MODEL_ID`, and `GB10_OPENAI_API_KEY` as OpenShift Secrets for deployed environments.
+- **Runtime Secrets [Cloud Native Platform]:** Store `AI_MODEL_MODE`, `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, and `GB10_OPENAI_API_KEY` as OpenShift Secrets for deployed environments.
 - **Deployment Credentials [Cloud Native Platform]:** OpenShift login/token or kubeconfig and Harbor username/password or robot token are required for deployment, but they are not app runtime environment variables.
 - **Browser Map Key:** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is required for `@vis.gl/react-google-maps`; restrict this browser-exposed key by domain/referrer in Google Cloud.
 
@@ -67,17 +69,21 @@ The Woodlands medical assistance / responder-safety scenario remains available f
   - **API Shape:** OpenAI-compatible `/v1` endpoint.
   - **Local Model:** `nemotron-nano-9b-v2`.
   - **Network Exposure:** Cloudflare Tunnel exposes the GB10 `vLLM` endpoint to the deployed OpenShift app through HTTPS.
+  - **Current Same-Wi-Fi GB10 Target:** `user1@192.168.0.102` for laptop/WSL-to-GB10 setup and local testing. SSH is password-based for current setup; do not commit the password to project files.
+  - **Current Same-Wi-Fi GB10 vLLM Runtime:** `nvcr.io/nvidia/vllm:26.05.post1-py3` serves `nvidia/NVIDIA-Nemotron-Nano-9B-v2` as `gb10-local-text` at `http://192.168.0.102:8000/v1` for laptop/WSL development.
   - **App Integration:** AI SDK `@ai-sdk/openai-compatible`.
   - **Endpoint Env:** `GB10_OPENAI_BASE_URL`, using the Cloudflare Tunnel URL for deployed OpenShift and the GB10 LAN URL for local laptop development.
-  - **Model Env:** `GB10_MODEL_ID`.
+  - **Served Model Name:** The app expects `gb10-local-text`.
   - **Auth Env:** `GB10_OPENAI_API_KEY` only if endpoint auth is enabled.
 
 ### Cloud AI
 
 - **Provider:** OpenAI through AI SDK's OpenAI provider.
 - **Model:** `gpt-5.5` is the highest-accuracy Cloud AI model for multimodal vision, tool calling, and reasoning-heavy workflows where intelligence matters more than local-only execution.
+- **Model Default:** The app uses `gpt-5.5` for OpenAI and Codex provider calls.
 - **API Key:** `OPENAI_API_KEY` is required for OpenAI model calls and must not be exposed through `NEXT_PUBLIC_*`.
-- **Dev Fallback Provider:** In AI model use cases, `Dev fallback` means `ai-sdk-provider-codex-cli` on the local laptop through the user's ChatGPT subscription when OpenAI provider credentials or the GB10 endpoint are unavailable; it is not the production Cloud AI path for the deployed presentation.
+- **Model Routing Env:** `AI_MODEL_MODE=gb10-openai` uses GB10 for text and OpenAI for vision, `AI_MODEL_MODE=codex` uses the Codex CLI provider for all model calls, and `AI_MODEL_MODE=openai` uses OpenAI for all model calls.
+- **Dev Fallback Provider:** In AI model use cases, `Dev fallback` means `AI_MODEL_MODE=codex` with `ai-sdk-provider-codex-cli` on the local laptop through the user's ChatGPT subscription. It is not the production Cloud AI path for the deployed presentation.
 - **Optional NVIDIA NIM:** `NVIDIA_API_KEY` is only required if using hosted NVIDIA NIM APIs instead of the local GB10 endpoint.
 - **Compute Boundary:** OpenShift does not provide GPUs for hosted LLMs; GPU-backed local inference runs through GB10, while cloud inference runs through external provider APIs.
 
@@ -178,25 +184,23 @@ flowchart LR
 6. Officer reviews generated evidence cards with model-returned bounding boxes, one-phrase labels, source references, and review state.
 7. Officer exports concise AAR briefing slides as editable PPTX and PDF files containing the full selected incident timeline by default, with officer selection controlling what is presented.
 
-### 10-Minute Presenter Flow
+### 15-Minute Stage Presenter Flow
 
-The core stage demo should stay on one continuous Punggol incident: map dispatch, live C&C dashboard, caller background context, optional audio playback, live event logging, fire-response recommendation, post-fire responder-safety event, post-incident evidence review, AAR briefing slide generation, natural-language search, focused AAR export, and a short Ubi live-stream dashboard handoff for booth authenticity. Woodlands remains a booth or secondary exploration flow, not the main stage AAR story. The Ubi live stream dashboard may be launched on stage only as a quick proof of authenticity; presenters do not need to demo it in depth because visitors can try it at the booth.
+The stage presentation should stay on one continuous Punggol incident. The story starts with the operational problem, moves from dispatch into live C&C monitoring, continues into the post-fire responder-safety event, then ends with post-incident evidence review, search, AAR export, and a privacy-preserving architecture close. Woodlands remains a booth or secondary exploration flow, not the main stage AAR story. The Ubi live-stream dashboard may be launched on stage only as a quick proof of authenticity; presenters should not demo it in depth because visitors can try it at the booth.
 
-| Approx. time | Presenter action | Product moment |
-| --- | --- | --- |
-| 0:00-1:15 | Open with the hook and problem statement. | Position 1stSight as an Ops Centre workflow that reduces manual bodycam scrubbing by turning live responder footage into evidence-linked awareness, recommendations, and AAR briefing material. |
-| 1:15-2:15 | Open the Punggol landed house fire on the deployment map. | Map shows Basic Task Force moving from Punggol Fire Station to 21 Punggol Field Walk. |
-| 2:15-3:30 | Enter the live C&C dashboard and read the caller background context only. Toggle audio if useful. | The live view starts from caller context: small fire at a landed house, caller outside, no visible injuries reported. Footage-derived evidence has not yet been added. |
-| 3:30-5:00 | Let incidents log from the live fire feeds. | Tze Kai / Bodycam A, Joseph / Bodycam B, and Jia Jia / Bodycam C show the fire-response phase while current frames become timestamped fire, smoke, visibility, and escalation events with source-feed references. |
-| 5:00-6:00 | Show live recommendations. | 1stSight surfaces reviewable Ops Centre guidance such as resource escalation, with a reason phrase and source frame for officer approval, rejection, or edit. |
-| 6:00-7:15 | Continue into the post-fire welfare check and drunk/aggressive-person incident. | Tze Kai POV and Joseph POV continue after the fire footage; Bodycam C is intentionally marked not attached to the welfare sweep. The responder-safety event is logged from footage, not caller context. |
-| 7:15-8:30 | Open post-incident review. | The incident moves from live monitoring into evidence review across the same Punggol incident timeline. |
-| 8:30-10:00 | Show the evidence timeline and emphasize labeled bounding boxes. | Evidence cards show selected frames, source IDs, timestamps, one-phrase labels, and bounding boxes for fire-response and responder-safety moments, including physical contact / impact evidence from both POVs. |
-| 10:00-11:00 | Generate or open the AAR briefing slide for the whole Punggol incident. | With no active search, the AAR briefing slide covers the full incident spine: landed-house fire response, post-fire welfare check, responder-safety event, and officer-reviewed decisions. |
-| 11:00-12:30 | Return to the evidence timeline and search for `strike` or `abuse`. | Natural-language search highlights only the relevant responder-safety evidence cards, demonstrating that officers can retrieve moments without manually scrubbing footage. |
-| 12:30-13:30 | Export an AAR briefing slide focused only on the drunk/aggressive-person case. | Because the search is active, the export narrows to the highlighted responder-safety evidence until the search is cleared. |
-| 13:30-14:15 | Launch the Ubi live-stream dashboard briefly. | Show that 1stSight also supports an authentic live camera/bodycam dashboard surface; do not spend stage time demoing it fully because visitors can try it at the booth. |
-| 14:15-15:00 | Explain how 1stSight was built and close. | Cover the privacy-preserving architecture: responder footage enters the platform, structured analysis and evidence selection happen behind backend boundaries, local GB10 reasoning is used where practical, cloud vision is reserved for high-accuracy multimodal tasks, and officers retain review authority. |
+- **0:00-1:00 — Hook and problem statement.** Position 1stSight as an Ops Centre workflow that reduces manual multi-feed bodycam scrubbing by turning live responder footage into evidence-linked awareness, recommendations, and AAR briefing material.
+- **1:00-2:00 — Deployment map.** Open the Punggol landed house fire. Show the Basic Task Force moving from Punggol Fire Station to 21 Punggol Field Walk.
+- **2:00-3:15 — Live C&C dashboard.** Enter the dashboard, read caller background context only, and toggle audio if useful. The live view starts from caller context: small fire at a landed house, caller outside, no visible injuries reported. Footage-derived evidence has not yet been added.
+- **3:15-4:45 — Live incident logging.** Let incidents log from Tze Kai / Bodycam A, Joseph / Bodycam B, and Jia Jia / Bodycam C. Current frames become timestamped fire, smoke, visibility, and escalation events with source-feed references.
+- **4:45-5:45 — Live recommendations.** Show reviewable Ops Centre guidance such as Enhanced Task Force escalation, with a reason phrase and source frame for officer approval, rejection, or edit.
+- **5:45-7:00 — Post-fire responder-safety event.** Continue into the welfare check and drunk/aggressive-person incident. Tze Kai POV and Joseph POV continue after the fire footage; Bodycam C is intentionally marked not attached to the welfare sweep. The responder-safety event is logged from footage, not caller context.
+- **7:00-8:30 — Post-incident review.** Move the same Punggol incident from live monitoring into evidence review.
+- **8:30-9:45 — Evidence timeline.** Emphasize selected frames, source IDs, timestamps, one-phrase labels, and labeled bounding boxes for fire-response and responder-safety moments, including physical contact and impact/recovery evidence from both POVs.
+- **9:45-10:45 — Full-incident AAR briefing slide.** With no active search, the AAR briefing slide covers the full Punggol spine: landed-house fire response, post-fire welfare check, responder-safety event, and officer-reviewed decisions.
+- **10:45-12:00 — Natural-language evidence search.** Return to the evidence timeline and search for `strike` or `abuse`. Search should highlight only the relevant responder-safety evidence cards so officers can retrieve moments without manually scrubbing footage. UI and AAR wording should stay evidence-grounded: physical contact, unsafe proximity, responder-safety event, and impact/recovery evidence.
+- **12:00-13:00 — Focused AAR export.** Export an AAR briefing slide focused only on the drunk/aggressive-person case. Because the search is active, the export narrows to the highlighted responder-safety evidence until the search is cleared.
+- **13:00-13:30 — Ubi live-stream dashboard handoff.** Launch the Ubi live-stream dashboard briefly to show an authentic live camera/bodycam surface. Do not spend stage time demoing it fully because visitors can try it at the booth.
+- **13:30-15:00 — How it was built and close.** Cover the privacy-preserving architecture: responder footage enters the platform, structured analysis and evidence selection happen behind backend boundaries, local GB10 reasoning is used where practical, cloud vision is reserved for high-accuracy multimodal tasks, and officers retain review authority.
 
 ## 7. State Models
 
