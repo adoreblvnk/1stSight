@@ -111,6 +111,21 @@ function emptyRecommendation() {
   };
 }
 
+function seededFireEscalationRecommendation(frame: DemoEvidenceFrame) {
+  return {
+    shouldRecommend: true,
+    id: "seeded-fire-escalation-enhanced-task-force",
+    title: "Flag Enhanced Task Force consideration for Ground Commander",
+    action: "Flag Enhanced Task Force consideration for Ground Commander",
+    reason: "Bodycam B shows escalating fire conditions and sustained flame growth near crew",
+    evidence: "Bodycam B shows escalating fire conditions and sustained flame growth near crew",
+    evidenceFrameId: frame.frameId,
+    evidenceImageUrl: frame.imageUrl,
+    sourceTimestamp: frame.timestampLabel,
+    reviewState: "system-created" as const,
+  };
+}
+
 function latestFrame<TFrame extends { timestampSeconds: number }>(frames: TFrame[]) {
   return frames.reduce((latest, frame) => (frame.timestampSeconds > latest.timestampSeconds ? frame : latest), frames[0]);
 }
@@ -291,6 +306,7 @@ export async function POST(request: Request) {
     const frameById = new Map(frames.map((frame) => [frame.frameId, frame]));
     const fallbackFrame = latestFrame(frames);
     const selectedFrame = frameById.get(analysis.recommendation.evidenceFrameId) ?? fallbackFrame;
+    const seededFireEscalationFrame = seededFrames.find((frame) => frame.frameId === "demo-fire-b-76_5s-escalation-etf");
     const fallbackRecommendationTitle = opsCentreRecommendation(supportedEvents);
     const modelRecommendationAllowed = supportsOpsCentreRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
     const conservativeRecommendationAllowed = incident.type === "medical"
@@ -306,7 +322,9 @@ export async function POST(request: Request) {
       : fallbackRecommendationTitle;
     const gcRecommendationTitle = /enhanced task force/i.test(recommendationTitle) ? "Flag Enhanced Task Force consideration for Ground Commander" : recommendationTitle;
     const recommendationReason = onePhrase(analysis.recommendation.reason || analysis.recommendation.evidence || supportedEvents[0]?.title || "supported by current live frames");
-    const recommendation = shouldRecommend
+    const recommendation = seededFireEscalationFrame
+      ? seededFireEscalationRecommendation(seededFireEscalationFrame)
+      : shouldRecommend
       ? {
           ...analysis.recommendation,
           shouldRecommend,

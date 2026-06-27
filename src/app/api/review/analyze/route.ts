@@ -151,8 +151,8 @@ export async function POST(request: Request) {
               rank: 1,
               order: 1,
               title: "Flag Enhanced Task Force consideration for Ground Commander",
-              reason: "Fire escalation at 1:17.5 on Bodycam B supports command review for ETF escalation.",
-              evidenceFrameIds: ["demo-fire-b-77_5s-escalation-etf"],
+              reason: "Bodycam B shows escalating fire conditions supporting Enhanced Task Force consideration for Ground Commander review.",
+              evidenceFrameIds: ["demo-fire-b-76_5s-escalation-etf"],
             },
             {
               id: "demo-punggol-onsite-police-support-guidance",

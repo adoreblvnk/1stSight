@@ -50,12 +50,12 @@ const punggolFireCues: DemoCue[] = [
     ],
   },
   {
-    frameId: "demo-fire-b-77_5s-escalation-etf",
+    frameId: "demo-fire-b-76_5s-escalation-etf",
     responderId: "ff-b",
     sourceVideo: "/videos/fire/fire-feed-b-escalation.mp4",
-    timestampSeconds: 77.5,
+    timestampSeconds: 76.5,
     title: "Escalating fire conditions visible",
-    description: "Bodycam B shows fire escalation at 1:17.5 for Ground Commander review.",
+    description: "Bodycam B shows escalating fire conditions for Ground Commander review.",
     tags: ["fire escalation", "smoke spread", "fire response"],
     boxes: [
       { x: 42, y: 12, width: 46, height: 58, label: "Escalating flame area / ETF consideration" },

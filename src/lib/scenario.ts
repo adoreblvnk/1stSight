@@ -96,7 +96,7 @@ export const scenarioState: ScenarioState = {
   deploymentProgress: 78,
   liveAnalysisCue: {
     responderId: "ff-b",
-    timestampSeconds: 77.5,
+    timestampSeconds: 76.5,
   },
   responders: [
     {

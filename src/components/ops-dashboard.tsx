@@ -381,7 +381,7 @@ const punggolMilestoneOffsets: Partial<Record<IncidentMilestone["id"], number>> 
 };
 
 function formatSessionClock(sessionStartMs: number, offsetSeconds: number) {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(sessionStartMs + offsetSeconds * 1000));
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(sessionStartMs + offsetSeconds * 1000));
 }
 
 function incidentEvidenceOffsetSeconds(item: Pick<RuntimeEvidence, "sourceVideo" | "frameTimestampSeconds">) {
@@ -1108,7 +1108,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
         </div>
         <div className="relative aspect-video bg-black">
           <video
-            key={`${mode}-${videoSrc}`}
+            key={videoSrc}
             ref={(node) => {
               videoRefs.current[responder.id] = node;
             }}
@@ -1278,6 +1278,7 @@ function RecommendationReview({ analysis, incidentId }: { analysis: LiveAnalysis
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold leading-snug">{onePhrase(recommendation.title)}</p>
+                    {recommendation.sourceTimestamp ? <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Observed {recommendation.sourceTimestamp}</p> : null}
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{onePhrase(recommendation.reason)}</p>
                   </div>
                   {decision ? <OperationalBadge tone={decision.decision}>{decision.decision}</OperationalBadge> : null}
