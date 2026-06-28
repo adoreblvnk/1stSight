@@ -712,23 +712,32 @@ function MarkerDetail({ marker, state, selectedIncidentId, dispatchPreview, onEn
 }
 
 function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPreview, onSelectMarker, onEnterDashboard }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; dispatchPreview: DispatchPreview | null; onSelectMarker: (marker: DeploymentMarker) => void; onEnterDashboard: (incidentId: string) => void }) {
-  const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string } | null>(null);
+  const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string; googleMapsMapId: string } | null>(null);
+  const [mapsLoadError, setMapsLoadError] = useState<string | null>(null);
   const apiKey = mapsConfig?.googleMapsApiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Advanced Markers map ID: https://developers.google.com/maps/documentation/javascript/advanced-markers/start
+  const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
   const center = state.deploymentMarkers.find((marker) => marker.incidentId === selectedIncidentId)?.position ?? state.deploymentMarkers[0].position;
   const visibleMarkers = dispatchPreview ? [...state.deploymentMarkers, dispatchPreview.vehicleMarker] : state.deploymentMarkers;
+
+  // APIProvider onError: https://visgl.github.io/react-google-maps/docs/api-reference/components/api-provider
+  const handleMapsLoadError = useCallback((error: unknown) => {
+    console.error("Google Maps API Error:", error);
+    setMapsLoadError(error instanceof Error ? error.message : "Google Maps API failed to load.");
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
     void fetch("/api/public-config", { cache: "no-store" })
       .then((response) => response.json())
-      .then((config: { googleMapsApiKey?: string }) => {
+      .then((config: { googleMapsApiKey?: string; googleMapsMapId?: string }) => {
         if (!mounted) return;
-        setMapsConfig({ googleMapsApiKey: config.googleMapsApiKey ?? "" });
+        setMapsConfig({ googleMapsApiKey: config.googleMapsApiKey ?? "", googleMapsMapId: config.googleMapsMapId ?? "" });
       })
       .catch(() => {
         if (!mounted) return;
-        setMapsConfig({ googleMapsApiKey: "" });
+        setMapsConfig({ googleMapsApiKey: "", googleMapsMapId: "" });
       });
 
     return () => {
@@ -736,12 +745,13 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPrev
     };
   }, []);
 
-  if (!apiKey) {
+  if (!apiKey || mapsLoadError) {
     return (
       <div className="relative h-full min-h-0 overflow-hidden bg-screen p-4 text-screen-foreground">
         <div className="absolute inset-0 deployment-grid opacity-30" />
         <div className="relative flex h-full min-h-0 flex-col justify-between overflow-auto border border-screen-border bg-screen/90 p-4">
           <div className="font-mono text-xs uppercase tracking-widest text-screen-foreground/60">Map fallback, select an incident marker to preview dispatch</div>
+          {mapsLoadError ? <div className="border border-destructive bg-destructive/10 p-3 text-sm text-destructive">Google Maps did not load. Check the browser console for the Google Maps API error code.</div> : null}
           {dispatchPreview ? (
             <div className="border border-accent bg-accent/10 p-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -779,8 +789,8 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPrev
 
   return (
     <div className="relative min-h-0 flex-1 border-b border-border">
-      <APIProvider apiKey={apiKey}>
-        <Map className="h-full min-h-0" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK">
+      <APIProvider apiKey={apiKey} onError={handleMapsLoadError}>
+        <Map className="h-full min-h-0" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK" mapId={mapId}>
           {visibleMarkers.map((marker) => (
             <AdvancedMarker key={marker.id} position={marker.position} title={`${markerCategory(marker, state)}: ${marker.label}, ${marker.status}`} onClick={() => onSelectMarker(marker)}>
               <MapMarkerGlyph marker={marker} selected={selectedMarker?.id === marker.id} state={state} />

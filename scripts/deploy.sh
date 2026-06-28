@@ -203,6 +203,7 @@ oc create secret generic "$SECRET_NAME" \
   --from-literal=GB10_OPENAI_BASE_URL="$GB10_OPENAI_BASE_URL" \
   --from-literal=GB10_OPENAI_API_KEY="$GB10_OPENAI_API_KEY" \
   --from-literal=NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY" \
+  --from-literal=NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID="${NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID:-}" \
   --dry-run=client -o yaml | oc apply -f -
 
 if oc get deploy "$APP_NAME" >/dev/null 2>&1; then

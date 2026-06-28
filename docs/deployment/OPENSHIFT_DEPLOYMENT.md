@@ -33,6 +33,7 @@ OPENAI_API_KEY=<cloud-vision-key>
 GB10_OPENAI_BASE_URL=https://<cloudflare-tunnel-host>/v1
 GB10_OPENAI_API_KEY=<gb10-token-if-enabled>
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key>
+NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<optional-map-id>
 ```
 
 Notes:
