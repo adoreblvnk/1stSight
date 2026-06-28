@@ -160,19 +160,13 @@ docker run -d \
     --mamba_ssm_cache_dtype float32'
 ```
 
-If the 1stSight repo is also checked out on the GB10, this script-based start is equivalent:
+If the 1stSight repo is also checked out on the GB10, use the flat helper to start vLLM and Cloudflare Tunnel together:
 
 ```bash
-chmod +x scripts/gb10/start-vllm-docker.sh
-DOCKER_IMAGE=nvcr.io/nvidia/vllm:26.05.post1-py3 \
-MODEL_ID=nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
-SERVED_MODEL_NAME=gb10-local-text \
-PORT=8000 \
-GB10_OPENAI_API_KEY=local-dev-token \
-MAX_MODEL_LEN=8192 \
-MAX_NUM_SEQS=64 \
-MAMBA_SSM_CACHE_DTYPE=float32 \
-./scripts/gb10/start-vllm-docker.sh
+chmod +x scripts/gb10-run.sh
+export GB10_OPENAI_API_KEY=local-dev-token
+export CLOUDFLARED_TOKEN=<cloudflare-tunnel-token>
+./scripts/gb10-run.sh
 ```
 
 The currently validated running container is named `gb10-vllm`.
@@ -190,7 +184,7 @@ docker ps --filter name=gb10-vllm
 Watch logs:
 
 ```bash
-docker logs -f gb10-vllm
+./scripts/gb10-run.sh --logs
 ```
 
 Check GPU use:
@@ -210,7 +204,7 @@ Run the repo smoke test from the laptop / WSL:
 ```bash
 GB10_OPENAI_BASE_URL=http://192.168.0.102:8000/v1 \
 GB10_OPENAI_API_KEY=local-dev-token \
-./scripts/gb10/smoke-openai-compatible.sh
+./scripts/gb10-smoke.sh
 ```
 
 Expected smoke result includes `gb10 ok`.
@@ -219,16 +213,10 @@ Expected smoke result includes `gb10 ok`.
 
 Run these on the GB10, or prefix them with `ssh user1@192.168.0.102` from the laptop / WSL.
 
-Stop the model server:
+Stop the model server and Cloudflare Tunnel:
 
 ```bash
-docker stop gb10-vllm
-```
-
-Remove the stopped container if needed:
-
-```bash
-docker rm gb10-vllm
+./scripts/gb10-run.sh --stop
 ```
 
 Do not remove the vLLM image or Hugging Face cache before the demo unless disk space requires it. Keeping them avoids another long first-run download.

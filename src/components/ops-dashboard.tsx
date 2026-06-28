@@ -75,6 +75,15 @@ type StreamUiAnalysis = {
   recommendations: LiveAnalysisOutput["recommendation"][];
 };
 
+type Gb10HealthStatus = "checking" | "online" | "offline" | "not-configured";
+
+type Gb10HealthResponse = {
+  configured: boolean;
+  reachable: boolean;
+  status: Exclude<Gb10HealthStatus, "checking">;
+  checkedAt: string;
+};
+
 // opencode run "$(cat /tmp/1stsight-opencode-map-feature.md)"
 type DispatchPreview = {
   incidentId: string;
@@ -159,6 +168,41 @@ function OperationalBadge({ children, tone }: { children: ReactNode; tone?: keyo
       {children}
     </Badge>
   );
+}
+
+function Gb10ReachabilityBadge() {
+  const [status, setStatus] = useState<Gb10HealthStatus>("checking");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkGb10() {
+      try {
+        const response = await fetch("/api/gb10/health", { cache: "no-store" });
+        if (!response.ok) throw new Error("GB10 health check failed.");
+
+        const health = (await response.json()) as Gb10HealthResponse;
+        if (!mounted) return;
+        setStatus(health.status);
+      } catch {
+        if (!mounted) return;
+        setStatus("offline");
+      }
+    }
+
+    void checkGb10();
+    const intervalId = window.setInterval(() => void checkGb10(), 30000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const tone = status === "online" ? "approved" : status === "offline" ? "rejected" : "pending-review";
+  const label = status === "online" ? "GB10 reachable" : status === "offline" ? "GB10 unreachable" : status === "not-configured" ? "GB10 not configured" : "GB10 checking";
+
+  return <OperationalBadge tone={tone}>{label}</OperationalBadge>;
 }
 
 // opencode run "$(cat /tmp/1stsight-opencode-map-feature.md)"
@@ -544,7 +588,7 @@ function IncidentSelector({ state, selectedIncidentId, onIncidentChange }: { sta
   );
 }
 
-function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, showSidebar = true, background = "neutral", fixedViewport = false, children }: { state: ScenarioState; activeState: string; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; background?: PageBackgroundKey; fixedViewport?: boolean; children: ReactNode }) {
+function AppShell({ state, selectedIncidentId, onIncidentChange, showSidebar = true, background = "neutral", fixedViewport = false, children }: { state: ScenarioState; selectedIncidentId: string; onIncidentChange: (incidentId: string) => void; showSidebar?: boolean; background?: PageBackgroundKey; fixedViewport?: boolean; children: ReactNode }) {
   const pathname = usePathname();
 
   return (
@@ -585,7 +629,7 @@ function AppShell({ state, activeState, selectedIncidentId, onIncidentChange, sh
               <IncidentSelector state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={onIncidentChange} />
             </div>
             <div className="hidden items-center gap-2 xl:flex">
-              <OperationalBadge tone={activeState === "concluded" ? "approved" : "pending-review"}>{activeState}</OperationalBadge>
+              <Gb10ReachabilityBadge />
             </div>
           </div>
         </header>
@@ -668,9 +712,8 @@ function MarkerDetail({ marker, state, selectedIncidentId, dispatchPreview, onEn
 }
 
 function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPreview, onSelectMarker, onEnterDashboard }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; dispatchPreview: DispatchPreview | null; onSelectMarker: (marker: DeploymentMarker) => void; onEnterDashboard: (incidentId: string) => void }) {
-  const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string; googleMapsMapId: string } | null>(null);
+  const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string } | null>(null);
   const apiKey = mapsConfig?.googleMapsApiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "1STSIGHT_MAP_ID";
   const center = state.deploymentMarkers.find((marker) => marker.incidentId === selectedIncidentId)?.position ?? state.deploymentMarkers[0].position;
   const visibleMarkers = dispatchPreview ? [...state.deploymentMarkers, dispatchPreview.vehicleMarker] : state.deploymentMarkers;
 
@@ -679,13 +722,13 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPrev
 
     void fetch("/api/public-config", { cache: "no-store" })
       .then((response) => response.json())
-      .then((config: { googleMapsApiKey?: string; googleMapsMapId?: string }) => {
+      .then((config: { googleMapsApiKey?: string }) => {
         if (!mounted) return;
-        setMapsConfig({ googleMapsApiKey: config.googleMapsApiKey ?? "", googleMapsMapId: config.googleMapsMapId ?? "" });
+        setMapsConfig({ googleMapsApiKey: config.googleMapsApiKey ?? "" });
       })
       .catch(() => {
         if (!mounted) return;
-        setMapsConfig({ googleMapsApiKey: "", googleMapsMapId: "" });
+        setMapsConfig({ googleMapsApiKey: "" });
       });
 
     return () => {
@@ -737,7 +780,7 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPrev
   return (
     <div className="relative min-h-0 flex-1 border-b border-border">
       <APIProvider apiKey={apiKey}>
-        <Map className="h-full min-h-0" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK" mapId={mapId}>
+        <Map className="h-full min-h-0" defaultCenter={center} defaultZoom={14} gestureHandling="greedy" disableDefaultUI colorScheme="DARK">
           {visibleMarkers.map((marker) => (
             <AdvancedMarker key={marker.id} position={marker.position} title={`${markerCategory(marker, state)}: ${marker.label}, ${marker.status}`} onClick={() => onSelectMarker(marker)}>
               <MapMarkerGlyph marker={marker} selected={selectedMarker?.id === marker.id} state={state} />
@@ -1741,7 +1784,7 @@ export function MapDashboard({ initialState, initialIncidentId }: { initialState
   }
 
   return (
-    <AppShell state={state} activeState="deployment map" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="map" fixedViewport>
+    <AppShell state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="map" fixedViewport>
       <section className={cn(commandScope, "flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="command-texture command-texture-map relative flex min-h-12 flex-wrap items-center justify-between gap-3 overflow-hidden border-b border-border px-4 py-3">
           <HeroImageBackdrop src={heroImages.map} alt="AI generated operations map background" />
@@ -1950,7 +1993,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   }
 
   return (
-    <AppShell state={state} activeState={mode} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="live" fixedViewport>
+    <AppShell state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="live" fixedViewport>
       <section className={cn(commandScope, "shrink-0 overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="grid gap-px bg-border lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)_auto]">
           <div className="command-texture command-texture-live relative overflow-hidden bg-card p-3">
@@ -2233,7 +2276,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
   }
 
   return (
-    <AppShell state={state} activeState="post-incident review" selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="review">
+    <AppShell state={state} selectedIncidentId={selectedIncidentId} onIncidentChange={selectIncident} showSidebar={false} background="review">
       <section className={cn(commandScope, "overflow-hidden rounded-[var(--radius-shell)] border border-border bg-command text-command-foreground")}>
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_auto]">
           <div className="command-texture command-texture-review relative overflow-hidden bg-card p-4">

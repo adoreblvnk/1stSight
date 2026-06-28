@@ -21,6 +21,12 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "1stSight Command Dashboard",
   description: "SCDF Ops Centre pilot workflow for bodycam evidence, recommendations, AAR briefing slides, and evidence review.",
+  // Next.js Metadata icons: https://nextjs.org/docs/app/api-reference/functions/generate-metadata#icons
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({

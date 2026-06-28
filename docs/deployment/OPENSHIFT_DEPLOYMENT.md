@@ -33,7 +33,6 @@ OPENAI_API_KEY=<cloud-vision-key>
 GB10_OPENAI_BASE_URL=https://<cloudflare-tunnel-host>/v1
 GB10_OPENAI_API_KEY=<gb10-token-if-enabled>
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key>
-NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<optional-map-id>
 ```
 
 Notes:
@@ -46,7 +45,7 @@ Notes:
 - The OpenShift platform does not provide GPUs for hosted LLMs. Do not try to run the GB10 model container inside OpenShift.
 - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is browser-exposed. Restrict it by referrer/domain in Google Cloud.
 
-## Build and push to Harbor
+## Deploy to OpenShift
 
 Log in to Harbor in the browser first, then copy your CLI secret from User Profile.
 
@@ -54,26 +53,49 @@ Log in to Harbor in the browser first, then copy your CLI secret from User Profi
 docker login https://ihl-harbor.apps.innovate.sg-aie.com/
 ```
 
-Build and push using the helper script:
+Deploy with one script:
 
 ```bash
-chmod +x scripts/openshift/build-and-push.sh
-TEAM_NAME=<your-team-name> \
-IMAGE_NAME=1stsight \
-IMAGE_TAG=$(git rev-parse --short HEAD) \
-./scripts/openshift/build-and-push.sh
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
-The resulting image is:
+The script:
+
+- reads `.env` when present
+- prompts for missing runtime secrets without writing them to files
+- patch-bumps `package.json` and `package-lock.json`
+- builds and pushes the image to Harbor
+- deploys the image to OpenShift
+- creates/updates `firstsight-runtime`
+- creates/updates deployment `firstsight` and container `1stsight`
+- exposes port `8080` with edge TLS route redirect
+- runs route smoke checks
+- prints recent pod logs
+
+The deployed image is:
 
 ```text
-ihl-harbor.apps.innovate.sg-aie.com/<your-team-name>/1stsight:<tag>
+ihl-harbor.apps.innovate.sg-aie.com/adore/1stsight:<package-version>
 ```
 
-For a stable demo tag, use:
+Defaults:
+
+- Team/project: `adore`
+- Image name: `1stsight`
+- Image tag: the SemVer `version` from `package.json`, after a patch bump
+- OpenShift app/deployment/service/route: `firstsight`
+
+To deploy without bumping the package version:
 
 ```bash
-TEAM_NAME=<your-team-name> IMAGE_TAG=finale ./scripts/openshift/build-and-push.sh
+./scripts/deploy.sh --no-bump
+```
+
+To deploy an explicit tag:
+
+```bash
+./scripts/deploy.sh --tag 1.0.0
 ```
 
 ## Deploy through the OpenShift console
@@ -88,50 +110,31 @@ Follow the organiser guide's console path:
 - Under `Image name from external registry`, enter:
 
 ```text
-ihl-harbor.apps.innovate.sg-aie.com/<your-team-name>/1stsight:<tag>
+ihl-harbor.apps.innovate.sg-aie.com/adore/1stsight:<package-version>
 ```
 
 Use these form settings:
 
-- Application name: `1stsight`
-- Name: `1stsight`
+- Application name: `firstsight`
+- Name: `firstsight`
 - Target port: `8080`
 - Create route: enabled
 - Runtime icon: optional
 
+OpenShift resource names must start with a letter, so the deployment/service/route name is `firstsight`. The Harbor image name remains `1stsight`.
+
 After creation, open the workload/deployment env settings and add the runtime env vars listed above. If the console supports secrets, create a secret first and reference it from the deployment.
-
-## Deploy with `oc` CLI
-
-If you have `oc` configured for your team project, use:
-
-```bash
-chmod +x scripts/openshift/deploy-with-oc.sh
-TEAM_NAME=<your-team-name> \
-IMAGE_TAG=finale \
-AI_MODEL_MODE=gb10-openai \
-OPENAI_API_KEY=<cloud-vision-key> \
-GB10_OPENAI_BASE_URL=https://<cloudflare-tunnel-host>/v1 \
-GB10_OPENAI_API_KEY=<gb10-token-if-enabled> \
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key> \
-./scripts/openshift/deploy-with-oc.sh
-```
-
-The script:
-
-- creates/updates a secret named `1stsight-runtime`
-- creates/updates the deployment named `1stsight`
-- exposes port `8080`
-- creates a service and route if missing
-- prints the route URL
 
 ## Verification checklist
 
-After deployment, verify the route:
+The deploy script already runs these smoke checks. To verify manually:
 
 ```bash
-APP_URL=https://<route-host>
-./scripts/openshift/smoke-route.sh "$APP_URL"
+APP_URL=https://firstsight-adore.apps.innovate.sg-aie.com
+curl -I "$APP_URL"
+curl -I "$APP_URL/api/public-config"
+curl -I "$APP_URL/api/gb10/health"
+curl -I "$APP_URL/videos/fire/fire-feed-a.mp4"
 ```
 
 Manual checks:
@@ -149,10 +152,10 @@ OpenShift checks:
 
 ```bash
 oc get pods
-oc get deploy/1stsight
-oc get svc/1stsight
-oc get route/1stsight
-oc logs deploy/1stsight --tail=100
+oc get deploy/firstsight
+oc get svc/firstsight
+oc get route/firstsight
+oc logs deploy/firstsight --tail=100
 ```
 
 The app should show it is listening on port `8080`.
@@ -172,7 +175,7 @@ The frontend expected JSON but received an HTML/text error page. Check the prece
 Confirm the Harbor image path is exactly:
 
 ```text
-ihl-harbor.apps.innovate.sg-aie.com/<your-team-name>/1stsight:<tag>
+ihl-harbor.apps.innovate.sg-aie.com/adore/1stsight:<tag>
 ```
 
 If the image is private, configure image pull credentials or deploy through the OpenShift console after validating the external registry image.
@@ -196,8 +199,8 @@ In the console, use Topology and delete the `1stsight` deployment/application if
 With `oc`:
 
 ```bash
-oc delete route 1stsight --ignore-not-found
-oc delete svc 1stsight --ignore-not-found
-oc delete deploy 1stsight --ignore-not-found
-oc delete secret 1stsight-runtime --ignore-not-found
+oc delete route firstsight --ignore-not-found
+oc delete svc firstsight --ignore-not-found
+oc delete deploy firstsight --ignore-not-found
+oc delete secret firstsight-runtime --ignore-not-found
 ```

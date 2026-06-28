@@ -21,79 +21,41 @@ Use vLLM when possible because it exposes the OpenAI-compatible shape the app al
 - Network access from your laptop or OpenShift route to the GB10 endpoint.
 - Optional Cloudflare Tunnel if OpenShift must reach the GB10 from outside the booth LAN.
 
-### Start vLLM with Docker
+### Start vLLM and Cloudflare Tunnel
 
-Use the NVIDIA NGC vLLM container on GB10 / NVIDIA DGX Spark. The upstream `vllm/vllm-openai` image may resolve to `linux/amd64` and fail on the GB10 `aarch64` host.
+Use the flat GB10 helper on GB10 / NVIDIA DGX Spark. It starts the NVIDIA NGC vLLM container and `cloudflared`.
 
 ```bash
-chmod +x scripts/gb10/start-vllm-docker.sh
-DOCKER_IMAGE=nvcr.io/nvidia/vllm:26.05.post1-py3 \
-MODEL_ID=nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
-SERVED_MODEL_NAME=gb10-local-text \
-PORT=8000 \
-GB10_OPENAI_API_KEY=local-dev-token \
-MAX_MODEL_LEN=8192 \
-MAX_NUM_SEQS=64 \
-MAMBA_SSM_CACHE_DTYPE=float32 \
-./scripts/gb10/start-vllm-docker.sh
+chmod +x scripts/gb10-run.sh
+export GB10_OPENAI_API_KEY=local-dev-token
+export CLOUDFLARED_TOKEN=<cloudflare-tunnel-token>
+./scripts/gb10-run.sh
 ```
 
 The app env then becomes:
 
 ```bash
-GB10_OPENAI_BASE_URL=http://<gb10-ip>:8000/v1
+GB10_OPENAI_BASE_URL=https://gb10.adoreblvnk.com/v1
 GB10_OPENAI_API_KEY=local-dev-token
 AI_MODEL_MODE=gb10-openai
 ```
 
-### Start vLLM with Python
-
-Use this when Docker GPU setup is inconvenient but Python/CUDA is already configured.
+Useful GB10 commands:
 
 ```bash
-chmod +x scripts/gb10/start-vllm-python.sh
-MODEL_ID=nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
-SERVED_MODEL_NAME=gb10-local-text \
-PORT=8000 \
-GB10_OPENAI_API_KEY=local-dev-token \
-MAX_MODEL_LEN=8192 \
-MAX_NUM_SEQS=64 \
-MAMBA_SSM_CACHE_DTYPE=float32 \
-./scripts/gb10/start-vllm-python.sh
+./scripts/gb10-run.sh --logs
+./scripts/gb10-run.sh --stop
 ```
-
-For laptop-to-GB10 testing on the same Wi-Fi, use the GB10 LAN IP directly. Cloudflare Tunnel is only needed when OpenShift or another external network must reach the GB10.
-
-## Alternate path: Ollama bridge
-
-Ollama is convenient for local experiments. Newer Ollama builds expose OpenAI-compatible endpoints under `/v1`, so 1stSight can point at it directly.
-
-```bash
-chmod +x scripts/gb10/start-ollama.sh
-OLLAMA_MODEL=qwen2.5:7b-instruct \
-OLLAMA_HOST=0.0.0.0:11434 \
-./scripts/gb10/start-ollama.sh
-```
-
-The app env then becomes:
-
-```bash
-GB10_OPENAI_BASE_URL=http://<gb10-ip>:11434/v1
-GB10_OPENAI_API_KEY=ollama
-AI_MODEL_MODE=gb10-openai
-```
-
-If a model fails structured output, switch to vLLM or a stronger instruction model. Keep the same app-side env names and serve the model as `gb10-local-text`.
 
 ## Smoke tests
 
 Run the OpenAI-compatible smoke test from your laptop or from inside the OpenShift pod network:
 
 ```bash
-chmod +x scripts/gb10/smoke-openai-compatible.sh
-GB10_OPENAI_BASE_URL=http://<gb10-ip>:8000/v1 \
+chmod +x scripts/gb10-smoke.sh
+GB10_OPENAI_BASE_URL=https://gb10.adoreblvnk.com/v1 \
 GB10_OPENAI_API_KEY=local-dev-token \
-./scripts/gb10/smoke-openai-compatible.sh
+./scripts/gb10-smoke.sh
 ```
 
 Expected result: JSON containing a chat completion with a short answer.
@@ -135,6 +97,6 @@ Do not expose `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, or `GB10_OPENAI_API_KEY`
 - `404 /v1/chat/completions`: base URL is wrong. For vLLM/Ollama the app wants the base URL ending in `/v1`.
 - `401 unauthorized`: set `GB10_OPENAI_API_KEY` to the token configured by the model server, or remove endpoint auth for local-only tests.
 - `model not found`: serve the endpoint model as `gb10-local-text`, not necessarily the Hugging Face repo id.
-- Slow first response: model load/cold start. Warm it with `scripts/gb10/smoke-openai-compatible.sh` before the demo.
+- Slow first response: model load/cold start. Warm it with `scripts/gb10-smoke.sh` before the demo.
 - OpenShift cannot reach the GB10 LAN IP: use Cloudflare Tunnel or another approved HTTPS tunnel.
 - Structured output failures: use a stronger instruction-tuned model or fall back to cloud text reasoning for the demo.
