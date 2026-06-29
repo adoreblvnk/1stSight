@@ -126,6 +126,42 @@ function seededFireEscalationRecommendation(frame: DemoEvidenceFrame) {
   };
 }
 
+function seededPostFireRecommendation(frame: DemoEvidenceFrame | undefined) {
+  if (!frame) return emptyRecommendation();
+
+  return {
+    shouldRecommend: true,
+    id: "seeded-post-fire-police-support",
+    title: "Confirm on-site police support for responder safety",
+    action: "Confirm on-site police support for responder safety",
+    reason: "Post-fire POVs show physical contact and impact/recovery evidence",
+    evidence: "Post-fire POVs show physical contact and impact/recovery evidence",
+    evidenceFrameId: frame.frameId,
+    evidenceImageUrl: frame.imageUrl,
+    sourceTimestamp: frame.timestampLabel,
+    reviewState: "system-created" as const,
+  };
+}
+
+function seededEventFromFrame(frame: DemoEvidenceFrame) {
+  return {
+    id: frame.frameId,
+    timestamp: frame.timestampLabel,
+    title: frame.title,
+    source: `${frame.sourceResponder} / ${frame.timestampLabel}`,
+    sourceResponder: frame.sourceResponder,
+    evidence: frame.description,
+    evidenceImageUrl: frame.imageUrl,
+    boxes: frame.boxes,
+    category: frame.tags.some((tag) => /responder safety|physical contact|unsafe proximity|crew intervention/i.test(tag)) ? "responder safety" : "fire escalation",
+    reviewState: "pending-review" as const,
+  };
+}
+
+function isPunggolPostFireFeed(videoSrc: string) {
+  return /punggol-post-fire/i.test(videoSrc);
+}
+
 function latestFrame<TFrame extends { timestampSeconds: number }>(frames: TFrame[]) {
   return frames.reduce((latest, frame) => (frame.timestampSeconds > latest.timestampSeconds ? frame : latest), frames[0]);
 }
@@ -215,6 +251,26 @@ export async function POST(request: Request) {
   await mkdir(cacheDir, { recursive: true });
 
   try {
+    const visibleThroughSecondsBySource = Object.fromEntries(feeds.map((feed) => [feed.videoSrc, Math.max(0, feed.currentTime)]));
+    const operatorEvidenceSupport = body.operatorEvidenceSupport === true;
+    const useSeededPostFireAnalysis = operatorEvidenceSupport && isDemoFireIncident(incident) && feeds.some((feed) => isPunggolPostFireFeed(feed.videoSrc));
+
+    if (useSeededPostFireAnalysis) {
+      const seededFrames = await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource);
+      const physicalContactFrame = seededFrames.find((frame) => frame.frameId === "demo-punggol-post-fire-a-37s-physical-contact") ?? seededFrames.find((frame) => frame.tags.some((tag) => /physical contact/i.test(tag)));
+
+      return NextResponse.json({
+        generatedAt: new Date().toISOString(),
+        chunkStartSeconds: Math.min(...feeds.map((feed) => Math.max(0, feed.currentTime))),
+        chunkDurationSeconds,
+        incidentId: incident.id,
+        incidentTitle: incident.title,
+        events: seededFrames.map(seededEventFromFrame),
+        recommendation: seededPostFireRecommendation(physicalContactFrame),
+        generatedFrom: `seeded post-fire evidence for ${incident.title}`,
+      });
+    }
+
     const nestedFrames = await Promise.all(
       feeds.map(async (feed) => {
         const videoPath = resolvePublicVideo(feed.videoSrc);
@@ -282,8 +338,6 @@ export async function POST(request: Request) {
     });
 
     const supportedEvents = analysis.events.filter((event) => isSupportedLiveEvent(event.title, event.evidence));
-    const visibleThroughSecondsBySource = Object.fromEntries(feeds.map((feed) => [feed.videoSrc, Math.max(0, feed.currentTime)]));
-    const operatorEvidenceSupport = body.operatorEvidenceSupport === true;
     const seededFrames = operatorEvidenceSupport && isDemoFireIncident(incident)
       ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource)
       : operatorEvidenceSupport && isDemoWoodlandsIncident(incident)
@@ -291,18 +345,7 @@ export async function POST(request: Request) {
       : [];
     const seededEvents = seededFrames
       .filter((frame) => !supportedEvents.some((event) => seededCueCovered(event, frame)))
-      .map((frame) => ({
-        id: frame.frameId,
-        timestamp: frame.timestampLabel,
-        title: frame.title,
-        source: `${frame.sourceResponder} / ${frame.timestampLabel}`,
-        sourceResponder: frame.sourceResponder,
-        evidence: frame.description,
-        evidenceImageUrl: frame.imageUrl,
-        boxes: frame.boxes,
-        category: frame.tags.some((tag) => /responder safety|physical contact|unsafe proximity|crew intervention/i.test(tag)) ? "responder safety" : "fire escalation",
-        reviewState: "pending-review" as const,
-      }));
+      .map(seededEventFromFrame);
     const frameById = new Map(frames.map((frame) => [frame.frameId, frame]));
     const fallbackFrame = latestFrame(frames);
     const selectedFrame = frameById.get(analysis.recommendation.evidenceFrameId) ?? fallbackFrame;

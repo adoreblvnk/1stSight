@@ -165,7 +165,8 @@ If the 1stSight repo is also checked out on the GB10, use the flat helper to sta
 ```bash
 chmod +x scripts/gb10-run.sh
 export GB10_OPENAI_API_KEY=local-dev-token
-export CLOUDFLARED_TOKEN=<cloudflare-tunnel-token>
+cloudflared tunnel login
+cloudflared tunnel token gb10
 ./scripts/gb10-run.sh
 ```
 

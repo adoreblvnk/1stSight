@@ -217,12 +217,12 @@ function resolvePublicVideo(videoSrc: string) {
 
 async function extractDemoFrame(cacheDir: string, cue: DemoCue) {
   const videoPath = resolvePublicVideo(cue.sourceVideo);
-  const outputPath = path.join(cacheDir, `${cue.frameId}.png`);
+  const outputPath = path.join(cacheDir, `${cue.frameId}.jpg`);
 
   // ffmpeg CLI: https://ffmpeg.org/ffmpeg.html
-  await execa("ffmpeg", ["-y", "-v", "error", "-ss", String(cue.timestampSeconds), "-i", videoPath, "-frames:v", "1", "-vf", "scale=960:-1", outputPath]);
+  await execa("ffmpeg", ["-y", "-v", "error", "-ss", String(cue.timestampSeconds), "-i", videoPath, "-frames:v", "1", "-vf", "scale=640:-1", "-q:v", "4", outputPath]);
 
-  return `data:image/png;base64,${(await readFile(outputPath)).toString("base64")}`;
+  return `data:image/jpeg;base64,${(await readFile(outputPath)).toString("base64")}`;
 }
 
 async function buildDemoFrames(cacheDir: string, cues: DemoCue[], responders: Responder[]) {

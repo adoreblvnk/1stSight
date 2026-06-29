@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 // Google Maps React API: https://visgl.github.io/react-google-maps/docs/get-started
+// AdvancedMarker API: https://visgl.github.io/react-google-maps/docs/api-reference/components/advanced-marker
 import { AdvancedMarker, APIProvider, Map } from "@vis.gl/react-google-maps";
 // Motion React: https://motion.dev/docs/react
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
@@ -712,11 +713,11 @@ function MarkerDetail({ marker, state, selectedIncidentId, dispatchPreview, onEn
 }
 
 function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPreview, onSelectMarker, onEnterDashboard }: { state: ScenarioState; selectedIncidentId: string; selectedMarker: DeploymentMarker | null; dispatchPreview: DispatchPreview | null; onSelectMarker: (marker: DeploymentMarker) => void; onEnterDashboard: (incidentId: string) => void }) {
-  const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string; googleMapsMapId: string } | null>(null);
+  const [mapsConfig, setMapsConfig] = useState<{ googleMapsApiKey: string } | null>(null);
   const [mapsLoadError, setMapsLoadError] = useState<string | null>(null);
   const apiKey = mapsConfig?.googleMapsApiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  // Advanced Markers map ID: https://developers.google.com/maps/documentation/javascript/advanced-markers/start
-  const mapId = mapsConfig?.googleMapsMapId || process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
+  // AdvancedMarker basic usage: https://github.com/visgl/react-google-maps/blob/main/README.md
+  const mapId = "DEMO_MAP_ID";
   const center = state.deploymentMarkers.find((marker) => marker.incidentId === selectedIncidentId)?.position ?? state.deploymentMarkers[0].position;
   const visibleMarkers = dispatchPreview ? [...state.deploymentMarkers, dispatchPreview.vehicleMarker] : state.deploymentMarkers;
 
@@ -731,13 +732,13 @@ function DeploymentMap({ state, selectedIncidentId, selectedMarker, dispatchPrev
 
     void fetch("/api/public-config", { cache: "no-store" })
       .then((response) => response.json())
-      .then((config: { googleMapsApiKey?: string; googleMapsMapId?: string }) => {
+      .then((config: { googleMapsApiKey?: string }) => {
         if (!mounted) return;
-        setMapsConfig({ googleMapsApiKey: config.googleMapsApiKey ?? "", googleMapsMapId: config.googleMapsMapId ?? "" });
+        setMapsConfig({ googleMapsApiKey: config.googleMapsApiKey ?? "" });
       })
       .catch(() => {
         if (!mounted) return;
-        setMapsConfig({ googleMapsApiKey: "", googleMapsMapId: "" });
+        setMapsConfig({ googleMapsApiKey: "" });
       });
 
     return () => {
@@ -1841,6 +1842,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const liveLoopRef = useRef(false);
   const analyzeInFlightRef = useRef(false);
   const queuedAnalysisTimesRef = useRef<Record<string, number> | null>(null);
+  const analysisGenerationRef = useRef(0);
   const selectedIncident = getIncident(state, selectedIncidentId);
   const isStreamIncident = selectedIncident.id === streamIncidentId;
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
@@ -1876,6 +1878,7 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     liveLoopRef.current = false;
     analyzeInFlightRef.current = false;
     queuedAnalysisTimesRef.current = null;
+    analysisGenerationRef.current += 1;
     setSelectedIncidentId(incidentId);
     router.replace(incidentHref(pathname, incidentId), { scroll: false });
   }
@@ -1884,10 +1887,13 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     if (!canRunLiveAnalysis) return;
     if (isStreamIncident) return;
     if (analyzeInFlightRef.current) {
-      if (nextTimes) queuedAnalysisTimesRef.current = nextTimes;
+      queuedAnalysisTimesRef.current = nextTimes ?? Object.fromEntries(
+        analysisResponders.map((responder) => [responder.id, videoRefs.current[responder.id]?.currentTime ?? 0]),
+      );
       return;
     }
     analyzeInFlightRef.current = true;
+    const generation = analysisGenerationRef.current;
 
     startTransition(async () => {
       try {
@@ -1907,13 +1913,25 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ incidentId: selectedIncident.id, feeds, operatorEvidenceSupport: operatorControlsVisible || selectedIncident.id === punggolIncidentId }),
         });
-        const result = await response.json();
+        const responseText = await response.text();
+        let result: { error?: string } & Partial<LiveAnalysisOutput & { generatedFrom: string }> = {};
+        try {
+          result = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          setAnalysisError(`Live analysis failed with HTTP ${response.status}.`);
+          return;
+        }
         if (!response.ok) {
           setAnalysisError(typeof result.error === "string" ? result.error : "Live analysis failed.");
           return;
         }
-        setAnalysis((current) => mergeLiveAnalysis(current, result));
+        if (generation !== analysisGenerationRef.current) return;
+        setAnalysis((current) => mergeLiveAnalysis(current, result as Parameters<typeof mergeLiveAnalysis>[1]));
+      } catch (error) {
+        if (generation !== analysisGenerationRef.current) return;
+        setAnalysisError(error instanceof Error ? `Live analysis failed: ${error.message}` : "Live analysis failed.");
       } finally {
+        if (generation !== analysisGenerationRef.current) return;
         analyzeInFlightRef.current = false;
         const queuedTimes = queuedAnalysisTimesRef.current;
         queuedAnalysisTimesRef.current = null;
@@ -1984,6 +2002,9 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
 
   function continuePostFireSweep() {
     if (isStreamIncident) return;
+    analysisGenerationRef.current += 1;
+    analyzeInFlightRef.current = false;
+    queuedAnalysisTimesRef.current = null;
     setMode("post-fire-loading");
     setPlaying(false);
     setActiveAudioResponderId("ff-a");

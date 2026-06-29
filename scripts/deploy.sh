@@ -5,12 +5,15 @@ usage() {
   printf 'Usage: %s [--no-bump] [--skip-build] [--skip-smoke] [--tag <tag>]\n' "${0##*/}"
   printf '\n'
   printf 'Builds, pushes, deploys, and smokes 1stSight on OpenShift.\n'
+  printf 'Loads .env first; existing shell env values override .env.\n'
   printf '\n'
-  printf 'Defaults:\n'
-  printf '  Team/project: adore\n'
-  printf '  Image: ihl-harbor.apps.innovate.sg-aie.com/adore/1stsight:<package-version>\n'
-  printf '  App: firstsight\n'
-  printf '  Version: patch-bumped in package.json and package-lock.json\n'
+  printf 'Required env or .env values:\n'
+  env_example_lines
+  printf '\n'
+  printf 'The deploy fails if any required value is missing, blank, or still a placeholder.\n'
+  printf '\n'
+  printf 'Image: <REGISTRY>/<TEAM_NAME>/<IMAGE_NAME>:<package-version>\n'
+  printf 'Version: patch-bumped in package.json and package-lock.json\n'
 }
 
 load_dotenv() {
@@ -35,30 +38,57 @@ load_dotenv() {
   done < .env
 }
 
-prompt_secret() {
-  local name="$1"
-  local value="${!name:-}"
+env_example_keys() {
+  if [ ! -f .env.example ]; then
+    echo ".env.example not found." >&2
+    exit 1
+  fi
 
-  if [ -z "$value" ]; then
-    printf '%s: ' "$name" >&2
-    stty -echo
-    IFS= read -r value
-    stty echo
-    printf '\n' >&2
-    printf -v "$name" '%s' "$value"
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ""|\#*) continue ;; esac
+
+    local key="${line%%=*}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    printf '%s\n' "$key"
+  done < .env.example
+}
+
+env_example_lines() {
+  if [ ! -f .env.example ]; then
+    echo ".env.example not found." >&2
+    exit 1
+  fi
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ""|\#*) continue ;; esac
+
+    local key="${line%%=*}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    printf '  %s\n' "$line"
+  done < .env.example
+}
+
+require_env_from_example() {
+  local key
+  local missing=0
+  local value
+
+  while IFS= read -r key; do
+    value="${!key:-}"
+    if [ -z "$value" ] || [[ "$value" == \<* && "$value" == *\> ]]; then
+      printf 'Missing required env: %s (set a real value in .env or shell; see .env.example)\n' "$key" >&2
+      missing=1
+    fi
+  done < <(env_example_keys)
+
+  if [ "$missing" = "1" ]; then
+    exit 1
   fi
 }
 
-prompt_value() {
+add_secret_literal() {
   local name="$1"
-  local default_value="$2"
-  local value="${!name:-}"
-
-  if [ -z "$value" ]; then
-    printf '%s [%s]: ' "$name" "$default_value" >&2
-    IFS= read -r value
-    printf -v "$name" '%s' "${value:-$default_value}"
-  fi
+  SECRET_ARGS+=(--from-literal="$name=${!name}")
 }
 
 bump_patch_version() {
@@ -116,11 +146,48 @@ smoke_check() {
   fi
 }
 
+smoke_live_analysis() {
+  local label="$1"
+  local payload="$2"
+  local output_path="$3"
+  local status
+  local time_total
+  local content_type
+  local curl_result
+
+  curl_result=$(curl -sS -o "$output_path" -w '%{http_code} %{time_total} %{content_type}' \
+    -X POST "$APP_URL/api/live/analyze" \
+    -H 'Content-Type: application/json' \
+    --data "$payload")
+  status="${curl_result%% *}"
+  curl_result="${curl_result#* }"
+  time_total="${curl_result%% *}"
+  content_type="${curl_result#* }"
+
+  printf 'POST /api/live/analyze (%s) -> %s in %ss [%s]\n' "$label" "$status" "$time_total" "$content_type"
+
+  case "$status" in
+    2*) ;;
+    *)
+      printf 'Unexpected live analysis response body preview:\n' >&2
+      head -c 800 "$output_path" >&2 || true
+      printf '\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
 BUMP_VERSION=1
 SKIP_BUILD=0
 SKIP_SMOKE=0
 
 load_dotenv
+
+OPENSHIFT_CPU_LIMIT="${OPENSHIFT_CPU_LIMIT:-1200m}"
+OPENSHIFT_MEMORY_LIMIT="${OPENSHIFT_MEMORY_LIMIT:-3800Mi}"
+OPENSHIFT_CPU_REQUEST="${OPENSHIFT_CPU_REQUEST:-300m}"
+OPENSHIFT_MEMORY_REQUEST="${OPENSHIFT_MEMORY_REQUEST:-1500Mi}"
+OPENSHIFT_ROUTE_TIMEOUT="${OPENSHIFT_ROUTE_TIMEOUT:-120s}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -164,12 +231,7 @@ if ! command -v oc >/dev/null 2>&1; then
   exit 1
 fi
 
-REGISTRY="${REGISTRY:-ihl-harbor.apps.innovate.sg-aie.com}"
-TEAM_NAME="${TEAM_NAME:-adore}"
-APP_NAME="${APP_NAME:-firstsight}"
-IMAGE_NAME="${IMAGE_NAME:-1stsight}"
-CONTAINER_NAME="${CONTAINER_NAME:-$IMAGE_NAME}"
-SECRET_NAME="${SECRET_NAME:-firstsight-runtime}"
+require_env_from_example
 
 if [ -z "${IMAGE_TAG:-}" ]; then
   if [ "$BUMP_VERSION" = "1" ]; then
@@ -181,12 +243,6 @@ fi
 
 IMAGE="${REGISTRY}/${TEAM_NAME}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-prompt_value AI_MODEL_MODE "gb10-openai"
-prompt_value GB10_OPENAI_BASE_URL "https://gb10.adoreblvnk.com/v1"
-prompt_secret OPENAI_API_KEY
-prompt_secret GB10_OPENAI_API_KEY
-prompt_secret NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-
 printf 'Deploying image: %s\n' "$IMAGE"
 
 if [ "$SKIP_BUILD" = "0" ]; then
@@ -197,16 +253,21 @@ if [ "$SKIP_BUILD" = "0" ]; then
   docker push "$IMAGE"
 fi
 
-oc create secret generic "$SECRET_NAME" \
-  --from-literal=AI_MODEL_MODE="$AI_MODEL_MODE" \
-  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
-  --from-literal=GB10_OPENAI_BASE_URL="$GB10_OPENAI_BASE_URL" \
-  --from-literal=GB10_OPENAI_API_KEY="$GB10_OPENAI_API_KEY" \
-  --from-literal=NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY" \
-  --from-literal=NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID="${NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID:-}" \
-  --dry-run=client -o yaml | oc apply -f -
+SECRET_ARGS=(create secret generic "$SECRET_NAME")
+add_secret_literal AI_MODEL_MODE
+add_secret_literal GB10_OPENAI_API_KEY
+add_secret_literal GB10_OPENAI_BASE_URL
+add_secret_literal NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+add_secret_literal NEXT_PUBLIC_WEBRTC_ICE_TRANSPORT_POLICY
+add_secret_literal NEXT_PUBLIC_WEBRTC_TURN_CREDENTIAL
+add_secret_literal NEXT_PUBLIC_WEBRTC_TURN_URLS
+add_secret_literal NEXT_PUBLIC_WEBRTC_TURN_USERNAME
+add_secret_literal OPENAI_API_KEY
+
+oc "${SECRET_ARGS[@]}" --dry-run=client -o yaml | oc apply -f -
 
 if oc get deploy "$APP_NAME" >/dev/null 2>&1; then
+  oc patch "deployment/${APP_NAME}" --type=merge -p '{"spec":{"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":0,"maxUnavailable":1}}}}'
   current_image=$(oc get deploy "$APP_NAME" -o jsonpath='{.spec.template.spec.containers[0].image}')
 
   if [ "$current_image" = "$IMAGE" ]; then
@@ -216,10 +277,15 @@ if oc get deploy "$APP_NAME" >/dev/null 2>&1; then
   oc set image "deployment/${APP_NAME}" "${CONTAINER_NAME}=${IMAGE}"
 else
   oc create deployment "$APP_NAME" --image="$IMAGE"
+  oc patch "deployment/${APP_NAME}" --type=merge -p '{"spec":{"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":0,"maxUnavailable":1}}}}'
 fi
 
 oc set env "deployment/${APP_NAME}" --from="secret/${SECRET_NAME}"
 oc set env "deployment/${APP_NAME}" PORT=8080 HOSTNAME=0.0.0.0 NODE_ENV=production
+# OpenShift CLI set resources: https://github.com/openshift/openshift-docs/blob/main/modules/oc-by-example-content.adoc
+oc set resources "deployment/${APP_NAME}" -c="$CONTAINER_NAME" \
+  --limits="cpu=${OPENSHIFT_CPU_LIMIT},memory=${OPENSHIFT_MEMORY_LIMIT}" \
+  --requests="cpu=${OPENSHIFT_CPU_REQUEST},memory=${OPENSHIFT_MEMORY_REQUEST}"
 
 if oc get svc "$APP_NAME" >/dev/null 2>&1; then
   oc patch svc "$APP_NAME" --type='json' -p='[{"op":"replace","path":"/spec/ports/0/port","value":8080},{"op":"replace","path":"/spec/ports/0/targetPort","value":8080}]' >/dev/null || true
@@ -232,6 +298,8 @@ if ! oc get route "$APP_NAME" >/dev/null 2>&1; then
 fi
 
 oc patch route "$APP_NAME" --type=merge -p '{"spec":{"tls":{"termination":"edge","insecureEdgeTerminationPolicy":"Redirect"}}}' >/dev/null
+# OpenShift route timeout annotation: https://github.com/openshift/openshift-docs/blob/main/modules/nw-configuring-route-timeouts.adoc
+oc annotate route "$APP_NAME" --overwrite "haproxy.router.openshift.io/timeout=${OPENSHIFT_ROUTE_TIMEOUT}"
 oc rollout status "deployment/${APP_NAME}" --timeout=180s
 
 APP_URL="$(oc get route "$APP_NAME" -o jsonpath='https://{.spec.host}')"
@@ -244,17 +312,12 @@ if [ "$SKIP_SMOKE" = "0" ]; then
   smoke_check GET /api/gb10/health 200
   smoke_check GET /videos/fire/fire-feed-a.mp4 200
 
-  status=$(curl -sS -o /tmp/1stsight-smoke-live.out -w '%{http_code}' \
-    -X POST "$APP_URL/api/live/analyze" \
-    -H 'Content-Type: application/json' \
-    --data '{"incidentId":"punggol-residential-fire","feeds":[{"responderId":"ff-a","videoSrc":"/videos/fire/fire-feed-a.mp4","currentTime":1}],"operatorEvidenceSupport":true}')
-  printf 'POST /api/live/analyze -> %s\n' "$status"
-
-  if [ "$status" = "404" ]; then
-    head -c 500 /tmp/1stsight-smoke-live.out >&2 || true
-    printf '\n/api/live/analyze returned 404. The deployed image is stale or not running Next route handlers.\n' >&2
-    exit 1
-  fi
+  smoke_live_analysis "fire startup" \
+    '{"incidentId":"punggol-residential-fire","feeds":[{"responderId":"ff-a","videoSrc":"/videos/fire/fire-feed-a.mp4","currentTime":1}],"operatorEvidenceSupport":true}' \
+    /tmp/1stsight-smoke-live-fire.out
+  smoke_live_analysis "post-fire responder safety" \
+    '{"incidentId":"punggol-residential-fire","feeds":[{"responderId":"ff-a","videoSrc":"/videos/fire/punggol-post-fire-wei-jie-pov.mp4","currentTime":38},{"responderId":"ff-b","videoSrc":"/videos/fire/punggol-post-fire-hafiz-pov.mp4","currentTime":38}],"operatorEvidenceSupport":true}' \
+    /tmp/1stsight-smoke-live-post-fire.out
 
   printf 'Smoke route completed for %s\n' "$APP_URL"
 fi

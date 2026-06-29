@@ -6,6 +6,7 @@ PORT=8000
 MODEL=nvidia/NVIDIA-Nemotron-Nano-9B-v2
 SERVED=gb10-local-text
 IMAGE=nvcr.io/nvidia/vllm:26.05.post1-py3
+TUNNEL=gb10
 PIDFILE="$HOME/.gb10-cloudflared.pid"
 LOGDIR="$HOME/gb10-logs"
 
@@ -14,9 +15,22 @@ usage() {
   printf '\n'
   printf 'Starts Nemotron via vLLM and Cloudflare Tunnel for 1stSight.\n'
   printf '\n'
-  printf 'Required env:\n'
-  printf '  GB10_OPENAI_API_KEY\n'
-  printf '  CLOUDFLARED_TOKEN\n'
+  printf 'Required env, set before running:\n'
+  printf '  export GB10_OPENAI_API_KEY=<shared-openai-compatible-token>\n'
+  printf '\n'
+  printf 'Required Cloudflare setup on this machine:\n'
+  printf '  cloudflared tunnel login\n'
+  printf '  cloudflared tunnel token %s\n' "$TUNNEL"
+  printf '\n'
+  printf 'Example:\n'
+  printf '  GB10_OPENAI_API_KEY=local-dev-token %s\n' "${0##*/}"
+  printf '\n'
+  printf 'Defaults:\n'
+  printf '  Model: %s\n' "$MODEL"
+  printf '  Served model: %s\n' "$SERVED"
+  printf '  Cloudflare Tunnel: %s\n' "$TUNNEL"
+  printf '  Local base URL: http://localhost:%s/v1\n' "$PORT"
+  printf '  Public base URL: https://gb10.adoreblvnk.com/v1\n'
 }
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
@@ -38,7 +52,17 @@ if [ "${1:-}" = "--stop" ]; then
 fi
 
 : "${GB10_OPENAI_API_KEY:?set GB10_OPENAI_API_KEY}"
-: "${CLOUDFLARED_TOKEN:?set CLOUDFLARED_TOKEN}"
+
+if ! command -v cloudflared >/dev/null 2>&1; then
+  echo "cloudflared command not found." >&2
+  exit 1
+fi
+
+# Cloudflared CLI: https://github.com/cloudflare/cloudflared/blob/master/cmd/cloudflared/tunnel/subcommands.go
+if ! CLOUDFLARED_TUNNEL_TOKEN="$(cloudflared tunnel token "$TUNNEL")"; then
+  echo "failed to get Cloudflare Tunnel token for '$TUNNEL'. Run: cloudflared tunnel login" >&2
+  exit 1
+fi
 
 mkdir -p "$LOGDIR" "$HOME/.cache/huggingface"
 
@@ -75,7 +99,7 @@ done
 curl -fsS "http://localhost:$PORT/v1/models" -H "Authorization: Bearer $GB10_OPENAI_API_KEY" >/dev/null
 
 [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" >/dev/null 2>&1 || true
-nohup cloudflared tunnel run --token "$CLOUDFLARED_TOKEN" > "$LOGDIR/cloudflared.log" 2>&1 &
+nohup cloudflared tunnel run --token "$CLOUDFLARED_TUNNEL_TOKEN" > "$LOGDIR/cloudflared.log" 2>&1 &
 echo $! > "$PIDFILE"
 
 echo "started"

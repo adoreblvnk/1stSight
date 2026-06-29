@@ -59,7 +59,7 @@ The Woodlands medical assistance / responder-safety scenario remains available f
 - **Route & DNS [Cloud Native Platform]:** OpenShift route provides app access; custom DNS is not required for the hackathon presentation.
 - **Runtime Secrets [Cloud Native Platform]:** Store `AI_MODEL_MODE`, `OPENAI_API_KEY`, `GB10_OPENAI_BASE_URL`, and `GB10_OPENAI_API_KEY` as OpenShift Secrets for deployed environments.
 - **Deployment Credentials [Cloud Native Platform]:** OpenShift login/token or kubeconfig and Harbor username/password or robot token are required for deployment, but they are not app runtime environment variables.
-- **Browser Map Key:** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is required for `@vis.gl/react-google-maps`; restrict this browser-exposed key by domain/referrer in Google Cloud.
+- **Browser Map Key:** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is required for `@vis.gl/react-google-maps`; restrict this browser-exposed key by domain/referrer in Google Cloud. Do not introduce a separate Google Maps browser map ID environment variable or public config field.
 
 ### GB10 / NVIDIA DGX Spark
 

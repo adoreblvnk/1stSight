@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  printf 'Usage: %s\n' "${0##*/}"
+  printf '\n'
+  printf 'Sends a chat-completions smoke request to the GB10 OpenAI-compatible endpoint.\n'
+  printf 'Loads .env first; existing shell env values override .env.\n'
+  printf '\n'
+  printf 'Required env or .env values:\n'
+  printf '  GB10_OPENAI_BASE_URL=https://gb10.adoreblvnk.com/v1\n'
+  printf '  GB10_OPENAI_API_KEY=<gb10-openai-compatible-token>\n'
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  exit 0
+fi
+
 load_dotenv() {
   [ -f .env ] || return 0
 
@@ -25,9 +41,12 @@ load_dotenv() {
 
 load_dotenv
 
-BASE_URL="${1:-${GB10_OPENAI_BASE_URL:-${BASE_URL:-https://gb10.adoreblvnk.com/v1}}}"
-MODEL_ID="${MODEL_ID:-gb10-local-text}"
-API_KEY="${GB10_OPENAI_API_KEY:-${API_KEY:-local-dev-token}}"
+: "${GB10_OPENAI_BASE_URL:?set GB10_OPENAI_BASE_URL in .env or shell}"
+: "${GB10_OPENAI_API_KEY:?set GB10_OPENAI_API_KEY in .env or shell}"
+
+BASE_URL="$GB10_OPENAI_BASE_URL"
+MODEL_ID="gb10-local-text"
+API_KEY="$GB10_OPENAI_API_KEY"
 
 # NVIDIA Nemotron Nano prompt format: https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2
 REQUEST_BODY=$(printf '{"model":"%s","messages":[{"role":"system","content":"/no_think\\nReply with exactly: gb10 ok"},{"role":"user","content":"health check"}],"temperature":0,"max_tokens":32}' "$MODEL_ID")
