@@ -61,8 +61,9 @@ Use data URLs or reachable URLs for `Image` sources. For smoke tests, generate r
 ## Layout pitfalls
 
 - React PDF flex behavior can differ from browser CSS; when placing two cards in a row, give children explicit `flex: 1` rather than assuming width from parent `gap`.
-- Long provenance strings can overflow cards. Prefer concise source references such as `Bodycam W1 / file.mp4 / BWC 0:22` instead of full public paths.
-- Dense timeline cards need short notes and truncation; full operational narratives should not live inside milestone cells.
+- Long provenance strings can overflow cards. Prefer concise source references such as `Bodycam W1 / BWC 0:22` instead of full public paths or repeated filenames.
+- React PDF may hyphenate normal words awkwardly in slide cards. Disable hyphenation for decks with `Font.registerHyphenationCallback((word) => [word])` and verify rasterized pages.
+- Dense timeline cards need short notes and word-boundary truncation; full operational narratives should not live inside milestone cells.
 - Valid `%PDF-` output is not enough. Rasterize representative pages with `pdftoppm` and inspect visually for clipping/overlap.
 
 ## Incident metadata and route-state pitfalls

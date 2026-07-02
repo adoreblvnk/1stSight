@@ -12,7 +12,8 @@ import { getRuntimeIncident } from "@/lib/scenario";
 export const runtime = "nodejs";
 
 const chunkDurationSeconds = 5;
-const frameIntervalSeconds = 0.5;
+const scriptedChunkDurationSeconds = 1;
+const frameIntervalSeconds = 0.25;
 const enhancedTaskForceEvidencePattern = /uncontrolled|large fire|rapid escalation|rapid fire growth|beyond initial attack|multiple compartments|resource escalation|resource escalation cues|defensive operations|fire burst|overhead flames?|flames? visible above|flame growth|sustained (?:interior|overhead|ceiling|intense) flames?|(?:interior|overhead|ceiling|intense) flames?.{0,60}(?:near|above|over|around) crew|ceiling flames?|intense flames?/i;
 
 const bodySchema = z.object({
@@ -39,7 +40,7 @@ function isSupportedLiveEvent(title: string, evidence: string) {
   const text = `${title} ${evidence}`;
 
   if (/obscured|dark view|unclear|no clear|low light|blocked lens/i.test(text)) return false;
-  return /flame|fire|smoke|escalat|spread|hazmat|chemical|gas|spill|collapse|blocked|entry|access|casualty|ambulance|aerial|resource|alarm|patient|distress|responder safety|unsafe proximity|physical contact|strike|contact|aggression|obstruction|crew intervention|patient movement/i.test(text);
+  return /flame|fire|smoke|escalat|spread|hazmat|chemical|gas|spill|collapse|blocked|entry|access|casualty|ambulance|aerial|resource|alarm|patient|distress|responder safety|unsafe proximity|physical contact|contact|obstruction|crew intervention|patient movement/i.test(text);
 }
 
 function opsCentreRecommendation(events: Array<{ title: string; evidence: string }>) {
@@ -57,7 +58,7 @@ function incidentCategory(title: string, evidence: string) {
   const text = `${title} ${evidence}`;
 
   if (/hazmat|chemical|gas|spill/i.test(text)) return "hazmat";
-  if (/responder safety|physical contact|strike|unsafe proximity|crew intervention|aggression/i.test(text)) return "responder safety";
+  if (/responder safety|physical contact|unsafe proximity|crew intervention/i.test(text)) return "responder safety";
   if (/casualty|ambulance|medical|injur/i.test(text)) return "medical";
   if (/civil|crowd|public order|evacuat/i.test(text)) return "civil";
   if (/fire|flame|smoke|burn|hose/i.test(text)) return "fire";
@@ -111,14 +112,17 @@ function emptyRecommendation() {
   };
 }
 
-function seededFireEscalationRecommendation(frame: DemoEvidenceFrame) {
+function demoFireEscalationRecommendation(frame: DemoEvidenceFrame) {
+  const initialEtfFrame = frame.frameId === "demo-fire-b-76_5s-escalation-etf";
+  const sustainedFrame = frame.frameId === "demo-fire-b-130_75s-sustained-escalation";
+
   return {
     shouldRecommend: true,
-    id: "seeded-fire-escalation-enhanced-task-force",
+    id: sustainedFrame ? "punggol-fire-etf-sustained-growth" : "punggol-fire-etf-initial-escalation",
     title: "Flag Enhanced Task Force consideration for Ground Commander",
     action: "Flag Enhanced Task Force consideration for Ground Commander",
-    reason: "Bodycam B shows escalating fire conditions and sustained flame growth near crew",
-    evidence: "Bodycam B shows escalating fire conditions and sustained flame growth near crew",
+    reason: sustainedFrame ? "Bodycam B shows sustained flame growth beyond the initial caller brief" : initialEtfFrame ? "Bodycam B shows flame growth large enough for ETF consideration" : "Bodycam B shows visible fire escalation beyond the initial caller brief",
+    evidence: sustainedFrame ? "Bodycam B shows sustained flame growth beyond the initial caller brief" : initialEtfFrame ? "Bodycam B shows flame growth large enough for ETF consideration" : "Bodycam B shows visible fire escalation beyond the initial caller brief",
     evidenceFrameId: frame.frameId,
     evidenceImageUrl: frame.imageUrl,
     sourceTimestamp: frame.timestampLabel,
@@ -126,16 +130,16 @@ function seededFireEscalationRecommendation(frame: DemoEvidenceFrame) {
   };
 }
 
-function seededPostFireRecommendation(frame: DemoEvidenceFrame | undefined) {
+function demoPostFireRecommendation(frame: DemoEvidenceFrame | undefined) {
   if (!frame) return emptyRecommendation();
 
   return {
     shouldRecommend: true,
-    id: "seeded-post-fire-police-support",
-    title: "Confirm on-site police support for responder safety",
-    action: "Confirm on-site police support for responder safety",
-    reason: "Post-fire POVs show physical contact and impact/recovery evidence",
-    evidence: "Post-fire POVs show physical contact and impact/recovery evidence",
+    id: "punggol-post-fire-police-support",
+    title: "Notify on-site police support for responder safety",
+    action: "Notify on-site police support for responder safety",
+    reason: "Post-fire POVs show physically aggressive contact, unsafe proximity, and responder recovery evidence",
+    evidence: "Post-fire POVs show physically aggressive contact, unsafe proximity, and responder recovery evidence",
     evidenceFrameId: frame.frameId,
     evidenceImageUrl: frame.imageUrl,
     sourceTimestamp: frame.timestampLabel,
@@ -143,7 +147,52 @@ function seededPostFireRecommendation(frame: DemoEvidenceFrame | undefined) {
   };
 }
 
-function seededEventFromFrame(frame: DemoEvidenceFrame) {
+function scriptedPunggolRecommendation(frames: DemoEvidenceFrame[], postFirePhase: boolean) {
+  if (postFirePhase) {
+    const physicalContactFrame = frames.find((frame) => frame.frameId === "demo-punggol-post-fire-b-45_5s-physical-contact")
+      ?? frames.find((frame) => frame.frameId === "demo-punggol-post-fire-a-45_25s-contact-evidence")
+      ?? frames.find((frame) => frame.frameId === "demo-punggol-post-fire-b-37_25s-contact-proximity")
+      ?? frames.find((frame) => frame.frameId === "demo-punggol-post-fire-b-36_5s-impact-recovery")
+      ?? frames.find((frame) => frame.frameId === "demo-punggol-post-fire-a-36_25s-unsafe-proximity")
+      ?? frames.find((frame) => frame.tags.some((tag) => /physical contact/i.test(tag)));
+
+    return demoPostFireRecommendation(physicalContactFrame);
+  }
+
+  // Joseph video review correction: flame is first visible around 50s, but ETF starts only at the ~1:16 large-growth cue.
+  const sustainedFireEscalationFrame = frames.find((frame) => frame.frameId === "demo-fire-b-130_75s-sustained-escalation");
+  const earlyFireEscalationFrame = frames.find((frame) => frame.frameId === "demo-fire-b-76_5s-escalation-etf");
+  const fireEscalationFrame = sustainedFireEscalationFrame ?? earlyFireEscalationFrame;
+
+  return fireEscalationFrame ? demoFireEscalationRecommendation(fireEscalationFrame) : emptyRecommendation();
+}
+
+function scriptedPunggolOutput(incident: { id: string; title: string }, feeds: Array<{ currentTime: number; videoSrc: string }>, frames: DemoEvidenceFrame[], postFirePhase: boolean) {
+  return {
+    generatedAt: new Date().toISOString(),
+    chunkStartSeconds: Math.min(...feeds.map((feed) => Math.max(0, feed.currentTime))),
+    chunkDurationSeconds: scriptedChunkDurationSeconds,
+    incidentId: incident.id,
+    incidentTitle: incident.title,
+    events: frames.map(demoEventFromFrame),
+    recommendation: scriptedPunggolRecommendation(frames, postFirePhase),
+    generatedFrom: `Punggol live evidence sequence for ${incident.title}`,
+  };
+}
+
+function demoEventCategory(frame: DemoEvidenceFrame) {
+  const text = `${frame.title} ${frame.description} ${frame.tags.join(" ")}`;
+
+  if (/responder safety|physical contact|unsafe proximity|crew intervention/i.test(text)) return "responder safety";
+  if (/fire escalation|flame growth|sustained|escalating/i.test(text)) return "fire escalation";
+  if (/entry control|entry-control|entry approach/i.test(text)) return "entry control";
+  if (/smoke spread|visibility/i.test(text)) return "smoke spread";
+  if (/fire response|ground operations|attack line/i.test(text)) return "fire response";
+
+  return "incident";
+}
+
+function demoEventFromFrame(frame: DemoEvidenceFrame) {
   return {
     id: frame.frameId,
     timestamp: frame.timestampLabel,
@@ -152,8 +201,7 @@ function seededEventFromFrame(frame: DemoEvidenceFrame) {
     sourceResponder: frame.sourceResponder,
     evidence: frame.description,
     evidenceImageUrl: frame.imageUrl,
-    boxes: frame.boxes,
-    category: frame.tags.some((tag) => /responder safety|physical contact|unsafe proximity|crew intervention/i.test(tag)) ? "responder safety" : "fire escalation",
+    category: demoEventCategory(frame),
     reviewState: "pending-review" as const,
   };
 }
@@ -166,11 +214,11 @@ function latestFrame<TFrame extends { timestampSeconds: number }>(frames: TFrame
   return frames.reduce((latest, frame) => (frame.timestampSeconds > latest.timestampSeconds ? frame : latest), frames[0]);
 }
 
-function seededCueCovered(event: { timestamp: string; source: string; title: string; evidence: string }, frame: Pick<DemoEvidenceFrame, "frameId" | "timestampLabel" | "sourceResponder" | "tags">) {
+function demoCueCovered(event: { timestamp: string; source: string; title: string; evidence: string }, frame: Pick<DemoEvidenceFrame, "frameId" | "timestampLabel" | "sourceResponder" | "tags">) {
   const text = `${event.timestamp} ${event.source} ${event.title} ${event.evidence}`.toLowerCase();
   const sourceResponder = frame.sourceResponder.toLowerCase();
   const cuePattern = frame.tags.some((tag) => /responder safety|physical contact|unsafe proximity|crew intervention/i.test(tag))
-    ? /responder safety|physical contact|unsafe proximity|crew intervention|strike|contact|aggression|obstruction/i
+    ? /responder safety|physical contact|unsafe proximity|crew intervention|contact|obstruction/i
     : /fire|flame|smoke|escalat|growth/i;
 
   return cuePattern.test(text)
@@ -253,22 +301,13 @@ export async function POST(request: Request) {
   try {
     const visibleThroughSecondsBySource = Object.fromEntries(feeds.map((feed) => [feed.videoSrc, Math.max(0, feed.currentTime)]));
     const operatorEvidenceSupport = body.operatorEvidenceSupport === true;
-    const useSeededPostFireAnalysis = operatorEvidenceSupport && isDemoFireIncident(incident) && feeds.some((feed) => isPunggolPostFireFeed(feed.videoSrc));
+    const postFirePhase = feeds.some((feed) => isPunggolPostFireFeed(feed.videoSrc));
+    const useScriptedPunggolAnalysis = operatorEvidenceSupport && isDemoFireIncident(incident);
 
-    if (useSeededPostFireAnalysis) {
-      const seededFrames = await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource);
-      const physicalContactFrame = seededFrames.find((frame) => frame.frameId === "demo-punggol-post-fire-a-37s-physical-contact") ?? seededFrames.find((frame) => frame.tags.some((tag) => /physical contact/i.test(tag)));
+    if (useScriptedPunggolAnalysis) {
+      const demoFrames = await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource, { includeLiveOnly: true });
 
-      return NextResponse.json({
-        generatedAt: new Date().toISOString(),
-        chunkStartSeconds: Math.min(...feeds.map((feed) => Math.max(0, feed.currentTime))),
-        chunkDurationSeconds,
-        incidentId: incident.id,
-        incidentTitle: incident.title,
-        events: seededFrames.map(seededEventFromFrame),
-        recommendation: seededPostFireRecommendation(physicalContactFrame),
-        generatedFrom: `seeded post-fire evidence for ${incident.title}`,
-      });
+      return NextResponse.json(scriptedPunggolOutput(incident, feeds, demoFrames, postFirePhase));
     }
 
     const nestedFrames = await Promise.all(
@@ -338,18 +377,21 @@ export async function POST(request: Request) {
     });
 
     const supportedEvents = analysis.events.filter((event) => isSupportedLiveEvent(event.title, event.evidence));
-    const seededFrames = operatorEvidenceSupport && isDemoFireIncident(incident)
-      ? await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource)
-      : operatorEvidenceSupport && isDemoWoodlandsIncident(incident)
-      ? await buildWoodlandsDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource)
-      : [];
-    const seededEvents = seededFrames
-      .filter((frame) => !supportedEvents.some((event) => seededCueCovered(event, frame)))
-      .map(seededEventFromFrame);
+    let demoFrames: DemoEvidenceFrame[] = [];
+    if (operatorEvidenceSupport && isDemoFireIncident(incident)) {
+      demoFrames = await buildPunggolFireDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource, { includeLiveOnly: true });
+    } else if (operatorEvidenceSupport && isDemoWoodlandsIncident(incident)) {
+      demoFrames = await buildWoodlandsDemoFrames(cacheDir, incidentResponders, visibleThroughSecondsBySource);
+    }
+    const demoEvents = demoFrames
+      .filter((frame) => !supportedEvents.some((event) => demoCueCovered(event, frame)))
+      .map(demoEventFromFrame);
     const frameById = new Map(frames.map((frame) => [frame.frameId, frame]));
     const fallbackFrame = latestFrame(frames);
     const selectedFrame = frameById.get(analysis.recommendation.evidenceFrameId) ?? fallbackFrame;
-    const seededFireEscalationFrame = seededFrames.find((frame) => frame.frameId === "demo-fire-b-76_5s-escalation-etf");
+    // Joseph stage-demo feedback: mirror scripted ETF gates when demo evidence supports non-scripted chunks.
+    const demoFireEscalationFrame = demoFrames.find((frame) => frame.frameId === "demo-fire-b-130_75s-sustained-escalation")
+      ?? demoFrames.find((frame) => frame.frameId === "demo-fire-b-76_5s-escalation-etf");
     const fallbackRecommendationTitle = opsCentreRecommendation(supportedEvents);
     const modelRecommendationAllowed = supportsOpsCentreRecommendation(analysis.recommendation.title, analysis.recommendation.action, analysis.recommendation.reason, analysis.recommendation.evidence);
     const conservativeRecommendationAllowed = incident.type === "medical"
@@ -365,8 +407,8 @@ export async function POST(request: Request) {
       : fallbackRecommendationTitle;
     const gcRecommendationTitle = /enhanced task force/i.test(recommendationTitle) ? "Flag Enhanced Task Force consideration for Ground Commander" : recommendationTitle;
     const recommendationReason = onePhrase(analysis.recommendation.reason || analysis.recommendation.evidence || supportedEvents[0]?.title || "supported by current live frames");
-    const recommendation = seededFireEscalationFrame
-      ? seededFireEscalationRecommendation(seededFireEscalationFrame)
+    const recommendation = demoFireEscalationFrame
+      ? demoFireEscalationRecommendation(demoFireEscalationFrame)
       : shouldRecommend
       ? {
           ...analysis.recommendation,
@@ -398,7 +440,7 @@ export async function POST(request: Request) {
             evidenceImageUrl: `data:image/png;base64,${sourceFrame.image.toString("base64")}`,
           };
         }),
-        ...seededEvents,
+        ...demoEvents,
       ],
       recommendation,
       generatedFrom: `request-time ffmpeg extraction for ${incident.title}`,

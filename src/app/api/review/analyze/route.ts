@@ -85,7 +85,7 @@ function incidentPromptContext(incident: { title: string; location: string; summ
 
 function incidentAnalysisInstructions(incident: { type: "fire" | "medical" }) {
   if (incident.type === "medical") {
-    return "Medical/responder-safety priorities: patient distress, responder approach, crowding, obstruction, unsafe proximity, sudden movement toward responder, possible physical contact with responder, crew intervention, and patient movement or transfer. Distinguish confirmed, probable, and unclear evidence; do not overclaim intent or assault from a single frame.";
+    return "Medical/responder-safety priorities: patient distress, responder approach, crowding, obstruction, unsafe proximity, sudden movement toward responder, possible physical contact with responder, crew intervention, and patient movement or transfer. Distinguish confirmed, probable, and unclear evidence; do not overclaim intent or legal conclusions from a single frame.";
   }
 
   return "Fire priorities: smoke, flame growth, sudden fire burst, visibility loss, blocked access, unsafe entry, entry-control issues, and resource escalation cues. Enhanced Task Force language must be framed as Ground Commander consideration, not Ops Centre approval or a direct deployment order.";
@@ -103,7 +103,7 @@ function demoEvidenceItem(frame: DemoEvidenceFrame, index: number) {
     order: index + 1,
     name: frame.title,
     description: frame.description,
-    confidence: 0.98,
+    confidence: 1,
     tags: frame.tags,
     boxes: frame.boxes,
     imageUrl: frame.imageUrl,
@@ -151,16 +151,16 @@ export async function POST(request: Request) {
               rank: 1,
               order: 1,
               title: "Flag Enhanced Task Force consideration for Ground Commander",
-              reason: "Bodycam B shows escalating fire conditions supporting Enhanced Task Force consideration for Ground Commander review.",
-              evidenceFrameIds: ["demo-fire-b-76_5s-escalation-etf"],
+              reason: "Bodycam B shows visible escalation beyond the caller brief and later sustained flame growth for Ground Commander review.",
+              evidenceFrameIds: ["demo-fire-b-76_5s-escalation-etf", "demo-fire-b-130_75s-sustained-escalation"],
             },
             {
               id: "demo-punggol-onsite-police-support-guidance",
               rank: 2,
               order: 2,
               title: "Confirm on-site police support with Ground Commander",
-              reason: "Post-fire welfare-check footage beside the building shows the drunk/aggressive man, physical contact / shove evidence, and recovery actions; on-site police-support confirmation is for officer / GC review.",
-              evidenceFrameIds: ["demo-punggol-post-fire-a-37s-physical-contact", "demo-punggol-post-fire-b-37s-impact-recovery"],
+              reason: "Post-fire POVs show unsafe proximity, physical contact evidence, and recovery actions; police-support confirmation remains officer-reviewed guidance.",
+              evidenceFrameIds: ["demo-punggol-post-fire-a-36_25s-unsafe-proximity", "demo-punggol-post-fire-a-45_25s-contact-evidence", "demo-punggol-post-fire-b-45_5s-physical-contact", "demo-punggol-post-fire-b-46_5s-recovery-withdrawal", "demo-punggol-post-fire-b-47_5s-spacing-maintained-after-contact"],
             },
           ]
         : [{
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
             rank: 1,
             order: 1,
             title: "Review responder-safety controls and scene positioning",
-            reason: "The AAR should include the 0:22.5 physical strike and the 0:45.5 second abuse/contact-risk moment.",
+            reason: "The AAR should include the selected physical-contact and second contact-risk evidence moments.",
             evidenceFrameIds: frames.map((frame) => frame.frameId),
           }];
 
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
           content: [
             {
               type: "text",
-              text: `Analyze these extracted responder-video frame candidates for post-incident review. Incident context: ${incidentPromptContext(incident)} ${incidentAnalysisInstructions(incident)} Use only visible evidence in the images. Select only evidence-worthy real frame ids from the candidate set. Keep each evidence description short and action-oriented. Use incident-level tags such as escalation, operations, access, hazard, medical assistance, responder safety, physical contact, unsafe proximity, crew intervention, smoke spread, or visibility; do not use tiny object tags. Return no more than 3 bounding boxes per selected frame. Recommendations are evidence-linked considerations for the Ground Commander through Ops Centre, not Ops Centre approvals or direct deployment orders. Do not create a recommendation unless evidence strongly supports a C&C action such as raising alarm level consideration, HazMat or ambulance staging, aerial support, additional resource support, or blocked-access/collapse escalation. Flag Enhanced Task Force consideration for Ground Commander only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. If evidence is not strong, return an empty recommendations array. Do not claim abuse, assault, medical emergency, owner contact, push, or punch unless visible in the frames. Available frame ids:\n${frameCatalog}`,
+              text: `Analyze these extracted responder-video frame candidates for post-incident review. Incident context: ${incidentPromptContext(incident)} ${incidentAnalysisInstructions(incident)} Use only visible evidence in the images. Select only evidence-worthy real frame ids from the candidate set. Keep each evidence description short and action-oriented. Use incident-level tags such as escalation, operations, access, hazard, medical assistance, responder safety, physical contact, unsafe proximity, crew intervention, smoke spread, or visibility; do not use tiny object tags. Return no more than 3 bounding boxes per selected frame. Recommendations are evidence-linked considerations for the Ground Commander through Ops Centre, not Ops Centre approvals or direct deployment orders. Do not create a recommendation unless evidence strongly supports a C&C action such as raising alarm level consideration, HazMat or ambulance staging, aerial support, additional resource support, or blocked-access/collapse escalation. Flag Enhanced Task Force consideration for Ground Commander only for uncontrollable or large fire, rapid escalation beyond initial attack, or equivalent resource escalation evidence. If evidence is not strong, return an empty recommendations array. Do not claim intent, legal conclusions, medical emergency, owner contact, push, or punch unless visible in the frames. Available frame ids:\n${frameCatalog}`,
             },
             ...frames.flatMap((frame) => [
               {

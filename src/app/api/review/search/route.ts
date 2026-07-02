@@ -45,6 +45,39 @@ function formatEvidenceCatalog(evidence: z.infer<typeof evidenceSchema>[]) {
     .join("\n");
 }
 
+const responderSafetySearchPattern = /drunk|intoxicat|abus|aggress|threat|violent|physical|physic|phsyic|contact|shove|strike|unsafe|proximity|responder safety|welfare|police|backup|support/i;
+
+function directResponderSafetySearch(query: string, evidence: z.infer<typeof evidenceSchema>[]) {
+  if (!responderSafetySearchPattern.test(query)) return null;
+
+  const queryText = query.toLowerCase();
+  const matches = evidence
+    .map((item) => {
+      const haystack = `${item.name} ${item.description} ${item.tags.join(" ")} ${item.boxes.map((box) => box.label).join(" ")}`.toLowerCase();
+      let score = 0;
+
+      if (/physical contact|hands? \/ arms? meet|hand contact|contact evidence/i.test(haystack)) score += 12;
+      if (/unsafe proximity|close proximity|close-range|near responder|responder-side space/i.test(haystack)) score += 8;
+      if (/crew intervention|spacing|recovery|withdrawal/i.test(haystack)) score += 7;
+      if (/responder safety/i.test(haystack)) score += 2;
+      if (/welfare|medical|person low|hydration/i.test(queryText) && /welfare|medical|person low|hydration/i.test(haystack)) score += 5;
+      if (/police|backup|support/i.test(queryText) && /physical contact|unsafe proximity|crew intervention|responder safety/i.test(haystack)) score += 5;
+
+      return { item, score };
+    })
+    .filter(({ score }) => score >= 7)
+    .sort((a, b) => b.score - a.score || a.item.order - b.item.order)
+    .map(({ item }) => item.frameId);
+
+  return {
+    query,
+    intent: "Responder-safety evidence",
+    answer: matches.length ? "Focused responder-safety evidence is available in the incident timeline." : "No matching responder-safety evidence found.",
+    reason: "Matched the query to physical-contact, unsafe-proximity, recovery, and crew-spacing evidence from the analyzed timeline.",
+    evidenceFrameIds: matches,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
 
@@ -64,6 +97,9 @@ export async function POST(request: NextRequest) {
   }
 
   const evidenceCatalog = formatEvidenceCatalog(body.evidence);
+  const directSearch = directResponderSafetySearch(body.query, body.evidence);
+
+  if (directSearch) return NextResponse.json(directSearch);
 
   try {
     const result = await generateStructuredStrict({

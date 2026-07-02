@@ -14,6 +14,8 @@ import { Activity, Check, Download, MapPinned, Pause, Play, Search, Square, Volu
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+// shadcn/ui Dialog: https://ui.shadcn.com/docs/components/dialog
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 // shadcn/ui Select: https://ui.shadcn.com/docs/components/base/select
@@ -30,7 +32,7 @@ import { liveRelayFrameIntervalMs } from "@/lib/stream-relay-config";
 import { cn } from "@/lib/utils";
 import { browserRtcConfiguration } from "@/lib/webrtc";
 
-const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident", "abuse", "strike", "assault"]);
+const incidentLevelTags = new Set(["fire escalation", "fire response", "ground operations", "entry approach", "entry control", "smoke spread", "visibility", "deployment", "blocked access", "unsafe entry", "hazmat", "medical", "civil", "hazard", "incident", "responder safety", "physical contact", "unsafe proximity", "crew intervention"]);
 
 type LiveMode = "live" | "escalation" | "post-fire-loading" | "post-fire" | "concluded";
 
@@ -115,6 +117,8 @@ const punggolIncidentId = "punggol-residential-fire";
 const aarBriefingIncidentIds = new Set([punggolIncidentId, aarBriefingIncidentId]);
 const startupLiveAnalysisIntervalMs = 3000;
 const steadyLiveAnalysisIntervalMs = 8000;
+const scriptedPunggolLiveAnalysisIntervalMs = 1000;
+const punggolLiveRecommendationDelayMs = 2000;
 
 const heroImages = {
   // codex exec '$imagegen generate an operational command centre map hero background for a firefighter bodycam incident dashboard, Singapore urban grid at night, dark inset screen material, restrained emergency amber accents, no text, no logos, save as public/ai-images/ops-map-hero.png'
@@ -299,9 +303,6 @@ function incidentTags(tags: string[]) {
     .map((tag) => {
       if (tag.includes("entry")) return "entry approach";
       if (tag.includes("responder safety")) return "responder safety";
-      if (tag.includes("abuse")) return "abuse";
-      if (tag.includes("strike")) return "strike";
-      if (tag.includes("assault")) return "assault";
       if (tag.includes("physical")) return "physical contact";
       if (tag.includes("proximity")) return "unsafe proximity";
       if (tag.includes("crew")) return "crew intervention";
@@ -327,31 +328,37 @@ function shortBoxLabel(label: string) {
     .trim();
 }
 
-function topEvidence(evidence: RuntimeEvidence[]) {
-  const buckets = [
-    /ground operations|entry approach|entry control/i,
-    /fire escalation|smoke spread|fire response/i,
-    /post-fire|welfare|sweep/i,
-    /physical contact|impact|recovery|crew intervention|unsafe proximity|abuse|strike|assault/i,
-  ];
-  const selected: RuntimeEvidence[] = [];
-
-  buckets.forEach((bucket) => {
-    const item = evidence.find((candidate) => !selected.some((selectedItem) => selectedItem.frameId === candidate.frameId) && bucket.test(`${candidate.name} ${candidate.description} ${candidate.tags.join(" ")}`));
-
-    if (item) selected.push(item);
-  });
-
-  evidence.forEach((item) => {
-    if (selected.length >= 4) return;
-    if (!selected.some((selectedItem) => selectedItem.frameId === item.frameId)) selected.push(item);
-  });
-
-  return selected;
+function selectedEvidenceForBriefing(evidence: RuntimeEvidence[]) {
+  return [...evidence].sort((a, b) => a.order - b.order);
 }
 
 function briefingEvidence(evidence: RuntimeEvidence[], selectedFrameIds: Set<string>) {
   return evidence.filter((item) => selectedFrameIds.has(item.frameId));
+}
+
+const responderSafetySearchPattern = /drunk|intoxicat|abus|aggress|threat|violent|physical|physic|phsyic|contact|shove|strike|unsafe|proximity|responder safety|welfare|police|backup|support/i;
+
+function directResponderSafetyMatches(query: string, evidence: RuntimeEvidence[]) {
+  if (!responderSafetySearchPattern.test(query)) return null;
+
+  const queryText = query.toLowerCase();
+  return evidence
+    .map((item) => {
+      const haystack = `${item.name} ${item.description} ${item.tags.join(" ")} ${item.boxes.map((box) => box.label).join(" ")}`.toLowerCase();
+      let score = 0;
+
+      if (/physical contact|hands? \/ arms? meet|hand contact|contact evidence/i.test(haystack)) score += 12;
+      if (/unsafe proximity|close proximity|close-range|near responder|responder-side space/i.test(haystack)) score += 8;
+      if (/crew intervention|spacing|recovery|withdrawal/i.test(haystack)) score += 7;
+      if (/responder safety/i.test(haystack)) score += 2;
+      if (/welfare|medical|person low|hydration/i.test(queryText) && /welfare|medical|person low|hydration/i.test(haystack)) score += 5;
+      if (/police|backup|support/i.test(queryText) && /physical contact|unsafe proximity|crew intervention|responder safety/i.test(haystack)) score += 5;
+
+      return { item, score };
+    })
+    .filter(({ score }) => score >= 7)
+    .sort((a, b) => b.score - a.score || a.item.order - b.item.order)
+    .map(({ item }) => item);
 }
 
 function cleanOperationalText(text: string) {
@@ -361,6 +368,10 @@ function cleanOperationalText(text: string) {
     .replace(/\b[Ff]rame\s+shows\s+/g, "")
     .replace(/\bff-[a-z]-[a-z0-9-]+\b/g, "the selected frame")
     .replace(/\bevt-\d+\b/g, "the observed event")
+    .replace(/\bdrunk\/?aggressive\b/gi, "involved")
+    .replace(/\bdrunk\b/gi, "involved")
+    .replace(/\baggressive\b/gi, "unsafe-proximity")
+    .replace(/\b(abuse|assault|strike|shove)\b/gi, "physical contact")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -374,19 +385,6 @@ function conciseReason(text: string) {
   const sentences = cleaned.split(/[.!?]/).map((sentence) => sentence.trim()).filter(Boolean);
 
   return sentences.slice(0, 2).join(". ") || cleaned;
-}
-
-function eventCategory(event: { category?: string; title: string; evidence: string }) {
-  if (event.category) return event.category.toLowerCase();
-  const text = `${event.title} ${event.evidence}`;
-
-  if (/hazmat|chemical|gas|spill/i.test(text)) return "hazmat";
-  if (/casualty|ambulance|medical|injur/i.test(text)) return "medical";
-  if (/civil|crowd|public order|evacuat/i.test(text)) return "civil";
-  if (/fire|flame|smoke|burn|hose/i.test(text)) return "fire";
-  if (/collapse|debris|blocked|entry|access/i.test(text)) return "hazard";
-
-  return "incident";
 }
 
 function insetBox(box: { x: number; y: number; width: number; height: number; label: string }) {
@@ -415,18 +413,18 @@ const punggolMilestoneOffsets: Partial<Record<IncidentMilestone["id"], number>> 
   acknowledge: -16 * 60,
   "move-out": -14 * 60,
   "arrive-at-scene": 0,
-  "first-jet-out": 5,
-  "ba-entry": 64,
-  "post-fire-sweep": punggolFireDurationSeconds + 8,
-  "welfare-check": punggolFireDurationSeconds + 18,
-  "verbal-aggression": punggolFireDurationSeconds + 31,
-  "physical-contact": punggolFireDurationSeconds + 37,
-  "de-escalation-restraint": punggolFireDurationSeconds + 40,
-  "police-support-notified": punggolFireDurationSeconds + 44,
+  "first-jet-out": 12,
+  "ba-entry": 63.25,
+  "post-fire-sweep": punggolFireDurationSeconds + 7.75,
+  "welfare-check": punggolFireDurationSeconds + 19.25,
+  "unsafe-proximity": punggolFireDurationSeconds + 36.25,
+  "physical-contact": punggolFireDurationSeconds + 45.5,
+  "crew-spacing": punggolFireDurationSeconds + 47.5,
+  "police-support-notified": punggolFireDurationSeconds + 48,
 };
 
 function formatSessionClock(sessionStartMs: number, offsetSeconds: number) {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(sessionStartMs + offsetSeconds * 1000));
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(sessionStartMs + offsetSeconds * 1000));
 }
 
 function incidentEvidenceOffsetSeconds(item: Pick<RuntimeEvidence, "sourceVideo" | "frameTimestampSeconds">) {
@@ -442,9 +440,16 @@ function applyRuntimeEvidenceClock<T extends RuntimeEvidence>(item: T, sessionSt
 }
 
 function applyRuntimeMilestoneClock(milestone: IncidentMilestone, incidentId: string, sessionStartMs: number | null): IncidentMilestone {
-  if (incidentId !== punggolIncidentId || sessionStartMs === null || milestone.status !== "confirmed") return milestone;
+  if (incidentId !== punggolIncidentId || milestone.status !== "confirmed") return milestone;
   const offsetSeconds = punggolMilestoneOffsets[milestone.id];
   if (offsetSeconds === undefined) return milestone;
+  if (sessionStartMs === null) {
+    return {
+      ...milestone,
+      timestamp: undefined,
+      displayTime: "--:--:--",
+    };
+  }
   return {
     ...milestone,
     timestamp: new Date(sessionStartMs + offsetSeconds * 1000).toISOString(),
@@ -470,14 +475,26 @@ function evidenceFrameOffsetSeconds(frameId: string, timestampLabel: string) {
   return frameId.includes("post-fire") ? punggolFireDurationSeconds + seconds : seconds;
 }
 
-function liveEventOffsetSeconds(event: Pick<LiveEvent, "timestamp" | "title" | "evidence" | "source">) {
+function liveEventOffsetSeconds(event: LiveEvent) {
   const seconds = timestampLabelSeconds(event.timestamp);
-  const text = `${event.title} ${event.evidence} ${event.source}`.toLowerCase();
-  return /post-fire|welfare|physical contact|shove|de-escalation|recovery|police|aggression/.test(text) ? punggolFireDurationSeconds + seconds : seconds;
+  const text = `${event.id} ${event.title} ${event.evidence} ${event.source}`.toLowerCase();
+  return /punggol-post-fire|post-fire|welfare|physical contact|close[- ](?:proximity|range|contact)|crew (?:spacing|intervention)|impact|recovery|police|responder safety/.test(text) ? punggolFireDurationSeconds + seconds : seconds;
 }
 
 function applyRuntimeLiveClock(analysis: LiveAnalysis, sessionStartMs: number | null, incidentId: string): LiveAnalysis {
-  if (incidentId !== punggolIncidentId || sessionStartMs === null) return analysis;
+  if (incidentId !== punggolIncidentId) return analysis;
+  if (sessionStartMs === null) {
+    return {
+      ...analysis,
+      events: analysis.events.map((event) => ({
+        ...event,
+        timestamp: "--:--:--",
+        source: event.source.replace(event.timestamp, "--:--:--"),
+      })),
+      recommendations: analysis.recommendations.map((recommendation) => ({ ...recommendation, sourceTimestamp: "--:--:--" })),
+      recommendation: { ...analysis.recommendation, sourceTimestamp: "--:--:--" },
+    };
+  }
   const events = analysis.events.map((event) => {
     const timestamp = formatSessionClock(sessionStartMs, liveEventOffsetSeconds(event));
     return {
@@ -501,6 +518,22 @@ function applyRuntimeLiveClock(analysis: LiveAnalysis, sessionStartMs: number | 
   };
 }
 
+// Hermes Agent: stage pacing keeps Punggol prompts behind the evidence cards by two seconds.
+function filterDelayedLiveRecommendations(analysis: LiveAnalysis | null, visibleRecommendationIds: Set<string>, shouldDelay: boolean) {
+  if (!analysis || !shouldDelay) return analysis;
+
+  return {
+    ...analysis,
+    recommendations: analysis.recommendations.filter((recommendation) => visibleRecommendationIds.has(recommendation.id)),
+  };
+}
+
+// Hermes Agent: clear pending staged recommendation reveals when the live incident changes.
+function clearLiveRecommendationDelayTimers(timers: Record<string, number>) {
+  Object.values(timers).forEach((timer) => window.clearTimeout(timer));
+  Object.keys(timers).forEach((key) => delete timers[key]);
+}
+
 function useMountedSessionStart() {
   const [sessionStartMs, setSessionStartMs] = useState<number | null>(null);
 
@@ -514,8 +547,50 @@ function useMountedSessionStart() {
 }
 
 function formatMountedSessionClock(sessionStartMs: number | null, offsetSeconds: number) {
-  if (sessionStartMs === null) return "--:--";
+  if (sessionStartMs === null) return "--:--:--";
   return formatSessionClock(sessionStartMs, offsetSeconds);
+}
+
+// Hermes Agent: live evidence thumbnail lightbox for Joseph stage-demo feedback.
+function EvidenceImagePreview({ src, alt, title, description, thumbnailClassName, sizes }: { src: string; alt: string; title: string; description?: string; thumbnailClassName?: string; sizes: string }) {
+  const [open, setOpen] = useState(false);
+  const displayTitle = onePhrase(title);
+  const displayDescription = description ? conciseReason(description) : alt;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn("group relative aspect-video overflow-hidden bg-screen text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50", thumbnailClassName)}
+        aria-label={`Open larger evidence image: ${displayTitle}`}
+      >
+        <Image src={src} alt={alt} fill unoptimized className="object-cover" sizes={sizes} />
+        <span className="absolute bottom-1.5 right-1.5 border border-screen-border bg-black/75 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-screen-foreground/80 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          enlarge
+        </span>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className={cn(commandScope, "!max-w-[min(94vw,1100px)] gap-3 !rounded-sm border border-command-border bg-command p-3 text-command-foreground ring-0")}>
+          <div className="space-y-1 border-b border-command-border pb-3 pr-10">
+            <DialogTitle className="text-sm font-semibold leading-snug">{displayTitle}</DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed text-command-muted-foreground">{displayDescription}</DialogDescription>
+          </div>
+          <div className="relative aspect-video max-h-[76vh] min-h-[min(56vw,22rem)] overflow-hidden border border-screen-border bg-screen">
+            <Image src={src} alt={alt} fill unoptimized className="object-contain" sizes="min(94vw, 1100px)" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function eventTimestampSortValue(timestamp: string) {
+  const parts = timestamp.match(/\d+/g)?.map(Number) ?? [];
+  if (parts.length >= 3) return parts.at(-3)! * 3600 + parts.at(-2)! * 60 + parts.at(-1)!;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return Number.POSITIVE_INFINITY;
 }
 
 function streamAnalysis(session: StreamIncidentSession | null): StreamUiAnalysis | null {
@@ -1014,6 +1089,10 @@ function StreamBodycamSlot({ slot, bodycam }: { slot: number; bodycam?: StreamBo
   );
 }
 
+function safeVideoPlay(video: HTMLVideoElement) {
+  void video.play().catch(() => undefined);
+}
+
 function BodycamGrid({ incident, responders, mode, playing, activeAudioResponderId, onAudioChange, onPunggolFireEnded, onPostFireReady, videoRefs, streamSession, liveCue }: { incident: Incident; responders: Responder[]; mode: LiveMode; playing: boolean; activeAudioResponderId: string | null; onAudioChange: (responderId: string | null) => void; onPunggolFireEnded: () => void; onPostFireReady: () => void; videoRefs: MutableRefObject<Record<string, HTMLVideoElement | null>>; streamSession?: StreamIncidentSession | null; liveCue: { responderId: string; timestampSeconds: number } }) {
   const isPunggolPostFirePhase = isPostFirePhase(incident.id, mode);
   const isPunggolFirePhase = incident.id === punggolIncidentId && mode !== "post-fire-loading" && mode !== "post-fire";
@@ -1033,7 +1112,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
         video.pause();
         video.currentTime = 0;
       });
-      postFireVideos.forEach((video) => void video.play());
+      postFireVideos.forEach(safeVideoPlay);
       onPostFireReady();
     };
 
@@ -1066,7 +1145,7 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
         return;
       }
 
-      const playWhenReady = () => void video.play();
+      const playWhenReady = () => safeVideoPlay(video);
       if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
         playWhenReady();
       } else {
@@ -1212,7 +1291,10 @@ function BodycamGrid({ incident, responders, mode, playing, activeAudioResponder
 }
 
 function EventLog({ analysis, isAnalyzing, responders }: { analysis: LiveAnalysis | StreamUiAnalysis | null; isAnalyzing?: boolean; responders?: Responder[] }) {
-  const events = analysis?.events ?? [];
+  const events = (analysis?.events ?? [])
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => eventTimestampSortValue(a.event.timestamp) - eventTimestampSortValue(b.event.timestamp) || a.index - b.index)
+    .map(({ event }) => event);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const latestEventKey = events.map((event) => event.id).join("|");
 
@@ -1249,33 +1331,28 @@ function EventLog({ analysis, isAnalyzing, responders }: { analysis: LiveAnalysi
   }
 
   return (
-    <div ref={scrollRef} className="max-h-[280px] overflow-y-auto bg-border">
-      {events.map((event) => {
-        const boxes = event.boxes?.slice(0, 3).map(insetBox) ?? [];
-
-        return (
+    <div className="grid gap-px bg-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-card px-3 py-2">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{events.length} evidence items in live sequence</p>
+      </div>
+      <div ref={scrollRef} className="max-h-[280px] overflow-y-auto bg-border">
+        {events.map((event) => (
           <div key={event.id} className="border-b border-border bg-card px-3 py-2 last:border-b-0">
             <div className="grid min-w-0 gap-3 border border-warning/60 bg-warning/10 p-3 sm:grid-cols-[112px_1fr]">
               {event.evidenceImageUrl ? (
-                <div className="relative aspect-video overflow-hidden bg-screen">
-                  <Image src={event.evidenceImageUrl} alt={conciseReason(event.evidence)} fill unoptimized className="object-cover" sizes="112px" />
-                  {boxes.map((box, boxIndex) => (
-                    <div key={`${event.id}-${box.label}-${boxIndex}`} className="absolute border border-warning bg-warning/15" style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%` }} />
-                  ))}
-                </div>
+                <EvidenceImagePreview src={event.evidenceImageUrl} alt={conciseReason(event.evidence)} title={event.title} description={event.evidence} sizes="112px" />
               ) : null}
               <div className="min-w-0">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-semibold leading-snug">{onePhrase(event.title)}</p>
-                  <OperationalBadge tone="pending-review">{eventCategory(event)}</OperationalBadge>
                 </div>
                 <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{event.sourceResponder || event.source}</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{conciseReason(event.evidence)}</p>
               </div>
             </div>
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
@@ -1324,9 +1401,7 @@ function RecommendationReview({ analysis, incidentId }: { analysis: LiveAnalysis
           return (
             <div key={recommendation.id} className={cn("grid gap-3 border-b border-border bg-card p-3 last:border-b-0 sm:grid-cols-[104px_1fr]", decision && "bg-muted/45")}>
               {recommendation.evidenceImageUrl ? (
-                <div className="relative aspect-video overflow-hidden bg-screen">
-                  <Image src={recommendation.evidenceImageUrl} alt={onePhrase(recommendation.evidence)} fill unoptimized className="object-cover" sizes="104px" />
-                </div>
+                <EvidenceImagePreview src={recommendation.evidenceImageUrl} alt={onePhrase(recommendation.evidence)} title={recommendation.title} description={recommendation.reason} sizes="104px" />
               ) : null}
               <div className="min-w-0">
                 <div className="flex items-start justify-between gap-2">
@@ -1372,21 +1447,22 @@ function timelineTone(kind: "system" | "footage" | "ai" | "recommendation" | "of
 }
 
 function timelineClockMinutes(label: string) {
-  const parts = label.trim().match(/(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+  const parts = label.trim().match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?/i);
   if (!parts) return Number.MAX_SAFE_INTEGER;
   let hour = Number(parts[1]);
   const minute = Number(parts[2]);
-  const period = parts[3]?.toUpperCase();
+  const second = Number(parts[3] ?? 0);
+  const period = parts[4]?.toUpperCase();
   if (period === "PM" && hour !== 12) hour += 12;
   if (period === "AM" && hour === 12) hour = 0;
-  return hour * 60 + minute;
+  return hour * 3600 + minute * 60 + second;
 }
 
 function timelineDecisionMinutes(timestamp: string) {
   const parsed = Date.parse(timestamp);
   if (Number.isNaN(parsed)) return timelineClockMinutes(timestamp);
   const date = new Date(parsed);
-  return date.getHours() * 60 + date.getMinutes();
+  return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
 }
 
 function UnifiedIncidentTimeline({ incident, evidence, highlightedEvidenceIds, recommendations, decisionReviews, isAnalyzing, canRunReviewAnalysis, emptyMessage }: { incident: Incident; evidence: RuntimeEvidence[]; highlightedEvidenceIds: Set<string>; recommendations: RuntimeRecommendation[]; decisionReviews: DecisionReview[]; isAnalyzing: boolean; canRunReviewAnalysis: boolean; emptyMessage: string }) {
@@ -1581,20 +1657,15 @@ function RuntimeSearchPanel({ incidentId, evidence, onResultsChange }: { inciden
     const trimmedQuery = query.trim();
     if (!trimmedQuery || evidence.length === 0) return;
 
-    const normalizedQuery = trimmedQuery.toLowerCase();
-    const directTerms = normalizedQuery.match(/abuse|strike|assault|physical contact|shove|drunk|aggressive/g);
-    if (directTerms?.length) {
-      const directMatches = evidence.filter((item) => {
-        const haystack = `${item.name} ${item.description} ${item.tags.join(" ")} ${item.boxes.map((box) => box.label).join(" ")}`.toLowerCase();
-        return directTerms.some((term) => haystack.includes(term));
-      });
+    const directMatches = directResponderSafetyMatches(trimmedQuery, evidence);
+    if (directMatches) {
 
       setSearchError(null);
       setResult({
         query: trimmedQuery,
-        intent: "Responder-safety / abuse evidence",
-        answer: directMatches.length ? "Matching responder-safety evidence is highlighted in the timeline." : "No matching responder-safety evidence found.",
-        reason: "Matched query terms against analyzed evidence titles, descriptions, tags, and box labels.",
+        intent: "Responder-safety evidence",
+        answer: directMatches.length ? "Focused responder-safety evidence is highlighted in the timeline." : "No matching responder-safety evidence found.",
+        reason: "Matched the query to physical-contact, unsafe-proximity, recovery, and crew-spacing evidence from the analyzed timeline.",
         evidenceFrameIds: directMatches.map((item) => item.frameId),
       });
       return;
@@ -1665,7 +1736,7 @@ function RuntimeSearchPanel({ incidentId, evidence, onResultsChange }: { inciden
         <Field>
           <FieldLabel htmlFor="incident-search">Search analyzed evidence</FieldLabel>
           <div className="flex gap-2">
-            <Input id="incident-search" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 rounded-sm" placeholder="abuse, strike, assault" />
+            <Input id="incident-search" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 rounded-sm" placeholder="physical contact or responder safety" />
             <Button size="sm" className="rounded-sm" onClick={runSearch} disabled={isSearchPending || evidence.length === 0 || !query.trim()}>
               <Search data-icon="inline-start" />
               {isSearchPending ? "Searching" : "Search"}
@@ -1837,12 +1908,14 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const [analysis, setAnalysis] = useState<LiveAnalysis | null>(null);
   const [streamSession, setStreamSession] = useState<StreamIncidentSession | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [visibleLiveRecommendationIds, setVisibleLiveRecommendationIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const liveLoopRef = useRef(false);
   const analyzeInFlightRef = useRef(false);
   const queuedAnalysisTimesRef = useRef<Record<string, number> | null>(null);
   const analysisGenerationRef = useRef(0);
+  const recommendationDelayTimersRef = useRef<Record<string, number>>({});
   const selectedIncident = getIncident(state, selectedIncidentId);
   const isStreamIncident = selectedIncident.id === streamIncidentId;
   const incidentResponders = useMemo(() => getIncidentResponders(state, selectedIncident), [selectedIncident, state]);
@@ -1850,9 +1923,14 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
   const analysisResponders = useMemo(() => postFirePhase ? incidentResponders.filter((responder) => responder.reviewVideoSrcs?.length) : incidentResponders, [incidentResponders, postFirePhase]);
   const canRunLiveAnalysis = selectedIncident.supportsRuntimeAnalysis && (isStreamIncident || analysisResponders.length > 0);
   const streamDisplayAnalysis = isStreamIncident ? streamAnalysis(streamSession) : null;
-  const liveDisplayAnalysis = useMemo(() => analysis ? applyRuntimeLiveClock(analysis, sessionStartMs, selectedIncident.id) : null, [analysis, selectedIncident.id, sessionStartMs]);
+  const clockedLiveDisplayAnalysis = useMemo(() => analysis ? applyRuntimeLiveClock(analysis, sessionStartMs, selectedIncident.id) : null, [analysis, selectedIncident.id, sessionStartMs]);
+  const liveDisplayAnalysis = useMemo(() => filterDelayedLiveRecommendations(clockedLiveDisplayAnalysis, visibleLiveRecommendationIds, selectedIncident.id === punggolIncidentId), [clockedLiveDisplayAnalysis, selectedIncident.id, visibleLiveRecommendationIds]);
   const displayAnalysis = isStreamIncident ? streamDisplayAnalysis : liveDisplayAnalysis;
-  const liveAnalysisIntervalMs = analysis?.events.length ? steadyLiveAnalysisIntervalMs : startupLiveAnalysisIntervalMs;
+  const liveAnalysisIntervalMs = selectedIncident.id === punggolIncidentId
+    ? scriptedPunggolLiveAnalysisIntervalMs
+    : analysis?.events.length
+    ? steadyLiveAnalysisIntervalMs
+    : startupLiveAnalysisIntervalMs;
   const liveCue = selectedIncident.id === aarBriefingIncidentId ? { responderId: "med-woodlands-a", timestampSeconds: 45.5 } : state.liveAnalysisCue;
   const operatorControlsVisible = searchParams.get("operator") === "1" || searchParams.get("debug") === "1";
   const analysisStatusLabel = isStreamIncident
@@ -1878,10 +1956,44 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     liveLoopRef.current = false;
     analyzeInFlightRef.current = false;
     queuedAnalysisTimesRef.current = null;
+    clearLiveRecommendationDelayTimers(recommendationDelayTimersRef.current);
+    setVisibleLiveRecommendationIds(new Set());
     analysisGenerationRef.current += 1;
     setSelectedIncidentId(incidentId);
     router.replace(incidentHref(pathname, incidentId), { scroll: false });
   }
+
+  useEffect(() => {
+    const timers = recommendationDelayTimersRef.current;
+    const recommendations = analysis?.recommendations ?? [];
+    const recommendationIds = new Set(recommendations.map((recommendation) => recommendation.id));
+
+    if (selectedIncident.id !== punggolIncidentId) {
+      clearLiveRecommendationDelayTimers(timers);
+      return;
+    }
+
+    Object.entries(timers).forEach(([recommendationId, timer]) => {
+      if (recommendationIds.has(recommendationId)) return;
+      window.clearTimeout(timer);
+      delete timers[recommendationId];
+    });
+
+    recommendations.forEach((recommendation) => {
+      if (visibleLiveRecommendationIds.has(recommendation.id) || timers[recommendation.id]) return;
+      timers[recommendation.id] = window.setTimeout(() => {
+        delete timers[recommendation.id];
+        setVisibleLiveRecommendationIds((current) => {
+          if (current.has(recommendation.id)) return current;
+          const next = new Set(current);
+          next.add(recommendation.id);
+          return next;
+        });
+      }, punggolLiveRecommendationDelayMs);
+    });
+  }, [analysis, selectedIncident.id, visibleLiveRecommendationIds]);
+
+  useEffect(() => () => clearLiveRecommendationDelayTimers(recommendationDelayTimersRef.current), []);
 
   const analyzeChunk = useCallback((nextTimes?: Record<string, number>) => {
     if (!canRunLiveAnalysis) return;
@@ -2007,16 +2119,22 @@ export function LiveDashboard({ initialState, initialIncidentId }: { initialStat
     queuedAnalysisTimesRef.current = null;
     setMode("post-fire-loading");
     setPlaying(false);
-    setActiveAudioResponderId("ff-a");
+    setActiveAudioResponderId(null);
   }
 
   const handlePostFireReady = useCallback(() => {
-    setMode((currentMode) => {
-      if (currentMode !== "post-fire-loading") return currentMode;
-      setPlaying(true);
-      return "post-fire";
+    const postFireVideos = Object.values(videoRefs.current).filter((video): video is HTMLVideoElement => Boolean(video?.currentSrc.includes("punggol-post-fire")));
+    postFireVideos.forEach((video) => {
+      video.pause();
+      video.currentTime = 0;
+      video.muted = true;
     });
-  }, []);
+    setPlaying(true);
+    setMode((currentMode) => currentMode === "post-fire-loading" ? "post-fire" : currentMode);
+    window.setTimeout(() => {
+      postFireVideos.forEach(safeVideoPlay);
+    }, 0);
+  }, [videoRefs]);
 
   function handlePunggolFireEnded() {
     if (selectedIncident.id !== punggolIncidentId || postFirePhase) return;
@@ -2225,7 +2343,7 @@ export function ReviewDashboard({ initialState, initialIncidentId }: { initialSt
 
     startExportTransition(async () => {
       setExportError(null);
-      const exportEvidence = topEvidence(selectedExportEvidence);
+      const exportEvidence = selectedEvidenceForBriefing(selectedExportEvidence);
       const exportEvidenceFrameIds = new Set(exportEvidence.map((item) => item.frameId));
       const exportAnalysis = {
         ...analysis,

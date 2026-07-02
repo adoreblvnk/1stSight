@@ -4,7 +4,6 @@ export type LiveEvent = LiveAnalysisOutput["events"][number] & {
   category?: string;
   evidenceImageUrl?: string;
   sourceResponder?: string;
-  boxes?: Array<{ x: number; y: number; width: number; height: number; label: string }>;
 };
 
 export type LiveAnalysis = Omit<LiveAnalysisOutput, "events"> & {
@@ -17,6 +16,8 @@ type IncomingLiveAnalysis = Omit<LiveAnalysisOutput, "events"> & {
   generatedFrom: string;
   events: LiveEvent[];
 };
+
+const maxLiveRecommendations = 3;
 
 function cleanOperationalText(text: string) {
   return text
@@ -41,23 +42,14 @@ function recommendationKey(recommendation: LiveAnalysisOutput["recommendation"])
     .trim();
 }
 
-function timestampSeconds(timestamp: string | undefined) {
-  const match = timestamp?.match(/(\d+):(\d+(?:\.\d+)?)/);
-  if (!match) return 0;
+function recommendationSlot(recommendation: LiveAnalysisOutput["recommendation"]) {
+  const text = `${recommendation.title} ${recommendation.action} ${recommendation.reason} ${recommendation.evidence} ${recommendation.evidenceFrameId}`.toLowerCase();
 
-  return Number(match[1]) * 60 + Number(match[2]);
-}
+  // Joseph stage-demo feedback: keep live review to two ETF cues and one responder-safety police cue.
+  if (/enhanced task force|etf/.test(text)) return /sustained|130_75/.test(text) ? "fire-etf-sustained" : "fire-etf-initial";
+  if (/police|responder safety|physical contact|unsafe proximity|physical aggression|physically aggressive/.test(text)) return "responder-safety-police";
 
-function recommendationSeverity(recommendation: LiveAnalysisOutput["recommendation"]) {
-  const text = `${recommendation.title} ${recommendation.action} ${recommendation.reason} ${recommendation.evidence}`.toLowerCase();
-  let score = 0;
-
-  if (/enhanced task force|etf|raise alarm|alarm level/.test(text)) score += 50;
-  if (/uncontrolled|large fire|rapid|beyond initial attack|multiple compartments|defensive|worsening/.test(text)) score += 30;
-  if (/sustained|continued|continues|adds severity|intense|heavy flame|flame growth|fire growth/.test(text)) score += 20;
-  if (/fire escalation|smoke spread|resource escalation/.test(text)) score += 10;
-
-  return score + Math.min(30, Math.floor(timestampSeconds(recommendation.sourceTimestamp) / 15));
+  return recommendationKey(recommendation);
 }
 
 export function mergeLiveAnalysis(previous: LiveAnalysis | null, next: IncomingLiveAnalysis): LiveAnalysis {
@@ -79,15 +71,17 @@ export function mergeLiveAnalysis(previous: LiveAnalysis | null, next: IncomingL
   const nextRecommendation = next.recommendation.shouldRecommend
     ? { ...next.recommendation, id: `${next.generatedAt}-${next.chunkStartSeconds}-${previousRecommendations.length}-${next.recommendation.id}` }
     : null;
-  const nextRecommendations = nextRecommendation && previousRecommendations
-    .filter((recommendation) => recommendationKey(recommendation) === recommendationKey(nextRecommendation))
-    .every((recommendation) => recommendationSeverity(nextRecommendation) > recommendationSeverity(recommendation))
+  const recommendationSlots = new Set(previousRecommendations.map(recommendationSlot));
+  const nextRecommendations = nextRecommendation
+    && previousRecommendations.length < maxLiveRecommendations
+    && !recommendationSlots.has(recommendationSlot(nextRecommendation))
     ? [nextRecommendation]
     : [];
+  const recommendations = [...previousRecommendations, ...nextRecommendations].slice(0, maxLiveRecommendations);
 
   return {
     ...next,
     events: [...previousEvents, ...nextEvents],
-    recommendations: [...previousRecommendations, ...nextRecommendations],
+    recommendations,
   };
 }

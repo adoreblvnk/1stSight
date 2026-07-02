@@ -14,9 +14,6 @@ export type IncidentTag =
   | "physical contact"
   | "unsafe proximity"
   | "crew intervention"
-  | "abuse"
-  | "strike"
-  | "assault"
   | "patient movement";
 
 export type IncidentType = "fire" | "medical";
@@ -36,9 +33,9 @@ export type IncidentMilestoneId =
   | "damping-down"
   | "post-fire-sweep"
   | "welfare-check"
-  | "verbal-aggression"
+  | "unsafe-proximity"
   | "physical-contact"
-  | "de-escalation-restraint"
+  | "crew-spacing"
   | "police-support-notified"
   | "investigation-cause-search"
   | "hand-over";
