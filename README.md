@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/app/icon.svg" alt="1stSight app icon" width=100>
+  <img src="./public/images/readme/icon.png" alt="1stSight app icon" width="100">
   <h1>1stSight</h1>
   <p>
     Live recommendations, searchable incident timelines &amp; AAR slide generation from SCDF bodycam streams.
@@ -29,8 +29,6 @@
 ## About
 
 1stSight is a production-shaped prototype built for the SCDF-Dell Lifesavers' Innovation Challenge 2026. It helps SCDF Ops Centre / Command & Control officers turn responder bodycam footage into a traceable incident timeline, live evidence cards, reviewable command recommendations, natural-language evidence search results, and concise AAR briefing slides in PDF and editable PPTX formats.
-
-The primary stage scenario follows one Punggol landed-house fire incident from dispatch to live fire response, fire escalation, post-fire welfare check, responder-safety evidence, officer-reviewed action prompts, post-incident review, and AAR briefing slide generation. Woodlands medical assistance remains available as a booth or secondary responder-safety review flow.
 
 High-impact actions remain officer-reviewed, and exported decks are AAR briefing material that can support later reporting.
 
