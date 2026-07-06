@@ -2,10 +2,13 @@
   <img src="src/app/icon.svg" alt="1stSight app icon" width=100>
   <h1>1stSight</h1>
   <p>
-    Command & Control dashboard for live responder bodycam sensemaking, evidence-linked post-incident review, officer-reviewed recommendations, and AAR briefing slide export.
+    Live recommendations, searchable incident timelines &amp; AAR slide generation from SCDF bodycam streams.
   </p>
   <p>
-    Built With: Next.js 16 &bull; React 19 &bull; TypeScript 5 &bull; AI SDK 6 &bull; Tailwind CSS 4 &bull; shadcn/ui &bull; vLLM &bull; OpenShift
+    3rd place ($3000) at <a href="https://www.instagram.com/p/DXJYR7MFRDe">SCDF x Dell Innovation Challenge</a>.
+  </p>
+  <p>
+    Built With: Next.js &bull; React &bull; TypeScript &bull; AI SDK &bull; Tailwind CSS &bull; shadcn/ui &bull; vLLM &bull; OpenShift
   </p>
 </div>
 
@@ -51,16 +54,12 @@ flowchart LR
   <p><a href="https://www.youtube.com/watch?v=WLZtab6MVMg">Watch the 1stSight demo on YouTube</a></p>
 </div>
 
-Primary local routes:
-
 | Route | Purpose |
 | --- | --- |
 | `http://localhost:3000/map?incident=punggol-residential-fire` | Stage start point with deployment map and incident selection |
 | `http://localhost:3000/live?incident=punggol-residential-fire` | Live C&C dashboard with bodycam feeds, events, and officer-reviewed recommendations |
 | `http://localhost:3000/review?incident=punggol-residential-fire` | Post-incident evidence timeline, search, and AAR export |
 | `http://localhost:3000/bodycam` | Browser camera capture surface for live stream ingestion |
-
-Seeded incident surfaces:
 
 | Incident ID | Status |
 | --- | --- |
@@ -76,7 +75,7 @@ The current media inputs are served from `public/videos/fire/` and `public/video
 
 ### Prerequisites
 
-- Node.js `24` and npm `11`.
+- Node.js and npm.
 - Git and Docker.
 - System `ffmpeg` and `ffprobe` for frame extraction.
 - OpenShift CLI `oc`, OpenShift/Keycloak access, and Harbor access for deployment.
@@ -164,20 +163,7 @@ Build and deploy to OpenShift through Harbor:
 ./scripts/deploy.sh
 ```
 
-Useful deployment options:
-
-```bash
-./scripts/deploy.sh --help
-./scripts/deploy.sh --no-bump
-./scripts/deploy.sh --skip-smoke
-./scripts/deploy.sh --tag <tag>
-```
-
-The container listens on port `8080`, installs `ffmpeg`, and uses Next.js standalone output.
-
 ## Usage
-
-Stage flow:
 
 1. Open `/map?incident=punggol-residential-fire`.
 2. Select the Punggol house fire marker and enter the live dashboard after dispatch preview.
@@ -190,33 +176,16 @@ Stage flow:
 9. Search analyzed evidence with rough officer language such as `drunk abuse`; results should still be framed as physical contact, unsafe proximity, impact/recovery, and responder-safety evidence.
 10. Export the selected evidence as AAR briefing PDF or PPTX. With no search active, export covers the full Punggol timeline; with responder-safety search active, export focuses on highlighted matching evidence.
 
-Key API endpoints:
-
-| Endpoint | Method | Purpose |
-| --- | --- | --- |
-| `/api/scenario` | `GET` | Full scenario state |
-| `/api/public-config` | `GET` | Browser-safe public config |
-| `/api/gb10/health` | `GET` | GB10 endpoint health check |
-| `/api/live/analyze` | `POST` | Analyze current live feed windows and return events/recommendations |
-| `/api/review/analyze` | `POST` | Extract/select post-incident evidence frames |
-| `/api/review/search` | `POST` | Search latest runtime evidence for one incident |
-| `/api/search` | `POST` | General runtime evidence search |
-| `/api/report/export?format=pdf` | `POST` | Export AAR briefing slides as PDF |
-| `/api/report/export?format=pptx` | `POST` | Export editable AAR briefing slides as PPTX |
-| `/api/recommendation-review` | `POST` | Save officer review of a recommendation |
-| `/api/stream/session` | `GET` / `POST` / `PATCH` | Manage browser bodycam stream sessions |
-| `/api/stream/chunk` | `POST` | Upload 5-second bodycam chunks for server-side analysis |
-| `/api/stream/frame` | `GET` / `POST` | Relay current browser bodycam frames |
-| `/api/stream/webrtc/*` | `GET` / `POST` | Exchange WebRTC offers, answers, and ICE candidates |
-
 Model routing:
 
 | Mode | Text tasks | Vision tasks |
 | --- | --- | --- |
-| `gb10-openai` | GB10 `gb10-local-text` through vLLM | OpenAI `gpt-5.5` |
-| `openai` | OpenAI `gpt-5.5` | OpenAI `gpt-5.5` |
-| `codex` | `ai-sdk-provider-codex-cli` `gpt-5.5` | `ai-sdk-provider-codex-cli` `gpt-5.5` |
+| `gb10-openai` | Nemotron Nano 9B v2 via vLLM | GPT 5.5 |
+| `openai` | GPT 5.5 | GPT 5.5 |
+| `codex` | `ai-sdk-provider-codex-cli` with GPT 5.5 | `ai-sdk-provider-codex-cli` with GPT 5.5 |
 
 All model pipeline outputs are validated with Zod schemas before they are used by the UI or export pipeline.
 
 ## License <!-- omit in toc -->
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
