@@ -49,7 +49,7 @@ flowchart LR
 
 <div align="center">
   <a href="https://www.youtube.com/watch?v=WLZtab6MVMg">
-    <img src="public/images/readme/1stsight-youtube-thumbnail_rounded.png" alt="Watch the 1stSight demo on YouTube" width="750">
+    <img src="public/images/readme/youtube-thumbnail.png" alt="Watch the 1stSight demo on YouTube" width="750">
   </a>
   <p><a href="https://www.youtube.com/watch?v=WLZtab6MVMg">Watch the 1stSight demo on YouTube</a></p>
 </div>

@@ -27,10 +27,10 @@ Final demo story:
 - **Recommendation 2:** After processing the post-fire POV evidence, 1stSight raises police-support / responder-safety guidance for officer review, again kept as Ground Commander consideration.
 - **Review:** Post-incident review links dispatch, fire escalation, ETF review, welfare check, responder-safety evidence, officer decisions, and major incident milestones into one evidence timeline.
 - **Export 1:** With no search active, generate the full incident AAR briefing deck from the strongest selected evidence across the Punggol timeline. The deck should show what was done well and what can be discussed or improved, using milestone screenshots where available.
-- **Search:** Use natural-language search, such as `physical contact`, `verbal aggression`, or `responder safety`, to highlight matching evidence cards while keeping source frames and timestamps attached. For medical-abuse review, the product should focus on retrieving the recording and transcript around the relevant verbal or physical abuse moment, not inferring intent.
-- **Export 2:** With responder-safety search active, generate a focused responder-safety AAR deck from highlighted evidence, including what responders handled well and learning points for future welfare checks. Keep the main stage emphasis on the fire case and full-incident AAR outcome.
+- **Search:** Use natural-language search to highlight matching evidence cards while keeping source frames and timestamps attached. For the stage, type `drunk abuse` to show rough officer-language retrieval, then frame the returned evidence as physical contact, unsafe proximity, impact / recovery, and responder-safety evidence rather than a legal or medical conclusion. For medical-abuse review, the product should focus on retrieving the recording and transcript around the relevant verbal or physical abuse moment, not inferring intent.
+- **Export 2:** With responder-safety search active, generate a focused responder-safety AAR briefing deck from highlighted evidence, including selected responder-safety frames and officer-reviewed action items. Keep the main stage emphasis on the fire case and full-incident AAR outcome.
 
-One-line stage version: “We follow one Punggol fire incident from first call to live bodycam understanding, fire escalation, and post-fire responder-safety risk, with 1stSight raising officer-reviewed recommendations live and turning the same evidence into either a full incident AAR deck or a focused responder-safety learning deck.”
+One-line stage version: “We follow one Punggol fire incident from first call to live bodycam understanding, fire escalation, and post-fire responder-safety risk, with 1stSight raising officer-reviewed recommendations live and turning the same evidence into either a full incident AAR deck or a focused responder-safety AAR briefing deck.”
 
 Woodlands remains available for booth visitors and secondary demos only. The main stage story stays with Punggol from dispatch through post-fire responder-safety review and AAR briefing slide generation.
 
@@ -105,10 +105,10 @@ Woodlands remains available for booth visitors and secondary demos only. The mai
 - **Bounding box and visual label generation (vision):** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; creates approximate bounding boxes and one-phrase labels for fire growth, smoke spread, blocked access, unsafe entry, visibility, entry-control observations, and responder-safety evidence.
 - **Incident matching, grouping, and titling:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.2-codex-mini`; determines whether a new incident object belongs to an existing incident or starts a new one, then groups related objects under titles such as Residential Fire Response or Responder-Safety Review.
 - **Live recommendation generation:** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; creates reviewable Ops Centre recommendations such as Deploy Enhanced Task Force with a reason phrase and evidence frame.
-- **Natural-language post-incident search:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.2-codex-mini`; maps officer queries such as `Bodycam B escalation`, `Bodycam C smoke`, `unsafe proximity`, or `crew intervention` to relevant incidents, tags, and evidence cards after keyword/tag retrieval.
+- **Natural-language post-incident search:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.2-codex-mini`; maps officer queries such as `drunk abuse`, `unsafe proximity`, `physical contact`, or `crew intervention` to relevant incidents, tags, and evidence cards after keyword/tag retrieval.
 - **Post-incident timeline summarization:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.3-codex`; turns captured incident objects into a chronological evidence timeline for review.
 - **AAR slide evidence selection (vision):** Model: `gpt-5.5`; Dev fallback: `gpt-5.5`; selects the clearest screenshots/evidence cards from the selected incident timeline for possible AAR inclusion, including Punggol fire response and post-fire responder-safety evidence during the stage demo.
-- **AAR briefing slide generation:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.3-codex`; generates concise slide content with relevant screenshots, timestamps, sequence of events, challenges, areas done well, and areas for improvement. The generated AAR defaults to the strongest selected evidence across the Punggol incident, while an active `physical contact`, `responder safety`, or `verbal aggression` search focuses the export on highlighted search-result evidence until cleared.
+- **AAR briefing slide generation:** Model: `Nemotron Nano 9B v2`; Dev fallback: `gpt-5.3-codex`; generates concise slide content with relevant screenshots, timestamps, sequence of events, challenges, areas done well, and areas for improvement. The generated AAR defaults to the strongest selected evidence across the Punggol incident, while an active `drunk abuse`, `physical contact`, `responder safety`, or `verbal aggression` search focuses the export on highlighted search-result evidence until cleared.
 
 ## 4. Run & Development Commands
 
@@ -120,7 +120,7 @@ Woodlands remains available for booth visitors and secondary demos only. The mai
 
 - **Product Posture:** Build 1stSight as a production-shaped prototype, not a disposable UI shell. Use real product boundaries with real API / AI calls.
 - **SCDF-Facing Language:** Avoid casual prototype-stage wording in interface copy, slides, and presenter scripts. Prefer “incident scenario,” “operational scenario,” “available responder footage,” “current footage,” “pilot workflow,” and “prototype workflow.”
-- **Code Organization:** Implement the app as a root-level Next.js App Router project using `src/app`, `src/components`, `src/lib`, and browser-served media under `public/videos`.
+- **Code Organization:** Implement the app as a root-level Next.js App Router project using `src/app`, `src/components`, `src/lib`, browser-served images under `public/images`, and browser-served videos under `public/videos`.
 - **State Management:** Keep stable scenario metadata and source media lists minimal. Post-incident evidence, frame selection, boxes, search answers, and AAR briefing slide content must come from runtime analysis state rather than precomputed scenario evidence.
 - **API & Data Fetching:** Keep model calls behind backend/API boundaries so the Ops Centre workflow is not coupled to a specific model provider.
 - **AI Output Contract:** All model pipeline steps must use structured output validated with Zod; vision is required only for use cases marked `(vision)`, and tool calling is optional for the prototype pipeline.
@@ -216,14 +216,15 @@ Use these as the SCDF-aware milestone vocabulary for the Punggol fire case. Incl
 
 ### 15-Minute Stage Presenter Flow
 
-Use this as Joseph's stage script and app click path after Jia Jia introduces the problem and solution overview. Joseph should sound like he is proving the product live, not repeating the pitch. The core message: 1stSight turns multi-feed bodycam video into structured evidence, officer-reviewed recommendations, searchable review, and AAR briefing slides from the same evidence chain. Keep Woodlands for booth / Q&A only.
+Use this as Joseph's app demo script after Jia Jia introduces the problem and solution overview. Slides are handled separately; this section starts from the live product surface. Joseph should sound like he is proving the product through actual clicks, not giving another slide pitch. The core message: 1stSight turns live bodycam streams into traceable recommendations, then reuses the same evidence for full and focused AAR briefing slides.
 
 #### Before timer
 
 Click:
-- Open the slide deck on Joseph's handoff slide.
-- Open the app in another tab at `/map?incident=punggol-residential-fire`.
+- Open the app at the public / stage link.
+- Keep the app on `/map?incident=punggol-residential-fire`.
 - Keep Punggol selected.
+- Keep the PDF viewer ready for downloaded AAR exports.
 
 Point:
 - Nothing yet.
@@ -233,195 +234,221 @@ Say:
 
 Do not say:
 - Do not mention internal demo mechanics.
-- Do not introduce Woodlands unless a judge asks during Q&A.
+- Do not introduce Woodlands or Ubi as stage flows; mention them only as prepared surfaces.
 
-#### 00:00:00-00:00:25 — Joseph handoff
-
-Click:
-- Stay on the handoff / product demo slide.
-
-Point:
-- Product title or demo flow visual.
-
-Say:
-- “Thanks, Jia Jia.”
-- “I'll make that problem concrete by walking through one Punggol incident in 1stSight.”
-- “What I want you to watch for is the evidence chain: video frames come in, 1stSight structures them into events, supports officer-reviewed decisions, and reuses the same evidence for AAR briefing slides.”
-
-Do not say:
-- Do not reintroduce the whole team or repeat Jia Jia's full intro.
-
-#### 00:00:25-00:00:55 — Why this is technically different
+#### 00:00:00-00:00:35 — Start on map and set scope
 
 Click:
-- Advance to the bodycam / product capability slide if present.
+- Stay on `MAP`.
+- If the public link is confirmed, keep it visible in the address bar briefly.
 
 Point:
-- Bodycam / frame analysis visual.
-- Multi-feed view or evidence pipeline graphic.
-
-Say:
-- “Jia Jia mentioned that a short incident can create more than 100,000 frames.”
-- “The hard part is understanding the right frames while the incident is still moving.”
-- “1stSight is built around that: frame-level video analysis, source-linked evidence, a live event timeline, and review exports that all come from the same bodycam data.”
-
-Do not say:
-- Do not over-explain model internals before the app demo.
-
-#### 00:00:55-00:01:35 — Product promise before demo
-
-Click:
-- Advance to the solution / workflow slide if present.
-
-Point:
-- Capture → analyse → intelligence → decide → report loop.
-
-Say:
-- “A normal dashboard stops at showing video. 1stSight builds an evidence layer on top.”
-- “It watches the current video windows, identifies operationally useful moments, keeps the timestamp and bodycam source attached, and turns them into a timeline officers can act on.”
-- “For high-impact actions, the system stops at recommendation. The officer still reviews, accepts, rejects, or edits the decision.”
-
-Do not say:
-- Do not claim AI replaces Ops Centre judgement.
-- Do not say the system orders resources.
-
-#### 00:01:35-00:02:20 — Stage story
-
-Click:
-- Advance to the stage story / demo flow slide.
-
-Point:
-- Live dashboard / review / export visuals.
-
-Say:
-- “For the demo, I'll stay with one incident from start to finish.”
-- “We begin with a landed-house fire at Punggol, move into live bodycam understanding across three responders, then continue into a post-fire responder-safety moment.”
-- “After that, I'll show why the evidence structure matters: we can export the full AAR briefing, search the incident naturally, and generate a focused responder-safety briefing from the same source evidence.”
-
-Do not say:
-- Do not switch to secondary scenarios.
-
-#### 00:02:40-00:03:45 — App map and first call
-
-Click:
-- Click `MAP` if the app is not already on the map.
-- Click / select `Punggol house fire` marker or fallback incident card.
-
-Point:
+- 1stSight app link.
+- Map markers.
 - Blue fire-station markers.
-- Red Punggol incident marker.
+- Orange Punggol incident marker.
+
+Say:
+- “I’ll start directly inside 1stSight.”
+- “This is the same product link we can share later for hands-on testing.”
+- “There are prepared surfaces for Woodlands responder-safety review and the Ubi booth live try-out.”
+- “For the stage demo, I’ll use Punggol so we can follow one incident end to end.”
+- “The fire stations are marked in blue, and the Punggol incident is marked in orange.”
+
+Do not say:
+- Do not spend time explaining the secondary scenarios.
+
+#### 00:00:35-00:01:25 — Map and first call
+
+Click:
+- Click / select `Punggol house fire` marker or fallback incident card.
+- Wait for the dispatch preview to reach arrived state.
+- Click `Enter live dashboard`.
+
+Point:
 - Route from Punggol Fire Station to 21 Punggol Field Walk.
-- Dispatch / arrived card.
+- Dispatch movement / arrived state.
+- Incident location.
 
 Say:
 - “We start with only what Ops Centre knows at dispatch.”
-- “A caller reports a small landed-house fire at 21 Punggol Field Walk.”
-- “The caller is outside, and there are no visible injuries reported at this stage.”
-- “That matters because 1stSight keeps caller context separate from bodycam evidence. The first report starts the incident; the footage will confirm what is actually visible on the ground.”
-- “Here, the map gives the response origin, incident location, route, and arrival state.”
+- “A caller reports a small fire at a landed house next to a building at 21 Punggol Field Walk.”
+- “Because the first report is a small fire, the initial response is a Basic Task Force.”
+- “Now I’ll enter the live incident dashboard.”
+
+#### 00:01:25-00:02:15 — Case brief and caller context
 
 Click:
-- When ready, click `Enter live dashboard` or `Open live`.
-
-Say:
-- “Now we enter the live incident view.”
-
-#### 00:03:45-00:04:50 — Live dashboard: caller brief and bodycam feeds
-
-Click:
-- Click `OPEN CALLER BRIEF` if the brief is collapsed.
-- Close it only if it blocks the feeds or events panel.
+- Click `Open caller brief`.
+- Read the case brief.
+- Click the brief again to close it if it blocks feeds or events.
 
 Point:
-- Caller brief.
-- `BODYCAM A Tze Kai`.
-- `BODYCAM B Joseph`.
-- `BODYCAM C Jia Jia`.
-- Muted feed state.
+- Caller report summary.
+- Location and severity.
 
 Say:
-- “The dashboard starts with the caller brief, then the bodycams become the evidence layer.”
-- “Ops Centre is no longer waiting for a single verbal update. It can see three responder perspectives.”
+- “The first item is the case brief.”
+- Say: *read the visible caller brief aloud*.
+- “The caller report is useful context, so 1stSight keeps it summarized here.”
+- “The bodycam footage will become the evidence layer for what is actually visible on the ground.”
 
-#### 00:04:50-00:05:35 — Live incident events
+Do not say:
+- Do not turn caller context into confirmed footage evidence.
+
+#### 00:02:15-00:02:45 — Bodycam audio toggle
 
 Click:
-- No click; let feeds play.
+- If venue audio is tested, click one firefighter feed once to make that feed audible.
+- If venue audio is not tested, leave the feeds muted and skip this click.
+
+Point:
+- `muted` / `audio` status on the feed card.
+- Three bodycam feeds as separate views.
+
+Say:
+- “Each bodycam shows whether that feed is muted or audible.”
+- “For the stage, I’ll keep the feeds controlled so the focus stays on the evidence timeline.”
+
+Do not say:
+- Do not identify the bodycam feeds by presenter names in this section.
+
+#### 00:02:45-00:03:45 — Live event timeline begins
+
+Click:
+- Let the feeds play until `Hose line positioned near structure` appears.
+- Click the evidence thumbnail for that event.
+- Close the enlarged image quickly.
 
 Point:
 - `Events` panel.
-- Event titles as they appear.
-- Source responder names and timestamps on cards.
+- `Hose line positioned near structure` card.
+- Source responder / timestamp.
+- Enlarged evidence image.
 
 Say:
-- “As the feeds run, 1stSight analyses the current video windows.”
-- “This is where the product becomes useful operationally: it turns separate video streams into one incident timeline.”
-- Say: *read one or two visible event card titles aloud*.
-- “Every event stays linked to a source responder and timestamp, so the officer can inspect the evidence instead of trusting a black-box summary.”
+- “Here is where 1stSight becomes useful operationally.”
+- “It turns separate video streams into one unified incident timeline.”
+- Say: *read the `Hose line positioned near structure` event card aloud*.
+- “When I open the image, the officer can inspect the source frame instead of relying on a summary alone.”
 
-#### 00:05:35-00:06:30 — Fire escalation and Recommendation 1
+Do not say:
+- Do not describe this as an alert or recommendation yet.
+
+#### 00:03:45-00:04:45 — First flame cue, no recommendation yet
 
 Click:
-- No click until evidence processing returns the recommendation.
+- In prerecorded / recording mode, cut or scrub forward until `First visible flame through smoke` appears.
+- In live stage mode, continue narrating until the card appears.
+- Do not click `Mark for GC` yet.
 
 Point:
-- Bodycam B when escalation evidence is visible.
+- `First visible flame through smoke` event card.
+- Flame cue in Bodycam B / right-side feed.
+- Absence of recommendation at this point.
+
+Say:
+- “Now 1stSight identifies the first visible flame cue through smoke.”
+- “This matters, but at this point it is still an event in the timeline.”
+- “The system does not raise the command-level recommendation until the evidence is large enough.”
+
+Do not say:
+- Do not mention fast-forwarding or cuts to the audience.
+- Do not label early orange emergency-light cues as flame evidence.
+
+#### 00:04:45-00:06:10 — ETF Recommendation 1
+
+Click:
+- Continue until the first ETF recommendation appears.
+- Do not read the recommendation before explaining the evidence chain.
+
+Point:
+- Bodycam B / right-side feed as flame grows.
+- Basic Task Force context.
 - `Recommendations` panel.
-- `Flag Enhanced Task Force consideration for Ground Commander`.
-- Evidence frame / reason phrase.
+- ETF recommendation evidence frame.
 - `Mark for GC` and `Hold` buttons.
 
 Say:
-- “Here, the bodycam evidence shows the fire growing beyond the initial caller report.”
-- “Once the evidence window is processed, 1stSight connects that visual evidence to a command-level recommendation.”
-- “The useful part is traceability: the recommendation shows the action, the reason, and the supporting frame.”
-- Say: *read the visible recommendation action and one reason aloud*.
+- “Focus on this bodycam feed.”
+- “The fire has grown well beyond the small-fire caller brief.”
+- “Remember, the initial response was only a Basic Task Force.”
+- “This is why traceability matters: the recommendation follows evidence from the bodycam stream.”
+- Say: *read the visible ETF recommendation action and reason aloud*.
 
 Click:
 - Click `Mark for GC`.
 
 Say:
-- “I'll mark this for Ground Commander consideration.”
+- “I’ll mark this for Ground Commander consideration.”
 
-#### 00:06:30-00:07:15 — Post-fire shift
+Do not say:
+- Do not say the dashboard deploys the Enhanced Task Force.
+- Do not use the line “the recommendation shows the action, the reason, and the supporting frame.”
+
+#### 00:06:10-00:06:55 — ETF Recommendation 2: sustained growth
+
+Click:
+- Continue to `Sustained flame growth continues`.
+- If the second ETF recommendation appears, click `Mark for GC` quickly.
+
+Point:
+- `Sustained flame growth continues` event card.
+- Larger flame evidence.
+- Second ETF recommendation, if visible.
+
+Say:
+- “Now the later frame shows sustained flame growth.”
+- “This is stronger evidence that the command picture has changed.”
+- Say: *read the sustained-growth event or second ETF recommendation aloud*.
+- “I’ll mark this for Ground Commander consideration as well.”
+
+Do not say:
+- Do not dwell here if time is tight.
+
+#### 00:06:55-00:07:35 — Advance to post-fire sweep
 
 Click:
 - Click `Advance feeds`.
 - Wait until `Loading post-fire POV` clears.
 
 Point:
-- Feed transition area.
 - Bodycam A and Bodycam B post-fire POVs.
-- Bodycam C `not attached` state.
+- Bodycam C not attached to this phase.
 
 Say:
-- “Now the same incident moves after containment.”
-- “The operational risk changes from fire growth to responder safety during a welfare check.”
-- “Tze Kai and Joseph continue on Bodycam A and Bodycam B.”
+- “Now the same incident moves after containment of the fire.”
+- “Responders are doing a post-fire sweep around the surrounding area.”
+- “This is still one incident record, but the risk has shifted from fire growth to responder safety.”
 
-#### 00:07:15-00:08:20 — Responder-safety incident and Recommendation 2
+Do not say:
+- Do not describe Bodycam C as broken.
+
+#### 00:07:35-00:08:55 — Responder-safety moment and police-support recommendation
 
 Click:
-- No click; let the responder-safety sequence play.
+- If venue audio is tested, click the relevant post-fire feed and let the exchange play briefly.
+- Otherwise, leave feeds muted and narrate from visible evidence.
+- When the responder-safety recommendation appears, click `Mark for GC` if visible.
 
 Point:
-- Tze Kai POV for unsafe proximity / welfare-check interaction.
-- Joseph POV for impact and recovery.
-- Live event card when visible.
-- `Notify on-site police support for responder safety`, if visible.
+- Unsafe proximity in the welfare-check interaction.
+- Physical-contact / push-away moment.
+- Impact and recovery perspective.
+- `Notify on-site police support for responder safety` recommendation.
 
 Say:
-- “This is the second reason the product matters.”
-- “Responder-safety evidence can be brief, split across bodycams, and easy to miss if someone is scrubbing manually later.”
-- “Here, 1stSight connects unsafe proximity from Tze Kai's view with Joseph's impact and recovery from the second view.”
-- Say: *read the visible physical-contact or recovery event title aloud*.
-- “After processing both perspectives, the system links them into the same timeline, then raises police-support guidance for officer review.”
+- “I’ll let this sequence play for a moment.”
+- “Notice the physical contact and push-away motion during the welfare check.”
+- “1stSight treats this as responder-safety evidence and links the two POVs into the same timeline.”
+- Say: *read the visible police-support recommendation aloud*.
+- “I’ll mark this for Ground Commander consideration.”
 
-Click:
-- If the police-support recommendation is visible and time allows, click `Mark for GC`.
-- If not, point to it and continue.
+Do not say:
+- Avoid legal labels and intent claims.
+- Keep this as responder-safety evidence and officer-reviewed guidance.
 
-#### 00:08:20-00:09:30 — Post-incident review
+#### 00:08:55-00:09:55 — Open post-incident review
 
 Click:
 - Click `Open incident review` or the `POST-INCIDENT REVIEW` nav tab.
@@ -429,145 +456,172 @@ Click:
 
 Point:
 - `Incident timeline`.
-- Evidence count / selected-for-briefing count.
-- Dispatch milestone.
-- Fire-escalation evidence.
-- ETF recommendation / officer decision.
-- Welfare-check and responder-safety evidence.
-- Bounding boxes / labels.
+- BTF dispatch and updates.
+- Evidence cards.
+- Officer decisions.
+- Bounding boxes and labels.
 
 Say:
-- “Now the live incident becomes the review workspace.”
-- “The important thing is that review starts from an indexed evidence timeline, not hours of raw footage.”
-- “We have the major incident milestones in one place: 995 calls, BTF dispatch, arrival, situation appreciation, fire escalation, ETF review, fire-under-control updates, extinguishment details, casualty or evacuee counts if available, and officer decisions.”
-- Say: *read one visible evidence card timestamp, source, and label aloud*.
-- “Officers can still inspect the source frame, but they no longer need to hunt for every important moment from scratch.”
+- “Now I’ll move into post-incident review.”
+- “The timeline brings together the Basic Task Force dispatch, updates, evidence cards, and officer decisions.”
+- “This review starts from indexed evidence instead of raw footage.”
 
-#### 00:09:30-00:10:35 — Export 1: full incident AAR briefing deck
+#### 00:09:55-00:11:00 — Review fire and responder-safety evidence
+
+Click:
+- Scroll to `Sustained flame growth continues`.
+- Point to the bounding boxes and labels.
+- Scroll to `Impact and recovery perspective`.
+- Point to crew spacing / recovery evidence.
+
+Point:
+- `Sustained flame growth continues` card.
+- Bounding boxes.
+- Label explanations.
+- `Impact and recovery perspective` card.
+- Crew de-escalation / spacing evidence.
+
+Say:
+- “Here, the bounding boxes show what 1stSight identified as significant inside the evidence frame.”
+- “The labels explain why that region matters.”
+- Say: *read the sustained-flame evidence card title, timestamp, and source aloud*.
+- “Further down, the impact and recovery perspective shows the responder-safety moment from another view.”
+- “The useful part is that the same timeline also captures how the crew restored spacing after contact.”
+
+Do not say:
+- Avoid legal labels.
+- Do not claim formal incident-report conclusions from the footage alone.
+
+#### 00:11:00-00:12:25 — Export 1: full incident AAR briefing PDF
 
 Click:
 - Keep `Search analyzed evidence` empty.
+- Click `Download PDF`.
+- Open the downloaded PDF.
 
 Point:
 - `Generate AAR briefing slides`.
 - `Evidence selected for briefing`.
 - `Milestones selected for briefing`.
-- Full selected count.
+- PDF sections.
 
 Say:
-- “First, I export the full incident.”
+- “This evidence timeline supports the next phase: AAR briefing slides.”
 - “Typically, AAR slides are prepared within 24 hours after an incident.”
-- “This is why the evidence chain matters. The AAR becomes immediate briefing material and can support the incident report later as needed.”
+- “This is why the evidence chain matters. The AAR becomes immediate briefing material and can support a later incident report if needed.”
+- “I’ll download the PDF first so we can look at the content.”
+- “The same AAR is also available as an editable PowerPoint deck.”
+- If opened, say: *read the generated title and the visible section headings aloud*.
+- “The structure starts with brief background, area of operations, sequence of events, and SCDF responses.”
+- “The SCDF responses section shows the full incident evidence with frames and bounding boxes.”
+- “The challenges section captures responder-safety risk in the post-fire welfare check.”
+- “Then it continues into areas done well, areas for improvement, and actions taken.”
+
+Do not say:
+- Do not call the AAR a formal incident report.
+
+#### 00:12:25-00:13:15 — Search with natural language
 
 Click:
-- Click `Download PPTX`.
-- If the download is slow, click `Download PDF`.
-
-Say:
-- “This gives officers an editable AAR outcome and template immediately after the incident is concluded.”
-- If opened, say: *read the generated title and one visible AAR section heading aloud*.
-
-#### 00:10:35-00:11:35 — Search: responder-safety evidence
-
-Click:
+- Return to `POST-INCIDENT REVIEW`.
 - Click `Search analyzed evidence`.
-- Type `physical contact`.
+- Type `drunk abuse`.
 - Click `Search`.
 
 Point:
 - Search result count.
 - Highlighted evidence cards.
+- Physical-contact / unsafe-proximity cards.
 - Impact / recovery card.
-- Physical-contact / unsafe-proximity card.
 - Source timestamp and bodycam ID.
 
 Say:
-- “Now I can search the incident the way an officer would ask for it.”
-- “I'll use `drunk abuse` because it is the clearest visual term for the stage screen.”
-- “The search narrows the review to the relevant responder-safety evidence.”
+- “Now I can search the incident the way an officer might ask for it.”
+- “Because 1stSight uses natural-language search, I do not have to type the exact evidence label.”
+- “I can type `drunk abuse`, and the system maps that rough query back to the relevant responder-safety evidence.”
+- “The search narrows the review to the relevant cards.”
 
-#### 00:11:35-00:12:35 — Export 2: focused responder-safety AAR briefing deck
+Do not say:
+- Do not turn the search phrase into a legal or medical conclusion.
+
+#### 00:13:15-00:14:20 — Export 2: focused AAR briefing PDF
 
 Click:
 - Leave the search active.
+- Click `Download PDF`.
+- Open the new PDF.
+- Move to `SCDF's responses`.
+- Move to `Actions taken`.
 
 Point:
-- Filtered evidence count.
-- Highlighted responder-safety evidence.
-- Export buttons.
+- Focused evidence set.
+- `SCDF's responses` section.
+- Responder-safety evidence frames.
+- `Actions taken` section.
+- `Confirm on-site police support with Ground Commander`.
 
 Say:
-- “Because the search is active, the export now focuses on responder safety.”
-- “This becomes a focused learning deck for the welfare-check phase, using only the evidence that matches the search.”
-- “That is the workflow shift: officers can go from live incident, to full AAR, to a focused training brief without rebuilding the timeline manually.”
+- “Because the search is active, the export now focuses on the matching responder-safety evidence.”
+- “In SCDF’s responses, the selected frames are now specific to this responder-safety moment.”
+- “In actions taken, the earlier officer-reviewed recommendation appears as Ground Commander consideration.”
+- Say: *read the visible action item about on-site police support / Ground Commander aloud*.
 - “If I clear the search, export returns to the full Punggol incident.”
 
-Click:
-- Click `Download PPTX` or `Download PDF`.
-- Optional: click `Clear` after export only if you need to show the full timeline again.
-
-Say:
-- If opened, say: *read one focused responder-safety slide title or evidence caption aloud*.
-
-#### 00:12:35-00:14:10 — Architecture and operating boundary
-
-Click:
-- Return to the architecture slide if required.
-- If Q&A is likely to use evidence, stay on `POST-INCIDENT REVIEW`.
-
-Point:
-- If on deck: architecture slide.
-- If on app: evidence timeline, search, and export controls.
-
-Say:
-- “The browser only receives browser-safe configuration. AI keys and model routing stay behind backend route handlers.”
-- “The technical core is video-to-evidence: the backend extracts frames, analyses the current windows, stores source-linked evidence, and reuses that structure for live events, recommendations, search, and AAR export.”
-- “GB10 can support local text reasoning, and high-accuracy visual understanding can route to approved cloud AI when the deployment policy allows it.”
-- “So the boundary is clear: AI structures evidence and drafts recommendations; officers review decisions and final AAR conclusions.”
-
 Do not say:
-- Do not imply sensitive footage must go to cloud AI.
-- Do not overclaim autonomous command authority.
+- Do not call this a focused learning deck.
+- Do not say Ops Centre independently dispatched police.
 
-#### 00:14:10-00:15:00 — Close
+#### 00:14:20-00:15:00 — Close and booth handoff
 
 Click:
-- Leave the app on `POST-INCIDENT REVIEW`, or return to the final thank-you slide if required.
+- Return to 1stSight.
+- Click the `Bodycam` tab if time allows.
+- Leave Q&A on `POST-INCIDENT REVIEW` if judges are likely to ask about evidence.
 
 Point:
-- Evidence timeline and export controls, or closing slide.
+- Bodycam surface if opened.
+- Evidence timeline / search / export controls if staying in review.
 
 Say:
-- “That is 1stSight in one incident: live bodycam understanding, evidence-linked recommendations, searchable review, and AAR briefing slides from the same footage.”
-- “The product gives Ops Centre earlier visibility during the incident, and gives review officers a structured starting point immediately after.”
-- “Our ask is a controlled SCDF pilot using approved BWC footage, Ops Centre feedback, and measured review-time reduction.”
+- “That concludes the demo.”
+- “The two key parts are the live recommendations and the focused AAR slides from natural-language search.”
+- “AAR slides can support many review tasks, including as a precursor to a later incident report.”
+- “For the booth, we can let you try the live bodycam surface directly.”
 - “Thank you. We are happy to take questions.”
 
 Do not say:
-- Do not introduce a new scenario at the close.
+- Do not introduce a new stage scenario at the close.
 - Do not overclaim production deployment readiness.
 
 #### Failure-safe lines
 
 - Map unavailable: “The map service is unavailable in this browser session, so I will use the fallback incident marker list and continue the same dispatch flow.”
+- Public link not ready: “I’ll use the stage link for now and share the public try-out link later.”
 - Live analysis slow: “The current evidence window is still being analysed. I will continue once the supported event cards and officer-review prompts are ready.”
 - Recommendation absent: “The dashboard does not fabricate a command-level action when the evidence window does not support one.”
+- Post-fire audio not tested: “I’ll keep the feed muted and describe only the visible evidence.”
 - Review analysis slow: “The evidence timeline is still being generated from the current videos. I will continue once the cards are ready.”
 - Export slow: “PPTX and PDF use the same selected evidence. I will keep the focus on the generated evidence timeline for this run.”
-- Asked about Woodlands: “Woodlands is prepared as a booth / secondary review scenario; the stage flow stays on Punggol so the story remains one continuous incident.”
-- Asked why `physical contact` instead of `verbal aggression`: “Physical contact is the clearest visible evidence for the stage screen; verbal aggression can be searched when audio review is part of the run.”
+- Asked about Woodlands or Ubi: “Those are prepared for booth / secondary exploration; the stage flow stays on Punggol so the story remains one continuous incident.”
+- Asked why `drunk abuse` is typed: “The query demonstrates natural-language retrieval. The returned evidence is still shown as physical contact, unsafe proximity, and responder-safety evidence.”
 
 #### Critical stage guardrails
 
-- Keep the default search term as `physical contact`.
-- Use `verbal aggression` only as a search example or if audio is deliberately shown.
+- Start Joseph’s section on the app map, not on another stage-story slide.
+- Keep secondary scenarios to a two-second scope line only.
+- Use the orange Punggol marker and blue fire-station markers in the map narration.
+- Open and close the caller brief before discussing bodycam evidence.
+- Say the caller report is context; bodycam footage is the evidence layer.
+- Explain that a small-fire caller report starts with BTF / Basic Task Force.
+- Do not identify bodycam feeds by presenter names during the audio-toggle section.
 - Keep feeds muted unless venue audio is tested.
-- Use `Mark for GC` for the ETF recommendation.
-- Use `Mark for GC` for police-support guidance only if it is visible and time allows.
+- Use `Mark for GC` for both ETF recommendations when visible.
+- Use `Mark for GC` for police-support guidance when visible before opening review.
 - Frame recommendation timing as evidence processing; do not mention implementation timing mechanics to the audience.
-- Point to `Hold` only as the alternate officer review path.
+- Use `drunk abuse` as the stage search query only to demonstrate natural-language retrieval.
+- In spoken evidence wording, prefer unsafe proximity, physical contact, impact / recovery, crew spacing, and responder-safety evidence.
 - Say “AAR briefing slides” or “briefing material,” not a formal incident report.
-- Use evidence terms: unsafe proximity, physical contact, impact / recovery, crew spacing, responder-safety evidence.
+- Do not call the focused export a learning deck.
 - Avoid legal labels, intent claims, and agency follow-up without officer review.
 - Keep the Q&A app tab on `POST-INCIDENT REVIEW`.
 
