@@ -121,12 +121,12 @@ const scriptedPunggolLiveAnalysisIntervalMs = 1000;
 const punggolLiveRecommendationDelayMs = 2000;
 
 const heroImages = {
-  // codex exec '$imagegen generate an operational command centre map hero background for a firefighter bodycam incident dashboard, Singapore urban grid at night, dark inset screen material, restrained emergency amber accents, no text, no logos, save as public/ai-images/ops-map-hero.png'
-  map: "/ai-images/ops-map-hero.png",
-  // codex exec '$imagegen generate a live responder bodycam operations background, three abstract video feeds, smoke and emergency lighting implied but not graphic, command dashboard mood, dark screen surface, no text, no logos, save as public/ai-images/live-feeds-hero.png'
-  live: "/ai-images/live-feeds-hero.png",
-  // codex exec '$imagegen generate a post incident evidence review background image, bodycam frame contact sheet aesthetic, subtle bounding box overlays, dark screen surface, warm paper interface accents, no text, no logos, save as public/ai-images/evidence-review-hero.png'
-  review: "/ai-images/evidence-review-hero.png",
+  // codex exec '$imagegen generate an operational command centre map hero background for a firefighter bodycam incident dashboard, Singapore urban grid at night, dark inset screen material, restrained emergency amber accents, no text, no logos, save as public/images/hero/ops-map-hero.png'
+  map: "/images/hero/ops-map-hero.png",
+  // codex exec '$imagegen generate a live responder bodycam operations background, three abstract video feeds, smoke and emergency lighting implied but not graphic, command dashboard mood, dark screen surface, no text, no logos, save as public/images/hero/live-feeds-hero.png'
+  live: "/images/hero/live-feeds-hero.png",
+  // codex exec '$imagegen generate a post incident evidence review background image, bodycam frame contact sheet aesthetic, subtle bounding box overlays, dark screen surface, warm paper interface accents, no text, no logos, save as public/images/hero/evidence-review-hero.png'
+  review: "/images/hero/evidence-review-hero.png",
 } as const;
 
 const paperScope = "[--background:var(--paper)] [--border:oklch(82%_0.004_260)] [--card:var(--paper)] [--foreground:var(--paper-foreground)] [--muted:oklch(90%_0.003_260)] [--muted-foreground:oklch(39%_0.004_260)] [--secondary:oklch(90%_0.003_260)] [--disabled:oklch(88%_0.003_260)] [--disabled-foreground:oklch(48%_0.004_260)] [--disabled-border:oklch(76%_0.004_260)]";

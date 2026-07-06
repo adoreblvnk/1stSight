@@ -1,206 +1,149 @@
-# 1stSight runbook
+<div align="center">
+  <img src="src/app/icon.svg" alt="1stSight app icon" width=100>
+  <h1>1stSight</h1>
+  <p>
+    Command & Control dashboard for live responder bodycam sensemaking, evidence-linked post-incident review, officer-reviewed recommendations, and AAR briefing slide export.
+  </p>
+  <p>
+    Built With: Next.js 16 &bull; React 19 &bull; TypeScript 5 &bull; AI SDK 6 &bull; Tailwind CSS 4 &bull; shadcn/ui &bull; vLLM &bull; OpenShift
+  </p>
+</div>
 
-1stSight runs as a Next.js app on the laptop or OpenShift. The GB10 only hosts the local text model endpoint.
+---
 
-Current local setup:
+<details>
+<summary>Table of Contents</summary>
 
-- Laptop / WSL app: Next.js development server.
-- GB10 target: `user1@192.168.0.102`.
-- GB10 model API: `http://192.168.0.102:8000/v1`.
-- GB10 served model: `gb10-local-text`.
-- GB10 model image: `nvcr.io/nvidia/vllm:26.05.post1-py3`.
-- GB10 model: `nvidia/NVIDIA-Nemotron-Nano-9B-v2`.
+- [About](#about)
+- [Demo](#demo)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Execution](#execution)
+- [Usage](#usage)
+</details>
 
-Do not commit passwords, API keys, or real `.env*` files. `.env` is ignored by Git.
+## About
 
-## Laptop install
+1stSight is a production-shaped prototype built for the SCDF-Dell Lifesavers' Innovation Challenge 2026. It helps SCDF Ops Centre / Command & Control officers turn responder bodycam footage into a traceable incident timeline, live evidence cards, reviewable command recommendations, natural-language evidence search results, and concise AAR briefing slides in PDF and editable PPTX formats.
 
-Run these from the repo root on the laptop / WSL:
+The primary stage scenario follows one Punggol landed-house fire incident from dispatch to live fire response, fire escalation, post-fire welfare check, responder-safety evidence, officer-reviewed action prompts, post-incident review, and AAR briefing slide generation. Woodlands medical assistance remains available as a booth or secondary responder-safety review flow.
+
+High-impact actions remain officer-reviewed, and exported decks are AAR briefing material that can support later reporting.
+
+```mermaid
+flowchart LR
+  browser[Ops Centre browser] --> app[Next.js dashboard and route handlers]
+  bodycam[Responder bodycam footage] --> app
+  app --> gb10[GB10 / vLLM / Nemotron Nano 9B v2]
+  app --> openai[OpenAI vision and reasoning]
+  app --> aar[AAR PDF and PPTX export]
+  harbor[Harbor image registry] --> openshift[Dell Cloud Native Platform / OpenShift]
+  openshift --> app
+```
+
+## Demo
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=WLZtab6MVMg">
+    <img src="public/images/readme/1stsight-youtube-thumbnail_rounded.png" alt="Watch the 1stSight demo on YouTube" width="750">
+  </a>
+  <p><a href="https://www.youtube.com/watch?v=WLZtab6MVMg">Watch the 1stSight demo on YouTube</a></p>
+</div>
+
+Primary local routes:
+
+| Route | Purpose |
+| --- | --- |
+| `http://localhost:3000/map?incident=punggol-residential-fire` | Stage start point with deployment map and incident selection |
+| `http://localhost:3000/live?incident=punggol-residential-fire` | Live C&C dashboard with bodycam feeds, events, and officer-reviewed recommendations |
+| `http://localhost:3000/review?incident=punggol-residential-fire` | Post-incident evidence timeline, search, and AAR export |
+| `http://localhost:3000/bodycam` | Browser camera capture surface for live stream ingestion |
+
+Seeded incident surfaces:
+
+| Incident ID | Status |
+| --- | --- |
+| `punggol-residential-fire` | Primary live stage flow with fire response and post-fire responder-safety review |
+| `woodlands-medical-responder-safety` | Booth / secondary post-incident responder-safety AAR review |
+| `stage-medical-assistance-stream` | Live browser bodycam stream route for evaluator try-out |
+| `jurong-chemical-leak` | Map catalogue incident surface |
+| `tampines-mall-medical-assist` | Review catalogue incident surface |
+
+The current media inputs are served from `public/videos/fire/` and `public/videos/woodlands/`. Generated evidence frames are cached under `.next/cache/` during runtime analysis.
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js `24` and npm `11`.
+- Git and Docker.
+- System `ffmpeg` and `ffprobe` for frame extraction.
+- OpenShift CLI `oc`, OpenShift/Keycloak access, and Harbor access for deployment.
+- `cloudflared` and Docker on the GB10 host if using the local GB10 model endpoint.
+- `OPENAI_API_KEY` for OpenAI vision/reasoning paths.
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` for the browser map.
+
+Important environment variables are listed in `.env.example`:
+
+| Variable | Purpose |
+| --- | --- |
+| `AI_MODEL_MODE` | Model routing: `gb10-openai`, `codex`, or `openai` |
+| `GB10_OPENAI_BASE_URL` | OpenAI-compatible GB10 / vLLM endpoint |
+| `GB10_OPENAI_API_KEY` | Token for the GB10 endpoint when enabled |
+| `OPENAI_API_KEY` | Server-side OpenAI key for cloud model calls |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Browser-exposed Google Maps key |
+| `NEXT_PUBLIC_WEBRTC_*` | Optional TURN / ICE settings for browser bodycam streaming |
+| `REGISTRY`, `TEAM_NAME`, `IMAGE_NAME` | Harbor image coordinates for deployment |
+| `APP_NAME`, `CONTAINER_NAME`, `SECRET_NAME` | OpenShift deployment and secret names |
+
+### Installation
+
+Install dependencies from the repository root:
 
 ```bash
 npm ci
 ```
 
-Install system `ffmpeg` if it is missing:
+Create a local `.env` from `.env.example`, then fill the runtime values needed for the model mode you are using.
 
-```bash
-ffmpeg -version
-```
-
-Create or update `.env` locally:
-
-```bash
-AI_MODEL_MODE=gb10-openai
-GB10_OPENAI_BASE_URL=http://192.168.0.102:8000/v1
-GB10_OPENAI_API_KEY=local-dev-token
-OPENAI_API_KEY=<cloud-vision-key-if-needed>
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key>
-```
-
-Shell scripts do not automatically load `.env`; pass the needed variables inline or export them before running a script.
-
-`npm run dev` loads `.env`, checks the configured AI endpoints once, then starts Next.js. Look for `[dev-health] gb10 alive` in the startup logs.
-
-## AI model modes
-
-`AI_MODEL_MODE` controls the server-side model routing:
-
-- `gb10-openai`: text tasks use GB10; vision tasks use `OPENAI_API_KEY`. This is the default.
-- `codex`: text and vision tasks use `ai-sdk-provider-codex-cli`. Run `codex login` first.
-- `openai`: text and vision tasks use `OPENAI_API_KEY`.
-
-The app uses fixed model defaults: GB10 serves `gb10-local-text`, and OpenAI/Codex calls use `gpt-5.5`.
-
-Use GB10 plus OpenAI:
+Common local GB10 plus OpenAI vision setup:
 
 ```bash
 AI_MODEL_MODE=gb10-openai
 GB10_OPENAI_BASE_URL=http://192.168.0.102:8000/v1
 GB10_OPENAI_API_KEY=local-dev-token
 OPENAI_API_KEY=<cloud-vision-key>
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<browser-map-key>
 ```
 
-Use Codex provider for all model calls:
+Codex CLI provider setup for local development:
 
 ```bash
 AI_MODEL_MODE=codex
 ```
 
-Use OpenAI for all model calls:
+Run `codex login` before using `AI_MODEL_MODE=codex`.
 
-```bash
-AI_MODEL_MODE=openai
-OPENAI_API_KEY=<cloud-key>
-```
+### Execution
 
-## Laptop start
-
-Start the Next.js app from the repo root:
+Start the app locally:
 
 ```bash
 npm run dev
 ```
 
-Open the local URL printed by Next.js, usually:
+The dev server runs Next.js with webpack. In development, `src/instrumentation.ts` logs model reachability with `[dev-health]` messages for the selected `AI_MODEL_MODE`.
 
-```text
-http://localhost:3000
-```
-
-Useful stage routes:
-
-```text
-http://localhost:3000/map?incident=punggol-residential-fire
-http://localhost:3000/live?incident=punggol-residential-fire
-http://localhost:3000/review?incident=punggol-residential-fire
-```
-
-## Laptop stop
-
-Stop the dev server with `Ctrl-C` in the terminal running `npm run dev`.
-
-If a stale dev server is still holding port `3000`:
+Run checks before a demo or deployment:
 
 ```bash
-lsof -ti :3000 | xargs -r kill
+npx tsc --noEmit
+npm run lint
+npm run build
 ```
 
-## GB10 install
-
-Check SSH access from the laptop / WSL:
-
-```bash
-ssh user1@192.168.0.102
-```
-
-Pull the validated ARM64 vLLM image if it is missing:
-
-```bash
-ssh user1@192.168.0.102 'docker pull --platform linux/arm64 nvcr.io/nvidia/vllm:26.05.post1-py3'
-```
-
-Check that the image exists:
-
-```bash
-ssh user1@192.168.0.102 'docker image ls nvcr.io/nvidia/vllm'
-```
-
-## GB10 start
-
-If the `gb10-vllm` container already exists, start it from the laptop / WSL:
-
-```bash
-ssh user1@192.168.0.102 'docker start gb10-vllm'
-```
-
-If the container must be recreated, run this from the laptop / WSL:
-
-```bash
-ssh user1@192.168.0.102 'set -euo pipefail
-mkdir -p "$HOME/.cache/huggingface"
-docker rm -f gb10-vllm >/dev/null 2>&1 || true
-docker run -d \
-  --name gb10-vllm \
-  --gpus all \
-  --ipc=host \
-  --ulimit memlock=-1 \
-  --ulimit stack=67108864 \
-  -p 8000:8000 \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  nvcr.io/nvidia/vllm:26.05.post1-py3 \
-  python3 -m vllm.entrypoints.openai.api_server \
-    --model nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
-    --served-model-name gb10-local-text \
-    --host 0.0.0.0 \
-    --port 8000 \
-    --api-key local-dev-token \
-    --trust-remote-code \
-    --max-num-seqs 64 \
-    --max-model-len 8192 \
-    --mamba_ssm_cache_dtype float32'
-```
-
-If the 1stSight repo is also checked out on the GB10, use the flat helper to start vLLM and Cloudflare Tunnel together:
-
-```bash
-chmod +x scripts/gb10-run.sh
-export GB10_OPENAI_API_KEY=local-dev-token
-cloudflared tunnel login
-cloudflared tunnel token gb10
-./scripts/gb10-run.sh
-```
-
-The currently validated running container is named `gb10-vllm`.
-
-## GB10 status
-
-Run these on the GB10, or prefix them with `ssh user1@192.168.0.102` from the laptop / WSL.
-
-Check the container:
-
-```bash
-docker ps --filter name=gb10-vllm
-```
-
-Watch logs:
-
-```bash
-./scripts/gb10-run.sh --logs
-```
-
-Check GPU use:
-
-```bash
-nvidia-smi
-```
-
-Check the model endpoint from the laptop / WSL:
-
-```bash
-curl -H "Authorization: Bearer local-dev-token" http://192.168.0.102:8000/v1/models
-```
-
-Run the repo smoke test from the laptop / WSL:
+Smoke-test the GB10 OpenAI-compatible endpoint:
 
 ```bash
 GB10_OPENAI_BASE_URL=http://192.168.0.102:8000/v1 \
@@ -208,37 +151,72 @@ GB10_OPENAI_API_KEY=local-dev-token \
 ./scripts/gb10-smoke.sh
 ```
 
-Expected smoke result includes `gb10 ok`.
-
-## GB10 stop
-
-Run these on the GB10, or prefix them with `ssh user1@192.168.0.102` from the laptop / WSL.
-
-Stop the model server and Cloudflare Tunnel:
+Start the validated GB10 vLLM container and Cloudflare Tunnel on the GB10 host:
 
 ```bash
-./scripts/gb10-run.sh --stop
+export GB10_OPENAI_API_KEY=local-dev-token
+./scripts/gb10-run.sh
 ```
 
-Do not remove the vLLM image or Hugging Face cache before the demo unless disk space requires it. Keeping them avoids another long first-run download.
-
-## Full checks
-
-Run local checks before a demo or deployment:
+Build and deploy to OpenShift through Harbor:
 
 ```bash
-npx tsc --noEmit
-npm run lint
+./scripts/deploy.sh
 ```
 
-Run the production build check:
+Useful deployment options:
 
 ```bash
-npm run build
+./scripts/deploy.sh --help
+./scripts/deploy.sh --no-bump
+./scripts/deploy.sh --skip-smoke
+./scripts/deploy.sh --tag <tag>
 ```
 
-## More docs
+The container listens on port `8080`, installs `ffmpeg`, and uses Next.js standalone output.
 
-- `docs/deployment/GB10_MODEL_HARNESS.md`
-- `docs/deployment/OPENSHIFT_DEPLOYMENT.md`
-- `PROJECT_CONTEXT.md`
+## Usage
+
+Stage flow:
+
+1. Open `/map?incident=punggol-residential-fire`.
+2. Select the Punggol house fire marker and enter the live dashboard after dispatch preview.
+3. Watch Bodycam A, Bodycam B, and Bodycam C during the fire-response phase.
+4. Review live event cards and evidence thumbnails as they appear.
+5. Mark ETF consideration prompts for Ground Commander review when supported by evidence.
+6. Advance feeds into the post-fire sweep.
+7. Review post-fire responder-safety evidence and mark police-support guidance for Ground Commander consideration.
+8. Open `/review?incident=punggol-residential-fire` and run post-incident analysis if needed.
+9. Search analyzed evidence with rough officer language such as `drunk abuse`; results should still be framed as physical contact, unsafe proximity, impact/recovery, and responder-safety evidence.
+10. Export the selected evidence as AAR briefing PDF or PPTX. With no search active, export covers the full Punggol timeline; with responder-safety search active, export focuses on highlighted matching evidence.
+
+Key API endpoints:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/scenario` | `GET` | Full scenario state |
+| `/api/public-config` | `GET` | Browser-safe public config |
+| `/api/gb10/health` | `GET` | GB10 endpoint health check |
+| `/api/live/analyze` | `POST` | Analyze current live feed windows and return events/recommendations |
+| `/api/review/analyze` | `POST` | Extract/select post-incident evidence frames |
+| `/api/review/search` | `POST` | Search latest runtime evidence for one incident |
+| `/api/search` | `POST` | General runtime evidence search |
+| `/api/report/export?format=pdf` | `POST` | Export AAR briefing slides as PDF |
+| `/api/report/export?format=pptx` | `POST` | Export editable AAR briefing slides as PPTX |
+| `/api/recommendation-review` | `POST` | Save officer review of a recommendation |
+| `/api/stream/session` | `GET` / `POST` / `PATCH` | Manage browser bodycam stream sessions |
+| `/api/stream/chunk` | `POST` | Upload 5-second bodycam chunks for server-side analysis |
+| `/api/stream/frame` | `GET` / `POST` | Relay current browser bodycam frames |
+| `/api/stream/webrtc/*` | `GET` / `POST` | Exchange WebRTC offers, answers, and ICE candidates |
+
+Model routing:
+
+| Mode | Text tasks | Vision tasks |
+| --- | --- | --- |
+| `gb10-openai` | GB10 `gb10-local-text` through vLLM | OpenAI `gpt-5.5` |
+| `openai` | OpenAI `gpt-5.5` | OpenAI `gpt-5.5` |
+| `codex` | `ai-sdk-provider-codex-cli` `gpt-5.5` | `ai-sdk-provider-codex-cli` `gpt-5.5` |
+
+All model pipeline outputs are validated with Zod schemas before they are used by the UI or export pipeline.
+
+## License <!-- omit in toc -->
