@@ -8,7 +8,7 @@
     3rd place ($3000) at <a href="https://www.instagram.com/p/DXJYR7MFRDe">SCDF x Dell Innovation Challenge</a>.
   </p>
   <p>
-    Built With: Next.js &bull; React &bull; TypeScript &bull; AI SDK &bull; Tailwind CSS &bull; shadcn/ui &bull; vLLM &bull; OpenShift
+    Built With: Next.js &bull; AI SDK &bull; shadcn/ui &bull; vLLM &bull; OpenShift
   </p>
 </div>
 
@@ -28,7 +28,7 @@
 
 ## About
 
-1stSight is a production-shaped prototype built for the SCDF-Dell Lifesavers' Innovation Challenge 2026. It helps SCDF Ops Centre / Command & Control officers turn responder bodycam footage into a traceable incident timeline, live evidence cards, reviewable command recommendations, natural-language evidence search results, and concise AAR briefing slides in PDF and editable PPTX formats.
+1stSight helps SCDF Ops Centre / Command & Control officers turn responder bodycam footage into reviewable live recommendations, an incident timeline, natural-language evidence search, & concise AAR (After Action Review) briefing slides. 3rd place ($3000) at the [SCDF x Dell Innovation Challenge](https://www.instagram.com/p/DXJYR7MFRDe).
 
 High-impact actions remain officer-reviewed, and exported decks are AAR briefing material that can support later reporting.
 
@@ -130,9 +130,7 @@ Start the app locally:
 npm run dev
 ```
 
-The dev server runs Next.js with webpack. In development, `src/instrumentation.ts` logs model reachability with `[dev-health]` messages for the selected `AI_MODEL_MODE`.
-
-Run checks before a demo or deployment:
+The dev server runs Next.js with webpack. Run checks before a demo or deployment:
 
 ```bash
 npx tsc --noEmit
@@ -181,8 +179,6 @@ Model routing:
 | `gb10-openai` | Nemotron Nano 9B v2 via vLLM | GPT 5.5 |
 | `openai` | GPT 5.5 | GPT 5.5 |
 | `codex` | `ai-sdk-provider-codex-cli` with GPT 5.5 | `ai-sdk-provider-codex-cli` with GPT 5.5 |
-
-All model pipeline outputs are validated with Zod schemas before they are used by the UI or export pipeline.
 
 ## License <!-- omit in toc -->
 
